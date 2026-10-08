@@ -222,3 +222,15 @@ Google Calendar APIの同期を利用するには、Google Cloudで一度だけO
 - クライアントID未設定時は、初期設定入力欄を開いて案内します。
 - HTTP 403の原因が取得できる場合、API無効・権限不足などのヒントを表示します。
 - この版の自動テストはモック通信によるものです。**実際のGoogleアカウントとの接続確認済みを意味しません。** テストユーザー登録、承認済みJavaScript生成元、Google Calendar APIの有効化が必要です。
+
+## v1.3.2：開発者が一度だけ行うGoogleログイン設定
+
+OAuthクライアントIDはアプリ共通の識別子です。利用者向け設定画面には入力欄を置かず、開発者がGitHubのリポジトリ変数に一度だけ設定します。
+
+1. Google Cloud ConsoleでGoogle Calendar APIを有効にし、Google Auth Platformで「ウェブアプリケーション」のOAuthクライアントを作成します。承認済みJavaScript生成元に `https://suzu2384.github.io` を指定（`/kondate/` は含めない）。
+2. `suzu2384/kondate` の **Settings → Secrets and variables → Actions → Variables → New repository variable** から `GOOGLE_OAUTH_CLIENT_ID` を作成し、発行されたクライアントID（`xxxx.apps.googleusercontent.com`）を設定。
+3. **Actions → Test and deploy GitHub Pages → Run workflow** で再デプロイ。以降は通常のpushで自動的に同じIDを使います。
+
+Googleアカウントでログインする利用者にIDの発行・入力は不要です。Client Secretは使用しません。ビルド時に `dist/src/config.js` にIDが埋め込まれます。クライアントIDは公開情報なので、GitHub Pagesから見えても問題ありません。
+
+開発者による設定前は、アプリに「Googleログインの初期設定が必要」と表示され、ログインは利用できません。一般公開にはGoogle OAuth同意画面の公開・審査などの要件が別途あります。旧端末設定・旧バックアップに入っていたクライアントIDは無視し、カレンダー選択や下書きは維持します。
