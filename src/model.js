@@ -1,5 +1,15 @@
 export const today = () => localDate(new Date());
 export function localDate(d) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; }
+/** Dates for a stable 6-week (7 × 6) calendar view, including adjacent-month days. */
+export function monthGridDates(year,monthIndex){
+ const start=new Date(year,monthIndex,1,12);
+ start.setDate(1-start.getDay());
+ return Array.from({length:42},(_,index)=>{
+  const date=new Date(start);
+  date.setDate(start.getDate()+index);
+  return localDate(date);
+ });
+}
 export function addDays(s,n) {const d=new Date(`${s}T12:00:00`); d.setDate(d.getDate()+n); return localDate(d);}
 export const normalize = s => String(s??'').normalize('NFKC').trim().replace(/[\s　]+/g,'').toLocaleLowerCase('ja');
 export const uid=()=>crypto.randomUUID().replaceAll('-','');

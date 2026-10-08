@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildMaster,eventPayload,eventRecord,normalize,defaultRules,parseLegacy,legacyFingerprint} from '../src/model.js';
+import {buildMaster,eventPayload,eventRecord,normalize,defaultRules,parseLegacy,legacyFingerprint,monthGridDates} from '../src/model.js';
 import {generate,reroll,validatePlan} from '../src/generator.js';
 import {catalog} from '../src/catalog.js';
 import {AIService} from '../src/ai.js';
@@ -54,3 +54,15 @@ test('AI cannot change fixed dishes',async()=>{
 });
 
 test('external changes invalidate a previous import decision',()=>{const original={id:'x',summary:'カレー',start:{date:ref}};const legacy={x:{accepted:true,source:legacyFingerprint(original),dishes:[{name:'カレー',category:'main'}]}};assert.equal(eventRecord(original,legacy).status,'actual');const changed=eventRecord({...original,summary:'焼き魚'},legacy);assert.equal(changed.status,'unreviewed');assert.equal(changed.dishes[0].name,'焼き魚');});
+
+test('month calendar always spans 6 rows, regardless of month length',()=>{
+ for(const [year,month] of [[2026,1],[2026,9],[2026,7],[2027,1]]){
+  const dates=monthGridDates(year,month);
+  const prefix=`${year}-${String(month+1).padStart(2,'0')}-`;
+  assert.equal(dates.length,42);
+  assert.equal(new Date(`${dates[0]}T12:00:00`).getDay(),0);
+  assert.equal(new Date(`${dates.at(-1)}T12:00:00`).getDay(),6);
+  assert.equal(dates.filter(date=>date.startsWith(prefix)).length,new Date(year,month+1,0).getDate());
+  assert.equal(new Set(dates).size,42);
+ }
+});
