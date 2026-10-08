@@ -54,7 +54,15 @@ function extraEvents(){
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
 function persist(){saveState(state);}
 function notify(message){$('#notice').hidden=!message;$('#notice').textContent=message;}
-function updateConnection(){ $('#connection-label').textContent=busy?'同期中…':api.connected?'接続済み':'未接続';$('#connection').classList.toggle('online',api.connected);$('#sync').disabled=busy||!api.connected||!(assignedIds().length||state.extraCalendarIds.length);}
+function updateConnection(){
+ const connected=api.connected;
+ $('#connection-label').textContent=busy?'同期中…':connected?'接続済み':'未接続';
+ $('#connection-action').textContent=connected?'接続設定':'ログイン';
+ $('#connection').title=connected?'Google接続設定を開く':'Googleにログインする';
+ $('#connection').setAttribute('aria-label',$('#connection').title);
+ $('#connection').classList.toggle('online',connected);
+ $('#sync').disabled=busy||!connected||!(assignedIds().length||state.extraCalendarIds.length);
+}
 function render(){applyTheme(state.theme);updateConnection();document.querySelectorAll('[data-tab]').forEach(b=>{if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});$('#main').innerHTML=({calendar:calendarScreen,generate:generateScreen,photo:photoScreen,settings:settingsScreen}[tab])();}
 function empty(title,text,action=''){return `<div class="empty"><div class="empty-symbol">⌑</div><strong>${title}</strong><p>${text}</p>${action}</div>`;}
 function button(text,action,cls='',attrs=''){return `<button class="${cls}" data-action="${action}" ${attrs}>${text}</button>`;}
@@ -223,7 +231,8 @@ const actions={
 };
 async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))return;await actions[action]?.(b);}catch(error){if($('#dialog').open&&$('#dialog-error'))$('#dialog-error').textContent=error.message;else notify(error.message);updateConnection();}}
 document.addEventListener('click',e=>{const tabButton=e.target.closest('[data-tab]');if(tabButton){tab=tabButton.dataset.tab;notify('');render();if(tab==='settings')api.loadIdentity().catch(error=>notify(error.message));return;}const b=e.target.closest('[data-action]');if(b)run(b.dataset.action,b);});
-$('#connection').addEventListener('click',()=>run('settings'));
+// Make mobile reconnection a single tap. The OAuth popup begins from this click.
+$('#connection').addEventListener('click',()=>run(api.connected?'settings':'connect'));
 $('#sync').addEventListener('click',()=>run('sync'));
 $('#dialog').addEventListener('cancel',()=>{editor=null;});
 document.addEventListener('input',e=>{const el=e.target;
