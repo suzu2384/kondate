@@ -9,7 +9,7 @@ test('pagination retrieves every page and encodes calendar IDs',async()=>{let n=
 test('duplicate retry recovers the same insert without creating a new ID',async()=>{let calls=[];const c=client(async(url,options)=>{calls.push(options.method);return options.method==='POST'?response({},409):response({...eventPayload(record),id:record.id});});assert.equal((await c.insert('cal',record)).id,record.id);assert.deepEqual(calls,['POST','GET']);});
 test('same ID with different content is not silently accepted',async()=>{const c=client(async(u,o)=>o.method==='POST'?response({},409):response({...eventPayload(record),description:'different'}));await assert.rejects(()=>c.insert('cal',record),/内容が異なります/);});
 test('etag updates reject concurrent modification',async()=>{const c=client(async(u,o)=>{assert.equal(o.headers['If-Match'],'"v1"');assert.equal(o.method,'PATCH');return response({},412);});await assert.rejects(()=>c.update('cal',record),/他の端末/);});
-test('delete requires explicit owned event and protects foreign events',async()=>{let called=false;const c=client(async()=>{called=true;return response(null,204);});assert.throws(()=>c.remove('cal',{...record,owned:false}),/削除できません/);assert.equal(called,false);await c.remove('cal',record);assert.equal(called,true);});
+test('delete sends a confirmed Google Calendar request for existing events',async()=>{let calls=0;const c=client(async(u,o)=>{calls++;assert.equal(o.method,'DELETE');assert.equal(o.headers['If-Match'],record.etag);return response(null,204);});await c.remove('cal',{...record,owned:false});assert.equal(calls,1);assert.throws(()=>c.remove('cal',{...record,etag:''}),/削除情報/);assert.equal(calls,1);});
 test('expired tokens are cleared and network errors remain actionable',async()=>{const c=client(async()=>response({},401));await assert.rejects(()=>c.events('cal','2026-01-01','2027-01-01'),/有効期限/);assert.equal(c.connected,false);assert.equal(c.token,null);const offline=client(async()=>{throw Error('offline');});await assert.rejects(()=>offline.insert('cal',record),/入力内容は保持/);});
 
 test('Calendar API reports a specific hint when API is disabled',async()=>{
@@ -160,4 +160,21 @@ test('Google Calendar sign-in persists token and works without sessionStorage ac
   if(previousGoogle===undefined)delete globalThis.google;else globalThis.google=previousGoogle;
   if(previousStorage===undefined)delete globalThis.sessionStorage;else globalThis.sessionStorage=previousStorage;
  }
+});
+
+test('editing an existing meal-calendar event patches Google without changing its time',async()=>{
+ const raw={id:'outside',summary:'夕食：鮭',etag:'"source"',start:{dateTime:'2026-10-08T19:00:00+09:00'},end:{dateTime:'2026-10-08T20:00:00+09:00'},extendedProperties:{private:{other:'preserved'}}};
+ const c=client(async(url,options)=>{
+  assert.match(url,/outside$/);
+  assert.equal(options.method,'PATCH');
+  assert.equal(options.headers['If-Match'],'"source"');
+  const body=JSON.parse(options.body);
+  assert.equal(body.summary,'【献立】鮭');
+  assert.equal(body.start,undefined);
+  assert.equal(body.end,undefined);
+  assert.deepEqual(body.extendedProperties.private,{other:'preserved',kondate:'1',state:'actual'});
+  return response({...raw,...body});
+ });
+ const result=await c.update('cal',{id:'outside',date:'2026-10-08',status:'actual',owned:false,etag:'"source"',raw,dishes:[{name:'鮭',category:'main'}]});
+ assert.equal(result.id,'outside');
 });

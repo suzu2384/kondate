@@ -17,8 +17,16 @@ test('normalization unifies full-width and spaces, aliases aggregate confirmed r
 test('structured events round trip; plans do not become actuals; exclusive end date',()=>{
  const payload=eventPayload({date:'2026-12-31',status:'plan',dishes:[{name:'煮魚',category:'main'}]});assert.equal(payload.end.date,'2027-01-01');const r=eventRecord({...payload,id:'test',etag:'1'});assert.equal(r.status,'plan');assert.equal(r.dishes[0].name,'煮魚');assert.equal(buildMaster([r]).length,0);
 });
-test('external events stay unreviewed until local confirmation; originals unchanged',()=>{
- const e={id:'legacy',summary:'夕食：鮭、サラダ',start:{date:'2026-10-01'}};const original=JSON.stringify(e);assert.equal(eventRecord(e).status,'unreviewed');assert.equal(parseLegacy(e).length,2);assert.equal(eventRecord(e,{legacy:{accepted:true,source:legacyFingerprint(e),dishes:[{name:'鮭',category:'main'}]}}).status,'actual');assert.equal(JSON.stringify(e),original);
+test('existing meal-calendar events are confirmed immediately without local import decisions',()=>{
+ const e={id:'legacy',summary:'夕食：鮭、サラダ',start:{date:'2026-10-01'}};
+ const original=JSON.stringify(e);
+ const record=eventRecord(e);
+ assert.equal(record.status,'actual');
+ assert.equal(record.owned,false);
+ assert.equal(record.dishes.length,2);
+ assert.equal(buildMaster([record]).reduce((n,d)=>n+d.count,0),2);
+ assert.equal(eventRecord(e,{legacy:{accepted:false,source:legacyFingerprint(e)}}).status,'actual');
+ assert.equal(JSON.stringify(e),original);
 });
 test('timestamp events use calendar timezone and invalid structured events stay protected',()=>{
  assert.equal(eventRecord({id:'x',summary:'夕食',start:{dateTime:'2026-10-01T18:00:00Z'}}).date,'2026-10-02');assert.equal(eventRecord({id:'x',start:{date:ref},extendedProperties:{private:{kondate:'1'}},description:'bad'}).status,'invalid');

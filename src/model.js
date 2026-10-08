@@ -33,8 +33,9 @@ export function eventRecord(event,legacy={},categories=defaultCategories,timeZon
  if(p.kondate==='1'){
   try {const data=JSON.parse(event.description?.split('\n--- kondate:v1 ---\n')[1]||'');return {id:event.id,date,status:p.state==='plan'?'plan':p.state==='actual'?'actual':'invalid',dishes:validateDishes(data.dishes),owned:true,etag:event.etag,raw:event};}catch{return {id:event.id,date,status:'invalid',dishes:[],owned:true,raw:event,etag:event.etag};}
  }
- const stored=legacy[event.id];const decision=stored?.source===legacyFingerprint(event)?stored:null;
- return {id:event.id,date,status:decision?.accepted?'actual':'unreviewed',dishes:decision?.dishes||parseLegacy(event,categories),owned:false,etag:event.etag,raw:event};
+ // All events in a selected meal calendar are confirmed; no device-local acceptance state.
+ const dishes=parseLegacy(event,categories);
+ return {id:event.id,date,status:dishes.length?'actual':'invalid',dishes,owned:false,etag:event.etag,raw:event};
 }
 export function buildMaster(records,aliases={},metadata={},manual=[]) {
  const map=new Map();
