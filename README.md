@@ -1,1 +1,181 @@
-# kondate
+# 献立ノート / kondate
+
+Googleカレンダーを実績の正本として使う、スマートフォン向けの静的献立管理アプリです。HTML / CSS / JavaScript ES Modulesのみ。実行時のnpm依存、バックエンド、外部DB、Cloudflare、Firebaseはありません。AI未設定で基本機能を使用できます。
+
+## 起動
+
+Node.js 20以上とPython 3がある環境で実行します。
+
+```sh
+npm test
+npm run build
+npm start
+```
+
+`http://localhost:5173/` を開きます。`file://` での直接起動はES ModulesとOAuthに対応しません。ビルドは公開対象だけを `dist/` へコピーします。パッケージインストールは不要です。
+
+## GitHubとGitHub Pagesへの公開
+
+この手順は `suzu2384/kondate` を新規作成する場合です。既存リポジトリに上書きしないでください。
+
+1. GitHubで `kondate` というリポジトリを作成します。無料プランでPagesを利用する場合はPublicにします。ソースコードは公開されますが、カレンダー内容や端末の下書きはコミットしません。
+2. このフォルダの内容（隠しフォルダ `.github` を含む）を `main` ブランチへ追加します。
+3. Settings → Pages → Build and deployment → Source を **GitHub Actions** に設定します。
+4. Actions → **Test and deploy GitHub Pages** → Run workflow。以降はmainへのpushでテスト・ビルド・公開します。
+5. Actionsの成功とPagesの公開URLを確認します。通常は `https://suzu2384.github.io/kondate/` ですが、GitHubの表示を正としてください。
+6. 公開後、次のGoogle設定で本番の生成元を追加してください。
+
+CLIを使う場合（GitHub CLIの認証済み環境）：
+
+```sh
+git init -b main
+git add .
+git commit -m "Build Kondate Note static calendar meal planner"
+gh repo create kondate --public --source=. --remote=origin --push
+```
+
+Pages設定は上記3を行います。公開対象は `dist/` のみ。テスト・README・端末データは配信しません。相対URLを使っているため、ルート配信と `/kondate/` のどちらでも動作します。
+
+## Google Cloud設定（利用者自身で行う操作）
+
+Google Cloudのプロジェクト作成・同意画面・利用アカウントの認証は、利用者のGoogleアカウントで行ってください。課金契約や有料サービスを追加する必要はありません。APIの割り当て制限は適用されます。
+
+1. [Google Cloud Console](https://console.cloud.google.com/) にログインし、新規プロジェクトを作成・選択します。
+2. 「APIとサービス」→「ライブラリ」で **Google Calendar API** を検索し、有効化します。
+3. **Google Auth Platform**（旧「OAuth同意画面」）で初期設定します。
+   - Branding：アプリ名 `献立ノート`、サポートメール、開発者連絡先。
+   - Audience：個人利用ならExternal。テスト状態では **Test users** に実際に使うGoogleアカウントを追加します。家族と使うなら家族のアカウントも追加します。
+   - Data Access：次の2スコープを追加します。
+     - `https://www.googleapis.com/auth/calendar.calendarlist.readonly`
+     - `https://www.googleapis.com/auth/calendar.events`
+   - Internalは対象のGoogle Workspace組織内に限られます。
+4. Clients → Create client → Application type **Web application**。
+5. **Authorized JavaScript origins（承認済みJavaScript生成元）** に以下を追加します。
+   - 本番：`https://suzu2384.github.io`
+   - 開発時：`http://localhost:5173`
+   - URLのパス `/kondate/` や末尾スラッシュは入力しません。
+   - ポップアップ型Token Modelを使うので、この実装ではリダイレクトURIやクライアントシークレットを使用しません。
+6. 発行された **Client ID**（末尾が `.apps.googleusercontent.com`）をコピーします。
+7. 献立ノート → 設定 → Google OAuthクライアントIDへ貼り付け →「Googleに接続」。カレンダー一覧とイベント読み書きの両方を許可します。
+8. 利用するカレンダーを選択します。選択後に履歴を取得します。料理以外の予定の誤取り込みを避けるため、献立専用のカレンダーが便利です。カレンダー作成はGoogleカレンダー側で行ってください。
+9. 別の端末では同じClient IDを設定し、同じカレンダーを選択します。共有カレンダーを家族が編集する場合は、Googleカレンダー側でその人へ編集権限を付与してください。
+
+公開運用に切り替える場合、Googleのスコープ分類・ユーザー数・対象によってOAuth検証やプライバシーポリシー等の要件が変わります。Google Auth Platformの表示に従って設定してください。本アプリは審査済みアプリであることを前提にしていません。テスト状態に追加していないアカウントでは接続できません。
+
+### 認証の扱い
+
+公式のGoogle Identity Services Token Modelを使用します。アクセストークンはJavaScriptのメモリ上のみ保持し、localStorage・Cookie・Service Workerキャッシュ・書き出しファイルへ保存しません。リフレッシュトークンは使いません。トークン有効期間中は再利用し、同意を毎回強制する `prompt=consent` は設定しません。
+
+Googleの公式仕様に合わせ、有効期限切れ・再読み込み後にはユーザー操作による再接続が必要です。GitHub Pagesだけで常時無操作の更新を実現する仕組みは実装していません。Googleのセッションやブラウザ設定により、アカウント選択・同意の表示頻度は変わります。
+
+「接続を解除」はこのアプリ内のトークンを破棄します。Google側の権限自体を撤回したい場合は [Googleアカウントの接続管理](https://myaccount.google.com/connections) を使います。
+
+### 接続できないとき
+
+- `origin_mismatch`：スキーム・ドメイン・ポートを確認。生成元に `/kondate/` を含めない。
+- アクセス拒否：テストユーザー登録、対象アカウント、同意したスコープを確認。
+- 403：APIの有効化、カレンダーの編集権限、利用制限を確認。
+- 認証ウィンドウが出ない：ポップアップ許可を確認。iPhoneホーム画面版ではSafariでも試す。
+- 認証切れ：再接続して下書きから保存を再試行。
+- 競合表示：ほかの端末で変更されています。下書きを維持したまま同期し、最新の予定を確認してください。古い編集をそのまま強制上書きする機能はありません。必要なら入力を控え、下書きを破棄して最新の予定を開き直してください。
+
+## 使い方
+
+### カレンダー・実績
+
+- 月表示で日付を選択。スマートフォンは詳細ダイアログ、PCは右ペインに表示。
+- 「実績を登録」は当日が初期値。「この日に登録」は選択日が初期値。
+- 主菜・副菜・汁物などを複数登録。料理名はマスターの候補から選択可能。
+- 調理実績と献立案を区別。献立案は調理回数・最終調理日に加算しません。
+- 保存時にGoogleへ送信。通信失敗時は入力内容と登録IDを保持。再試行は同じIDで行い、重複イベントを防止します。
+- 同期は指定開始日から現在年の翌年末まで全ページを取得してキャッシュを置き換えます。さらに先の年を表示して同期すると取得範囲が延びます。削除や他端末の変更も反映します。日付境界の取得は日本時間、時刻付き予定の表示日は選択カレンダーのタイムゾーン基準です。
+- 複数料理は1イベントにまとめるため、1回の登録が部分成功することはありません。
+
+### 既存イベントの取り込み
+
+既存の予定は最初は **取り込み未確認** です。タイトルから `夕食：` や `【献立】` 等を除き、読点・カンマ・スラッシュで料理を抽出します。説明に `主菜：` `副菜：` 等がある場合はその行を優先します。人名・一般予定なども混ざり得るため、日付→内容確認で料理名・分類を修正して取り込みます。
+
+確認結果は端末ごと・カレンダーごとに保存。**外部イベントのタイトル・説明・日付をPATCH/DELETEしません**。取り込み解除もローカル操作のみです。未確認イベントを大量に自動承認する機能は設けていません。書式不明のアプリイベントは保護して表示します。
+
+### 料理マスター
+
+実績から正規化した料理名で集約し、最終調理日・回数・日付一覧を自動計算します。NFKC、空白除去、大文字小文字の統一に対応。意味が同じ別表記は料理マスターの名前編集で統一します。表記統一・食材・調理法・ジャンルの補足は端末設定です。元のGoogleイベントを一括書き換えません。
+
+初期候補は履歴とは別に40品を同梱。設定で無効化できます。「未調理」は取得対象の確定履歴に出ていないことを意味し、取得期間外の実績までは判定しません。新しい主菜を追加したい場合は料理マスターで新規登録します。
+
+### 献立生成と編集
+
+日付なしの1〜31日分、初期値7日。日数・ルール・分類ごとの品数を指定できます。
+
+- 最近7日の実績を除外、30日以上作っていない料理を優先（変更可）。
+- 生成内の重複を除外。食材・調理法・ジャンルの総数と直前の日・同日の構成にペナルティを付け、履歴スコアとランダム要素で選定。
+- 未調理の主菜を少なくとも1品加える設定。
+- 候補不足は空欄と理由を表示。無断の条件緩和・重複はしません。
+- 料理名を押して差し替え・追加・削除。○/●で固定、↻で個別再抽選、↑↓で日を交換。
+- 全体再生成でも固定を維持。固定料理自体がルールに反する場合は残して警告。
+- 「作ったら記録」で内容確認→実績保存。生成だけではGoogleへ送信しません。
+- 下書きは端末へ自動保存。端末間で献立案を移す場合は設定・下書きの書き出し/読み込みを利用。
+
+### テーマ・PWA
+
+赤・黄・緑・シアン・青・マゼンタ・無彩色の7系統×ライト/ダーク。OS追従も可能です。画面全体は固定し、内容部分だけスクロールします。iPhoneはSafariの共有→ホーム画面に追加。Androidはブラウザのインストール/ホーム画面へ追加。
+
+Service Workerは同一オリジンのアプリ資材だけをキャッシュします。Google APIや認証ライブラリをキャッシュしません。初回はオンラインが必要。オフライン時は既存の履歴キャッシュ・献立編集・テーマ変更を使えます。実績のGoogle保存はオンライン時に明示的に行います。自動バックグラウンド送信はありません。
+
+## 構成
+
+| ファイル | 役割 |
+| --- | --- |
+| `src/app.js` | 4タブ、ダイアログ、状態遷移、各サービスとの接続 |
+| `src/model.js` | イベント変換、表記統一、料理履歴集計 |
+| `src/google.js` | GIS認証、Calendar REST API、ページネーション、ETag、再試行ID |
+| `src/generator.js` | UI非依存のルールベース生成・再抽選・検証 |
+| `src/storage.js` | 設定/下書き/カレンダー別キャッシュの端末保存 |
+| `src/catalog.js` | 履歴と区別された初期候補 |
+| `src/themes.js` | テーマの一元管理 |
+| `src/ai.js` | 将来のAIプロバイダー境界・結果検証 |
+| `sw.js` | アプリ資材のオフライン対応 |
+| `.github/workflows/pages.yml` | テスト後にGitHub Pagesへ公開 |
+
+アプリイベント：`extendedProperties.private.kondate = "1"`、`state = "actual" / "plan"`。説明に `--- kondate:v1 ---` で区切ったJSONを保存。JSONには料理名・分類ID・食材・調理法・ジャンルを含めます。終日イベントのendは翌日（排他的）。カスタム分類の表示名は端末設定にあり、別端末では設定移行が必要です。
+
+## AI接続の残作業
+
+現在、AI API呼び出し・キー入力欄・キー永続保存は実装しません。通常機能には影響しません。`new AIService(provider)` に以下のインターフェースを持つプロバイダーを渡す設計です。
+
+```js
+const provider = {
+  async generate({ master, rules, previous }) {
+    // 戻り値: [{ id, dishes: [{name, category, protein, method, genre, locked}] }]
+  },
+  async analyzePhoto(file) {
+    // 戻り値: [{name, category, protein, method, genre}]
+  }
+};
+```
+
+方針確定後に必要なこと：
+
+1. 無料枠・ブラウザからのCORS対応・利用規約を確認してプロバイダーを選定。
+2. キーの取得と保管の方針を決定し、キー取得をプロバイダーへ注入。ソース/リポジトリへの埋め込みは禁止。
+3. APIのリクエスト/レスポンス変換・タイムアウト・レート制限・キャンセル・利用枠の表示を実装。
+4. ユーザーに送信内容（料理履歴/写真）を示し、送信の操作を経る。
+5. `src/app.js` の `new AIService()` にプロバイダーを接続し、AI選択と写真解析を有効化。
+6. 固定料理・重複・直近除外・日数・品数・新しい主菜をアプリで検証。写真は料理候補を編集ダイアログに渡し、確認保存するまで確定しない。
+7. 誤推定・不正JSON・ネットワーク障害・写真サイズ/形式・モバイルメモリ量を統合検証。
+
+写真選択/カメラ用入力、ローカルプレビュー、手入力への導線は実装済みです。AI未設定では写真を送信しません。
+
+## テストと確認範囲
+
+`npm test` で履歴集計、予定と実績の分離、既存予定保護、生成ルール、候補不足、固定、再抽選、AI検証、APIページネーション、重複再試行、ETag競合、認証切れ・通信失敗を検証します。Google APIはテスト用レスポンスを使います。
+
+実際のGoogleアカウントでの認証・Calendar APIへの書き込み・iPhone/Android実機のPWA認証・GitHub Pages本番公開は、各設定と接続が完了した後の確認が必要です。これらの設定前に実機確認済みとは扱いません。
+
+## 公式仕様
+
+- [Google GIS Token Model](https://developers.google.com/identity/oauth2/web/guides/use-token-model)
+- [Google Calendar API Events](https://developers.google.com/workspace/calendar/api/v3/reference/events)
+- [Calendarの拡張プロパティ](https://developers.google.com/workspace/calendar/api/guides/extended-properties)
+- [Calendar ETagと更新競合](https://developers.google.com/calendar/api/guides/version-resources)
+- [GitHub Pagesカスタムワークフロー](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
