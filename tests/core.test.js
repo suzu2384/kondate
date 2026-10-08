@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {buildMaster,eventPayload,eventRecord,normalize,defaultRules,parseLegacy,legacyFingerprint,monthGridDates} from '../src/model.js';
+import {buildMaster,eventPayload,eventRecord,normalize,defaultCategories,defaultRules,parseLegacy,legacyFingerprint,monthGridDates} from '../src/model.js';
 import {generate,reroll,validatePlan} from '../src/generator.js';
 import {catalog} from '../src/catalog.js';
-import {activeCalendarIds,calendarForCategory,splitRecordByCalendar} from '../src/calendar-routing.js';
+import {activeCalendarIds,calendarForCategory,splitRecordByCalendar,migrateCategoryCalendars} from '../src/calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES} from '../src/calendar-display.js';
 import {AIService} from '../src/ai.js';
 const ref='2026-10-08';
@@ -77,12 +77,13 @@ test('month calendar always spans 6 rows, regardless of month length',()=>{
  }
 });
 
-test('categories route to separate calendars without duplicate sync requests',()=>{
+test('categories require explicit calendars and share identical destinations',()=>{
  const categories=[{id:'main'},{id:'side'},{id:'soup'}],assigned={main:'A',side:'B',soup:'B'};
  assert.equal(calendarForCategory('main','default',assigned),'A');
- assert.equal(calendarForCategory('other','default',assigned),'default');
- assert.deepEqual(activeCalendarIds('default',categories,assigned),['default','A','B']);
- assert.deepEqual(activeCalendarIds('default',categories,{main:'default'}),['default']);
+ assert.equal(calendarForCategory('other','default',assigned),'');
+ assert.deepEqual(activeCalendarIds('default',categories,assigned),['A','B']);
+ assert.deepEqual(activeCalendarIds('default',categories,{main:'A'}),['A']);
+ assert.deepEqual(activeCalendarIds('default',categories,{}),[]);
 });
 test('new meal splits by destination and keeps stable per-calendar IDs for retry',()=>{
  const input={id:'abc123',date:'2026-10-08',status:'actual',dishes:[
@@ -113,4 +114,17 @@ test('icon matching displays only an icon without altering the original event',(
  assert.equal(matchIcon('打ち合わせ',rules),'');
  assert.equal(event.summary,'可燃ごみ 回収');
  assert.ok(ICON_CHOICES.includes('♻️'));
+});
+
+test('new installations start with Main only',()=>{
+ assert.deepEqual(defaultCategories,[{id:'main',name:'主菜'}]);
+ assert.deepEqual(defaultRules.counts,{main:1});
+ assert.deepEqual(activeCalendarIds('',defaultCategories,{}),[]);
+ assert.throws(()=>splitRecordByCalendar({id:'a',date:ref,dishes:[{name:'カレー',category:'main'}]},'',{}),/保存先カレンダーが未設定/);
+});
+test('legacy default calendar migrates to Main without overwriting explicit settings',()=>{
+ const categories=[{id:'main'},{id:'side'}];
+ assert.deepEqual(migrateCategoryCalendars(categories,{side:'side-id'},'old-id'),{main:'old-id',side:'side-id'});
+ assert.deepEqual(migrateCategoryCalendars(categories,{main:'chosen',side:'side-id'},'old-id'),{main:'chosen',side:'side-id'});
+ assert.deepEqual(migrateCategoryCalendars(categories,{},''),{});
 });

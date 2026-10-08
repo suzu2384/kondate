@@ -135,3 +135,17 @@ dialog::backdrop{background:#0008}
 .icon-rule-row{display:grid;grid-template-columns:minmax(0,1fr) 68px 36px;gap:6px;align-items:center;margin:6px 0}
 .icon-rule-row select{font-size:18px;text-align:center;padding:3px}
 .icon-rule-row .mini{min-width:34px;padding:4px}
+
+/* v1.3.8: contain iOS date picker and calendar selects in the settings panel. */
+.settings-grid,.settings-card,.settings-card .field{min-width:0;max-width:100%;}
+.settings-card{overflow-wrap:anywhere;}
+.settings-card input,.settings-card select,.settings-card textarea{min-width:0;max-width:100%;box-sizing:border-box;}
+.settings-card input[type=date]{display:block;width:100%;min-width:0;max-width:100%;}
+@media(max-width:760px){
+ #main,.screen,.settings-grid{min-width:0;max-width:100%;overflow-x:clip;}
+ .settings-grid{grid-template-columns:minmax(0,1fr);}
+ .settings-card{min-width:0;overflow-x:clip;}
+ .settings-card .field{display:block;width:100%;max-width:100%;min-width:0;}
+ .settings-card input[type=date]{font-size:16px;inline-size:100%;min-inline-size:0;max-inline-size:100%;}
+ .settings-card .check-row>span,.settings-card .check-row>label{min-width:0;overflow-wrap:anywhere;}
+}

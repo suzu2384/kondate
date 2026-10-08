@@ -13,8 +13,8 @@ export function monthGridDates(year,monthIndex){
 export function addDays(s,n) {const d=new Date(`${s}T12:00:00`); d.setDate(d.getDate()+n); return localDate(d);}
 export const normalize = s => String(s??'').normalize('NFKC').trim().replace(/[\s　]+/g,'').toLocaleLowerCase('ja');
 export const uid=()=>crypto.randomUUID().replaceAll('-','');
-export const defaultCategories=[{id:'main',name:'主菜'},{id:'side',name:'副菜'},{id:'soup',name:'汁物'}];
-export const defaultRules={days:7,preferOld:true,oldDays:30,excludeRecent:true,recentDays:7,unique:true,balance:true,newMain:true,counts:{main:1,side:1,soup:1}};
+export const defaultCategories=[{id:'main',name:'主菜'}];
+export const defaultRules={days:7,preferOld:true,oldDays:30,excludeRecent:true,recentDays:7,unique:true,balance:true,newMain:true,counts:{main:1}};
 export function resolveName(name,aliases={}) {let n=String(name).trim(),seen=new Set(); while(aliases[normalize(n)]&&!seen.has(normalize(n))) {seen.add(normalize(n));n=aliases[normalize(n)];}return n;}
 export function validateDishes(dishes) {if(!Array.isArray(dishes)||!dishes.length)throw Error('料理を1品以上入力してください。'); if(dishes.length>30)throw Error('一度に登録できる料理は30品までです。');return dishes.map(d=>{const name=String(d.name||'').trim();if(!name||name.length>100)throw Error('料理名は1〜100文字で入力してください。');return {name,category:String(d.category||'main'),protein:String(d.protein||'不明'),method:String(d.method||'不明'),genre:String(d.genre||'不明')};});}
 export function parseLegacy(event,categories=defaultCategories) {

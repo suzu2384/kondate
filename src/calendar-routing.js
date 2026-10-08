@@ -1,18 +1,24 @@
 import {validateDishes} from './model.js';
 
-/** An empty assignment means use the default calendar for this category. */
-export function calendarForCategory(category,defaultCalendarId,assignments={}){
- return assignments?.[category] || defaultCalendarId;
+/** All meal-calendar assignments are explicit; there is no default calendar. */
+export function calendarForCategory(category,_unusedDefaultCalendarId,assignments={}){
+ return assignments?.[category] || '';
 }
-export function activeCalendarIds(defaultCalendarId,categories,assignments={}){
- return [...new Set([defaultCalendarId,...categories.map(c=>calendarForCategory(c.id,defaultCalendarId,assignments))].filter(Boolean))];
+export function activeCalendarIds(_unusedDefaultCalendarId,categories,assignments={}){
+ return [...new Set(categories.map(c=>calendarForCategory(c.id,'',assignments)).filter(Boolean))];
+}
+/** Move the old standard calendar to Main without overwriting explicit assignments. */
+export function migrateCategoryCalendars(categories,assignments={},legacyDefaultCalendarId=''){
+ const migrated={...assignments};
+ if(legacyDefaultCalendarId&&categories.some(c=>c.id==='main')&&!migrated.main)migrated.main=legacyDefaultCalendarId;
+ return migrated;
 }
 /** Stable event IDs allow safe retries if one of several calendar writes fails. */
 export function splitRecordByCalendar(record,defaultCalendarId,assignments={}){
  const groups=new Map();
  for(const dish of validateDishes(record.dishes)){
   const calendarId=calendarForCategory(dish.category,defaultCalendarId,assignments);
-  if(!calendarId)throw Error('実績の保存先カレンダーが未設定です。');
+  if(!calendarId)throw Error('分類「'+dish.category+'」の保存先カレンダーが未設定です。設定画面で指定してください。');
   if(!groups.has(calendarId))groups.set(calendarId,[]);
   groups.get(calendarId).push(dish);
  }
