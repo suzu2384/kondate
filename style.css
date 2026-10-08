@@ -149,3 +149,47 @@ dialog::backdrop{background:#0008}
  .settings-card input[type=date]{font-size:16px;inline-size:100%;min-inline-size:0;max-inline-size:100%;}
  .settings-card .check-row>span,.settings-card .check-row>label{min-width:0;overflow-wrap:anywhere;}
 }
+
+/* v1.3.10: a fixed-height global status bar never changes the content layout. */
+.app{grid-template-rows:54px minmax(0,1fr) 30px 58px;}
+.app-header{grid-row:1;}
+#main{grid-row:2;min-width:0;}
+#status-bar{grid-row:3;}
+.tabs{grid-row:4;}
+.status-bar{
+ display:flex;min-width:0;min-height:0;align-items:center;
+ gap:8px;padding:0 10px;border-top:1px solid var(--line);
+ background:var(--surface);color:var(--muted);overflow:hidden;
+}
+.status-legend{display:flex;align-items:center;gap:14px;min-width:0;
+ font-size:11px;white-space:nowrap;overflow:hidden;}
+.status-legend .actual{color:var(--accent);}
+#status-bar.has-message .status-legend{display:none;}
+#notice.status-message{
+ flex:1;display:block;min-width:0;width:100%;max-height:none;min-height:0;
+ border:0;border-radius:0;background:transparent;color:var(--text);
+ padding:0;margin:0;font-size:11px;line-height:1.4;font-weight:500;
+ overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;
+}
+#notice.status-message[hidden]{display:none;}
+#notice.status-message:hover{background:transparent;}
+/* iOS Safari's internal date content otherwise overflows even a constrained input. */
+.history-date-control{width:min(100%,230px);max-width:100%;min-width:0;overflow:hidden;}
+.history-date-control input[type=date]{
+ display:block;width:100%;max-width:100%;min-width:0;min-inline-size:0;
+ box-sizing:border-box;overflow:hidden;-webkit-appearance:none;appearance:none;
+ font-size:16px;line-height:1.35;text-align:left;
+}
+.history-date-control input[type=date]::-webkit-date-and-time-value{
+ text-align:left;min-width:0;min-inline-size:0;max-width:100%;padding:0;
+}
+.history-date-control input[type=date]::-webkit-calendar-picker-indicator{
+ max-width:24px;margin:0;padding:0;
+}
+@media(max-width:760px){
+ .app{grid-template-rows:49px minmax(0,1fr) 32px calc(54px + env(safe-area-inset-bottom));}
+ .status-bar{padding:0 8px;}
+ .status-legend{gap:9px;font-size:10px;}
+ #notice.status-message{font-size:11px;}
+ .history-date-control{width:min(100%,220px);}
+}

@@ -6,8 +6,8 @@
 <body>
 <div class="app">
 <header class="app-header"><a class="brand" href="./"><img src="./icons/icon.svg" alt="" width="34" height="34"><span>献立ノート<small>KONDATE NOTE</small></span></a><div class="header-right"><button id="connection" class="connection" title="Googleにログインする" aria-label="Googleにログインする"><span class="dot"></span><span id="connection-label">未接続</span><span id="connection-action" class="connection-action">ログイン</span></button><button id="sync" class="icon-button" aria-label="カレンダーを同期">↻</button></div></header>
-<div id="notice" role="status" aria-live="polite" hidden></div>
 <main id="main"></main>
+<div id="status-bar" class="status-bar" aria-label="共通ステータスバー"><div id="status-legend" class="status-legend"><span class="actual">● 調理実績</span><span>◇ 献立案</span><span>• 既存の献立</span></div><button type="button" id="notice" class="status-message" data-action="notice-detail" role="status" aria-live="polite" title="通知を表示" hidden></button></div>
 <nav class="tabs" aria-label="メインナビゲーション"><button data-tab="calendar" aria-current="page"><span>▦</span>カレンダー</button><button data-tab="generate"><span>✧</span>献立生成</button><button data-tab="photo"><span>▣</span>実績登録</button><button data-tab="settings"><span>⚙</span>設定</button></nav>
 </div>
 <dialog id="dialog"><div id="dialog-content"></div></dialog>
