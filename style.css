@@ -125,3 +125,13 @@ dialog::backdrop{background:#0008}
  .connection{padding:4px 5px;gap:4px}
  .connection-action{font-size:10px}
 }
+
+/* Generic events remain display-only; show icons without rewriting Google titles. */
+.event-chip.general-event{color:var(--text)}
+.event-chip.general-event.icon-only{font-size:15px;line-height:1.1;max-width:100%;overflow:hidden;white-space:nowrap}
+.general-event-detail{display:flex;align-items:center;gap:8px}
+.general-event-detail span:nth-child(2){min-width:0;overflow-wrap:anywhere;flex:1}
+.general-event-detail small{color:var(--muted);white-space:nowrap}
+.icon-rule-row{display:grid;grid-template-columns:minmax(0,1fr) 68px 36px;gap:6px;align-items:center;margin:6px 0}
+.icon-rule-row select{font-size:18px;text-align:center;padding:3px}
+.icon-rule-row .mini{min-width:34px;padding:4px}

@@ -4,6 +4,7 @@ import {buildMaster,eventPayload,eventRecord,normalize,defaultRules,parseLegacy,
 import {generate,reroll,validatePlan} from '../src/generator.js';
 import {catalog} from '../src/catalog.js';
 import {activeCalendarIds,calendarForCategory,splitRecordByCalendar} from '../src/calendar-routing.js';
+import {eventDay,matchIcon,ICON_CHOICES} from '../src/calendar-display.js';
 import {AIService} from '../src/ai.js';
 const ref='2026-10-08';
 const rules={...defaultRules,counts:{main:1,side:1,soup:1}};
@@ -89,4 +90,19 @@ test('new meal splits by destination and keeps stable per-calendar IDs for retry
  assert.equal(shared.length,1);
  assert.equal(shared[0].record.id,input.id);
  assert.equal(shared[0].record.dishes.length,3);
+});
+
+test('display-only event dates use local calendar timezone and skip cancelled events',()=>{
+ assert.equal(eventDay({start:{date:'2026-10-08'}}),'2026-10-08');
+ assert.equal(eventDay({start:{dateTime:'2026-10-08T17:00:00Z'}}),'2026-10-09');
+ assert.equal(eventDay({status:'cancelled',start:{date:'2026-10-08'}}),null);
+});
+test('icon matching displays only an icon without altering the original event',()=>{
+ const rules=[{keyword:'可燃ごみ',icon:'🗑️'},{keyword:'資源ごみ',icon:'♻️'}];
+ const event={summary:'可燃ごみ 回収',start:{date:'2026-10-08'}};
+ assert.equal(matchIcon(event.summary,rules),'🗑️');
+ assert.equal(matchIcon('資源ごみ',rules),'♻️');
+ assert.equal(matchIcon('打ち合わせ',rules),'');
+ assert.equal(event.summary,'可燃ごみ 回収');
+ assert.ok(ICON_CHOICES.includes('♻️'));
 });
