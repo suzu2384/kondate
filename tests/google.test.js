@@ -51,3 +51,21 @@ test('Calendar API disabled is identified when SERVICE_DISABLED is inside error 
  const c=client(async()=>response({error:{status:'PERMISSION_DENIED',message:'Google Calendar API has not been used in project 12345 before or it is disabled.',details:[{reason:'SERVICE_DISABLED'}]}},403));
  await assert.rejects(()=>c.calendars(),/Calendar APIを有効/);
 });
+
+test('browser network failure explains how to inspect Calendar API traffic',async()=>{
+ const c=client(async()=>{throw new TypeError('Failed to fetch');});
+ await assert.rejects(()=>c.calendars(),error=>{
+  assert.match(error.message,/Failed to fetch/);
+  assert.match(error.message,/ネットワーク/);
+  assert.match(error.message,/入力内容は保持/);
+  return true;
+ });
+});
+test('timeout differs from a browser network error',async()=>{
+ const c=client(async()=>{throw new DOMException('The operation was aborted due to timeout','TimeoutError');});
+ await assert.rejects(()=>c.calendars(),/25秒以内/);
+});
+test('unexpected browser errors retain the original error message',async()=>{
+ const c=client(async()=>{throw new TypeError('Illegal invocation');});
+ await assert.rejects(()=>c.calendars(),/Illegal invocation/);
+});

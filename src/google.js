@@ -24,7 +24,19 @@ export class CalendarClient {
  async request(path,{method='GET',body,etag}={}){
   if(!this.connected){this.disconnect();throw Error('Googleへの再接続が必要です。入力内容は端末に残っています。');}
   const headers={Authorization:`Bearer ${this.token}`};if(body)headers['Content-Type']='application/json';if(etag)headers['If-Match']=etag;
-  let response;try{response=await this.fetcher(ROOT+path,{method,headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(25000)});}catch{throw Error('通信に失敗しました。入力内容は保持されています。接続を確認して再試行してください。');}
+  let response;
+  try{
+   const signal=typeof AbortSignal.timeout==='function'?AbortSignal.timeout(25000):undefined;
+   response=await this.fetcher(ROOT+path,{method,headers,body:body?JSON.stringify(body):undefined,...(signal?{signal}:{})});
+  }catch(error){
+   const name=String(error?.name||'Error');
+   const detail=String(error?.message||'詳細なし').slice(0,120);
+   if(name==='TimeoutError'||name==='AbortError')
+    throw Error('Googleカレンダーへの通信が25秒以内に完了しませんでした（'+name+'）。回線やVPNを確認して再試行してください。入力内容は保持されています。');
+   if(name==='TypeError'&&/Failed to fetch|Load failed|NetworkError/i.test(detail))
+    throw Error('ブラウザがGoogle Calendar APIへの通信を完了できませんでした（'+name+': '+detail+'）。F12の「ネットワーク」でcalendarListへのアクセスがCORSエラー・ブロック・接続失敗になっていないか確認してください。入力内容は保持されています。');
+   throw Error('Googleカレンダーへの通信処理でエラーが発生しました（'+name+': '+detail+'）。入力内容は保持されています。');
+  }
   if(response.status===401){this.disconnect();throw Error('認証の有効期限が切れました。Googleへ再接続してください。');}
   if(response.status===412)throw Error('他の端末で変更されています。同期して最新の内容を確認してください。入力は残しています。');
   if(!response.ok){
