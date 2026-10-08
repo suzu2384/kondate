@@ -29,7 +29,25 @@ test('more categories add dish rows without adding extra day cards',()=>{
  assert.equal((html.match(/data-action="reroll"/g)||[]).length,14);
 });
 test('compact generator defines single-column mobile layout and inline reroll',()=>{
- assert.match(css,/\.compact-plan-grid\{grid-template-columns:minmax\(0,1fr\)/);
- assert.match(css,/\.compact-plan-dish\{min-height:36px;grid-template-columns/);
+ assert.match(css,/\.compact-plan-grid\{[\s\S]*?display:flex;flex:1 1 auto;flex-direction:column/);
+ assert.match(css,/\.compact-plan-card\{[\s\S]*?grid-template-columns:48px minmax\(0,1fr\)/);
+ assert.match(css,/\.compact-plan-dish\{[\s\S]*?grid-template-columns:72px minmax\(0,1fr\) 36px/);
  assert.match(source,/if\(state\.draft\[i\]\?\.dishes\[j\]\?\.locked\)state\.draft\[i\]\.dishes\[j\]=/);
+});
+
+test('mixed day sizes keep individual containers with all their dish rows',()=>{
+ const days=[
+  [{category:'main',name:'長い料理名'.repeat(30)}],
+  [{category:'main',name:'煮魚'},{category:'side',name:'副菜'}],
+  [{category:'main',name:'肉料理'},{category:'side',name:'サラダ'},{category:'soup',name:'味噌汁'}],
+  ...Array.from({length:4},()=>[{category:'main',name:'卵料理'}])
+ ];
+ const html=screen(days);
+ assert.equal((html.match(/data-dish-count="1"/g)||[]).length,5);
+ assert.equal((html.match(/data-dish-count="2"/g)||[]).length,1);
+ assert.equal((html.match(/data-dish-count="3"/g)||[]).length,1);
+ assert.equal((html.match(/class="plan-dish compact-plan-dish/g)||[]).length,10);
+ assert.doesNotMatch(css.slice(css.indexOf('/* v1.3.12:')),/auto-fill|repeat\(3/);
+ assert.match(css,/flex:0 0 auto;width:100%;min-width:0;max-width:100%/);
+ assert.match(css,/white-space:nowrap;overflow:hidden;text-overflow:ellipsis/);
 });
