@@ -1,15 +1,16 @@
 const KEY='kondate.v1';
 
-// Meal events are transient API results. Keep only settings and unfinished work
-// across reloads, never duplicate calendar records or local import decisions.
+// Meal events are transient API results. Save settings and generated menus only.
+// Never persist history, local approvals, or unfinished record entries.
 export function storedState(state){
+ const {recordDraft,...settingsOnly}=state||{};
  const scopes={};
  for(const [key,scope] of Object.entries(state?.scopes||{})){
   if(!scope||typeof scope!=='object')continue;
   const {events,legacy,lastSync,...settings}=scope;
   scopes[key]={...settings,events:[],legacy:{},lastSync:null};
  }
- return {...state,scopes};
+ return {...settingsOnly,scopes};
 }
 export function readState(){
  try{return storedState(JSON.parse(localStorage.getItem(KEY)||'{}'));}
