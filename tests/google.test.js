@@ -69,3 +69,20 @@ test('unexpected browser errors retain the original error message',async()=>{
  const c=client(async()=>{throw new TypeError('Illegal invocation');});
  await assert.rejects(()=>c.calendars(),/Illegal invocation/);
 });
+
+test('default calendar fetch keeps the browser global receiver',async()=>{
+ const original=globalThis.fetch;
+ let called=false;
+ globalThis.fetch=function(url,options){
+  assert.equal(this,globalThis,'Browser fetch must be invoked with its global receiver');
+  assert.match(String(url),/\/calendar\/v3\/users\/me\/calendarList/);
+  assert.match(options.headers.Authorization,/Bearer /);
+  called=true;
+  return Promise.resolve(response({items:[{id:'test-calendar',summary:'試験用'}]}));
+ };
+ try{
+  const c=new CalendarClient();c.token='fake-test-token';c.expires=Date.now()+60000;
+  assert.equal((await c.calendars())[0].id,'test-calendar');
+  assert.equal(called,true);
+ }finally{globalThis.fetch=original;}
+});

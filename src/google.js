@@ -2,7 +2,7 @@ import {eventPayload} from './model.js';
 const ROOT='https://www.googleapis.com/calendar/v3';
 export const SCOPES='https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events';
 export class CalendarClient {
- constructor(fetcher=fetch){this.fetcher=fetcher;this.token=null;this.expires=0;this.clientId='';this.identityLoading=null;}
+ constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token=null;this.expires=0;this.clientId='';this.identityLoading=null;}
  get connected(){return !!this.token&&Date.now()<this.expires;}
  async loadIdentity(){
   if(globalThis.google?.accounts?.oauth2)return;

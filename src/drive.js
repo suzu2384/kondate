@@ -3,7 +3,7 @@ const ROOT='https://www.googleapis.com';
 const SCOPE='https://www.googleapis.com/auth/drive.appdata';
 const FILE='kondate-settings.json';
 export class DriveSettingsClient{
- constructor(fetcher=fetch){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';}
+ constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';}
  async authorize(clientId){
   if(!clientId?.endsWith('.apps.googleusercontent.com'))throw Error('Google OAuthクライアントIDを先に設定してください。');
   if(this.token&&Date.now()<this.expires&&this.clientId===clientId)return;
