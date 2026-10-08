@@ -30,9 +30,10 @@ export class CalendarClient {
   if(!response.ok){
    let details;
    try{details=await response.clone().json();}catch{}
-   const reason=String(details?.error?.errors?.[0]?.reason||details?.error?.status||'');
+   const reason=[details?.error?.errors?.[0]?.reason,...(details?.error?.details||[]).map(d=>d.reason),details?.error?.status].filter(Boolean).join(', ');
+   const message=String(details?.error?.message||'');
    const hint=response.status===403?(
-    /accessNotConfigured|SERVICE_DISABLED|accessNotConfigured/i.test(reason)?'Google CloudでCalendar APIを有効にしてください。':
+    /accessNotConfigured|SERVICE_DISABLED|API has not been used|API is disabled|it is disabled/i.test(reason+' '+message)?'Google CloudでCalendar APIを有効にしてください。':
     /insufficientPermissions|insufficientAuthenticationScopes|PERMISSION_DENIED/i.test(reason)?'カレンダー権限またはGoogle認証時の許可範囲を確認してください。':
     'Google CloudのAPI有効化・アクセス権・利用上限を確認してください。'
    ):response.status===404?'選択したカレンダーが見つかりません。設定で保存先を確認してください。':

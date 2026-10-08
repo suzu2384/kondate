@@ -45,3 +45,9 @@ test('GIS script loads once across concurrent initialization calls',async()=>{
   globalThis.google=originalGoogle;
  }
 });
+
+
+test('Calendar API disabled is identified when SERVICE_DISABLED is inside error details',async()=>{
+ const c=client(async()=>response({error:{status:'PERMISSION_DENIED',message:'Google Calendar API has not been used in project 12345 before or it is disabled.',details:[{reason:'SERVICE_DISABLED'}]}},403));
+ await assert.rejects(()=>c.calendars(),/Calendar APIを有効/);
+});
