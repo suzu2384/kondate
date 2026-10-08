@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {buildMaster,eventPayload,eventRecord,normalize,defaultRules,parseLegacy,legacyFingerprint,monthGridDates} from '../src/model.js';
 import {generate,reroll,validatePlan} from '../src/generator.js';
 import {catalog} from '../src/catalog.js';
+import {activeCalendarIds,calendarForCategory,splitRecordByCalendar} from '../src/calendar-routing.js';
 import {AIService} from '../src/ai.js';
 const ref='2026-10-08';
 const rules={...defaultRules,counts:{main:1,side:1,soup:1}};
@@ -65,4 +66,27 @@ test('month calendar always spans 6 rows, regardless of month length',()=>{
   assert.equal(dates.filter(date=>date.startsWith(prefix)).length,new Date(year,month+1,0).getDate());
   assert.equal(new Set(dates).size,42);
  }
+});
+
+test('categories route to separate calendars without duplicate sync requests',()=>{
+ const categories=[{id:'main'},{id:'side'},{id:'soup'}],assigned={main:'A',side:'B',soup:'B'};
+ assert.equal(calendarForCategory('main','default',assigned),'A');
+ assert.equal(calendarForCategory('other','default',assigned),'default');
+ assert.deepEqual(activeCalendarIds('default',categories,assigned),['default','A','B']);
+ assert.deepEqual(activeCalendarIds('default',categories,{main:'default'}),['default']);
+});
+test('new meal splits by destination and keeps stable per-calendar IDs for retry',()=>{
+ const input={id:'abc123',date:'2026-10-08',status:'actual',dishes:[
+  {name:'煮魚',category:'main'},{name:'冷奴',category:'side'},{name:'味噌汁',category:'soup'}]};
+ const assigned={main:'fish@calendar',side:'other@calendar',soup:'other@calendar'};
+ const result=splitRecordByCalendar(input,'default',assigned);
+ assert.equal(result.length,2);
+ assert.deepEqual(result.map(x=>x.record.dishes.map(d=>d.name)),[['煮魚'],['冷奴','味噌汁']]);
+ assert.deepEqual(result.map(x=>x.record.id),['abc123','abc12301']);
+ assert.deepEqual(splitRecordByCalendar(input,'default',assigned),result);
+ assert.equal(input.dishes.length,3);
+ const shared=splitRecordByCalendar(input,'default',{main:'same',side:'same',soup:'same'});
+ assert.equal(shared.length,1);
+ assert.equal(shared[0].record.id,input.id);
+ assert.equal(shared[0].record.dishes.length,3);
 });
