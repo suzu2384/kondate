@@ -4,3 +4,92 @@
 @media(max-width:760px){:root{font-size:14px}.app{padding:0 14px;grid-template-rows:58px auto minmax(0,1fr) calc(64px + env(safe-area-inset-bottom))}.brand{font-size:18px}.brand img{width:29px;height:29px}.brand small{font-size:7px}.connection{font-size:10px;padding:6px}.header-right{gap:0}#main{padding:18px 0 12px}.screen{gap:14px}h1{font-size:23px}.page-heading .eyebrow{font-size:9px;margin-bottom:6px}.page-heading p{font-size:11px}.page-heading>.primary{padding:9px 12px;white-space:nowrap;font-size:12px}.calendar-layout{display:block;overflow:auto}.calendar-card{height:100%;min-height:380px;padding:13px;box-shadow:none}.day-panel{display:none}.month-heading{margin-bottom:13px}.month-heading h2{font-size:19px}.day{padding:4px;min-height:49px}.day-number{font-size:11px;width:21px;height:21px}.event-chip{font-size:9px;margin-top:2px}.legend{gap:10px;font-size:9px;padding-top:10px}.tabs{gap:0;justify-content:space-around}.tabs button{width:25%;flex-direction:column;gap:5px;font-size:10px;border-radius:10px;min-height:50px;padding:6px}.tabs button span{font-size:22px}.tabs button[aria-current=page]{background:transparent}.tabs button[aria-current=page] span{color:var(--accent)}.settings-grid{grid-template-columns:1fr;gap:14px}.settings-card{padding:18px}.photo-layout{grid-template-columns:1fr;overflow:auto;display:block}.photo-zone{min-height:275px;padding:24px;margin-bottom:14px}.photo-help{padding:20px}.generation-controls{gap:8px;font-size:12px}.generation-controls label input{width:62px}.generation-controls select{max-width:150px}.plan-grid{grid-template-columns:1fr}.plan-card{padding:16px}.plan-dish{padding:7px 0}.banner{padding:12px;font-size:11px;gap:7px}.banner button{font-size:11px;padding:6px 10px;min-height:34px}.dialog-head{padding:16px}.dialog-body{padding:16px}.dialog-foot{padding:12px 16px}.dish-editor{grid-template-columns:78px minmax(0,1fr) 34px;gap:6px}.dish-editor input,.dish-editor select{padding:8px;font-size:16px}.dialog-body input,.dialog-body select{font-size:16px}.master-table th,.master-table td{padding:9px 5px}.master-table .optional{display:none}.footer-note{font-size:10px}.history-list{grid-template-columns:1fr}.toolbar{gap:5px}}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 .app-header{grid-row:1}#notice{grid-row:2}#main{grid-row:3}.tabs{grid-row:4}
+
+/* v1.0.1: compact calendar and fully themed surfaces */
+html,body{height:100%;overflow:hidden}
+.app{padding:0 clamp(0px,2vw,24px);grid-template-rows:54px auto minmax(0,1fr) 58px;min-width:0}
+#main{padding:6px 0 4px}
+.screen{gap:8px;min-width:0}
+.page-heading{display:none}
+.app-header,.tabs{background:var(--surface)}
+.tabs button[aria-current=page]{background:var(--tint);color:var(--accent)}
+.toolbar{gap:5px}
+button{min-height:36px;padding:7px 10px;border-radius:8px}
+button.mini,.mini{min-height:32px;padding:5px 9px}
+.icon-button{min-width:36px;min-height:36px;padding:4px 8px}
+input,select,textarea{min-height:38px;padding:8px}
+.calendar-layout{gap:8px;min-width:0}
+.calendar-card{padding:9px;min-width:0;min-height:0}
+.day-panel{padding:12px}
+.month-heading{margin-bottom:5px}
+.month-heading h2{font-size:18px}
+.weekdays{padding-bottom:4px}
+.month-grid{grid-template-rows:repeat(var(--month-rows,6),minmax(0,1fr));overflow:hidden}
+.day{min-height:0;min-width:0;padding:3px;gap:0;border-radius:0}
+.day-number{width:22px;height:22px}
+.event-chip{margin-top:1px;min-width:0;line-height:1.35;max-width:100%;text-overflow:ellipsis}
+.legend{padding-top:5px;gap:8px}
+.calendar-toolbar{flex-shrink:0}
+.generation-controls{gap:6px;flex-shrink:0}
+.generation-controls select,.generation-controls input{min-height:36px}
+.plan-grid{gap:8px;padding-bottom:4px}
+.plan-card{padding:12px}
+.plan-head{padding-bottom:7px}
+.plan-dish{padding:5px 0}
+.plan-actions{margin-top:7px}
+.settings-grid{gap:10px;padding-bottom:4px}
+.settings-card{padding:14px}
+.settings-card h2{margin-bottom:7px}
+.field{margin:9px 0}
+.check-row{margin:9px 0}
+.oauth-setup{margin-bottom:10px;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--panel)}
+.oauth-setup summary{cursor:pointer;font-size:12px;color:var(--text)}
+.photo-layout{gap:10px}
+.photo-zone{padding:16px;gap:10px}
+.photo-help{padding:16px}
+.photo-help ol{line-height:1.9}
+#notice{margin:2px 0;padding:7px 10px}
+dialog::backdrop{background:#0008}
+@media(max-width:760px){
+ .app{padding:0;grid-template-rows:49px auto minmax(0,1fr) calc(54px + env(safe-area-inset-bottom))}
+ .app-header{padding:0 7px;gap:5px}
+ .brand{font-size:16px;gap:5px}.brand img{width:26px;height:26px}
+ .connection{padding:4px;font-size:10px}
+ #main{padding:2px 0}
+ .screen{gap:5px}
+ .calendar-layout{display:grid;grid-template-columns:minmax(0,1fr);overflow:hidden}
+ .calendar-card{height:100%;min-height:0;padding:4px;border-left:0;border-right:0;border-radius:0;box-shadow:none}
+ .month-heading{margin-bottom:3px}
+ .month-heading h2{font-size:16px}
+ .month-heading .toolbar{gap:1px}
+ .month-heading .icon-button{min-width:32px;min-height:32px;padding:3px 7px}
+ .weekdays{font-size:10px;padding-bottom:3px}
+ .month-grid{min-height:0;overflow:hidden}
+ .day{min-height:0;padding:2px;overflow:hidden}
+ .day-number{width:20px;height:20px;font-size:10px}
+ .event-chip{font-size:9px;line-height:1.25;margin-top:1px}
+ .event-chip:before{margin-right:2px}
+ .legend{padding:3px 3px 0;gap:7px;font-size:9px;flex-wrap:wrap}
+ .day-panel{display:none}
+ .footer-note{display:none}
+ .calendar-toolbar{padding:0 4px;gap:3px}
+ .calendar-toolbar .segmented{padding:2px}
+ .calendar-toolbar .segmented button{min-height:29px;padding:4px 8px}
+ .calendar-toolbar .mini{min-height:29px;padding:4px 7px}
+ .tabs{padding-left:2px;padding-right:2px}
+ .tabs button{min-height:46px;padding:3px 2px;gap:2px}
+ .tabs button span{font-size:20px}
+ .photo-layout{display:flex;flex-direction:column;overflow:hidden;min-height:0}
+ .photo-zone{min-height:0;flex:1;padding:12px;gap:7px;margin:0}
+ .photo-zone h2{font-size:14px}
+ .photo-zone img{max-height:35dvh}
+ .photo-zone p{margin:0}
+ .photo-help{display:none}
+ .generation-controls{padding:0 4px;gap:4px}
+ .generation-controls label{gap:3px}
+ .generation-controls select{max-width:110px}
+ .plan-grid{padding:0 3px 5px;gap:7px}
+ .plan-card{padding:10px}
+ .settings-grid{padding:0 4px 5px;gap:8px}
+ .settings-card{padding:12px}
+}
