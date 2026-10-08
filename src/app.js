@@ -219,7 +219,7 @@ const actions={
   'add-icon-rule':()=>{state.iconRules.push({id:uid().slice(0,10),keyword:'',icon:'📌'});persist();render();},
   'remove-icon-rule':b=>{state.iconRules=state.iconRules.filter(rule=>rule.id!==b.dataset.ruleId);persist();render();},
   export:exportState,import:()=>$('#import-file').click(),
- 'confirm-import':()=>{const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,restored);imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
+ 'confirm-import':()=>{const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
 };
 async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))return;await actions[action]?.(b);}catch(error){if($('#dialog').open&&$('#dialog-error'))$('#dialog-error').textContent=error.message;else notify(error.message);updateConnection();}}
 document.addEventListener('click',e=>{const tabButton=e.target.closest('[data-tab]');if(tabButton){tab=tabButton.dataset.tab;notify('');render();if(tab==='settings')api.loadIdentity().catch(error=>notify(error.message));return;}const b=e.target.closest('[data-action]');if(b)run(b.dataset.action,b);});
@@ -256,6 +256,8 @@ window.addEventListener('online',()=>notify('接続が戻りました。必要�
 window.addEventListener('offline',()=>notify('オフラインです。献立の編集は続けられます。カレンダーへの保存は接続後に行ってください。'));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>applyTheme(state.theme));
 setInterval(updateConnection,30000);
+// Migrate the old persistent Google-event cache away on first launch.
+persist();
 render();
 // Restore the calendar list and selected calendar automatically after F5 without a popup.
 if(restoredGoogleSession){

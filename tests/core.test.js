@@ -63,7 +63,7 @@ test('AI cannot change fixed dishes',async()=>{
  const ai=new AIService({generate:async()=>[{dishes:[{name:'別の料理',category:'main'}]}]});await assert.rejects(()=>ai.generate({rules:{...rules,days:1,newMain:false,counts:{main:1}},master:[],previous:[{dishes:[{name:'固定料理',category:'main',locked:true}]}]}),/固定/);
 });
 
-test('external changes invalidate a previous import decision',()=>{const original={id:'x',summary:'カレー',start:{date:ref}};const legacy={x:{accepted:true,source:legacyFingerprint(original),dishes:[{name:'カレー',category:'main'}]}};assert.equal(eventRecord(original,legacy).status,'actual');const changed=eventRecord({...original,summary:'焼き魚'},legacy);assert.equal(changed.status,'unreviewed');assert.equal(changed.dishes[0].name,'焼き魚');});
+test('changes to Google meal events appear immediately without stale local confirmation',()=>{const original={id:'x',summary:'カレー',start:{date:ref}};const legacy={x:{accepted:true,source:legacyFingerprint(original),dishes:[{name:'カレー',category:'main'}]}};assert.equal(eventRecord(original,legacy).status,'actual');const changed=eventRecord({...original,summary:'焼き魚'},legacy);assert.equal(changed.status,'actual');assert.equal(changed.dishes[0].name,'焼き魚');});
 
 test('month calendar always spans 6 rows, regardless of month length',()=>{
  for(const [year,month] of [[2026,1],[2026,9],[2026,7],[2027,1]]){
