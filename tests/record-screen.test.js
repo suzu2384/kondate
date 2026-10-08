@@ -5,7 +5,7 @@ const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const photo=source.slice(source.indexOf('function photoScreen(){'),source.indexOf('function rulesFields(){'));
 const record=source.slice(source.indexOf('function openRecord('),source.indexOf('async function saveRecord(){'));
 test('photo selection presents the OS image picker without a redundant camera button',()=>{
- assert.match(photo,/data-action="pick-photo"/);
+ assert.match(photo,/button\('写真を選択','pick-photo'\)/);
  assert.match(photo,/id="photo-file" accept="image\/\*"/);
  assert.doesNotMatch(photo,/カメラを起動|camera-file|capture="environment"/);
  assert.doesNotMatch(source,/camera:\(\)=>|camera-file/);
