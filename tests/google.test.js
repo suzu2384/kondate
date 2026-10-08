@@ -86,3 +86,78 @@ test('default calendar fetch keeps the browser global receiver',async()=>{
   assert.equal(called,true);
  }finally{globalThis.fetch=original;}
 });
+
+test('Google Calendar token survives same-tab reload and is cleared on disconnect',async()=>{
+ const previous=globalThis.sessionStorage;
+ const map=new Map();
+ globalThis.sessionStorage={
+  getItem:key=>map.get(key)??null,
+  setItem:(key,value)=>map.set(key,String(value)),
+  removeItem:key=>map.delete(key)
+ };
+ try{
+  const clientId='test123.apps.googleusercontent.com';
+  const c=new CalendarClient();
+  c.clientId=clientId;c.token='short-lived-token';c.expires=Date.now()+120000;
+  c.rememberSession();
+  const afterReload=new CalendarClient();
+  assert.equal(afterReload.restoreSession(clientId),true);
+  assert.equal(afterReload.connected,true);
+  assert.equal(afterReload.token,'short-lived-token');
+  afterReload.disconnect();
+  assert.equal(new CalendarClient().restoreSession(clientId),false);
+  assert.equal(map.size,0);
+ }finally{if(previous===undefined)delete globalThis.sessionStorage;else globalThis.sessionStorage=previous;}
+});
+test('expired, corrupt, or differently configured OAuth sessions are discarded',()=>{
+ const previous=globalThis.sessionStorage;
+ const map=new Map();
+ globalThis.sessionStorage={
+  getItem:key=>map.get(key)??null,
+  setItem:(key,value)=>map.set(key,String(value)),
+  removeItem:key=>map.delete(key)
+ };
+ try{
+  const clientId='test123.apps.googleusercontent.com';
+  const c=new CalendarClient();
+  c.clientId=clientId;c.token='old-token';c.expires=Date.now()-1000;c.rememberSession();
+  const reload=new CalendarClient();
+  assert.equal(reload.restoreSession(clientId),false);
+  assert.equal(reload.connected,false);
+  assert.equal(map.size,0);
+  c.expires=Date.now()+120000;c.rememberSession();
+  assert.equal(new CalendarClient().restoreSession('other.apps.googleusercontent.com'),false);
+  assert.equal(map.size,0);
+  c.rememberSession();
+  map.set([...map.keys()][0],'{oops');
+  assert.equal(new CalendarClient().restoreSession(clientId),false);
+  assert.equal(map.size,0);
+ }finally{if(previous===undefined)delete globalThis.sessionStorage;else globalThis.sessionStorage=previous;}
+});
+test('Google Calendar sign-in persists token and works without sessionStorage access',async()=>{
+ const previousGoogle=globalThis.google,previousStorage=globalThis.sessionStorage;
+ let captured='';
+ globalThis.sessionStorage={
+  getItem:()=>{throw Error('Storage restricted');},
+  setItem:()=>{throw Error('Storage restricted');},
+  removeItem:()=>{throw Error('Storage restricted');}
+ };
+ globalThis.google={accounts:{oauth2:{
+  initTokenClient:config=>({
+   requestAccessToken:()=>config.callback({access_token:'fresh-token',expires_in:3600})
+  }),
+  hasGrantedAllScopes:()=>true
+ }}};
+ try{
+  const c=new CalendarClient();
+  await c.authorize('test123.apps.googleusercontent.com');
+  assert.equal(c.connected,true);
+  assert.equal(c.token,'fresh-token');
+  assert.equal(new CalendarClient().restoreSession('test123.apps.googleusercontent.com'),false);
+  c.disconnect();
+  assert.equal(c.connected,false);
+ }finally{
+  if(previousGoogle===undefined)delete globalThis.google;else globalThis.google=previousGoogle;
+  if(previousStorage===undefined)delete globalThis.sessionStorage;else globalThis.sessionStorage=previousStorage;
+ }
+});

@@ -1,4 +1,4 @@
-const CACHE='kondate-shell-v1-3-5';
+const CACHE='kondate-shell-v1-3-6';
 const ASSETS=['./','./index.html','./style.css','./src/app.js','./src/config.js','./src/model.js','./src/storage.js','./src/generator.js','./src/google.js','./src/calendar-routing.js','./src/calendar-display.js','./src/drive.js','./src/ai.js','./src/catalog.js','./src/themes.js','./manifest.webmanifest','./icons/icon.svg','./icons/icon-192.png','./icons/icon-512.png','./icons/apple-touch-icon.png'];
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS))));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('kondate-shell-')&&key!==CACHE).map(key=>caches.delete(key))))));

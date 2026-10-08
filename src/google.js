@@ -1,9 +1,29 @@
 import {eventPayload} from './model.js';
 const ROOT='https://www.googleapis.com/calendar/v3';
+const SESSION_KEY='kondate.google-calendar-session.v1';
 export const SCOPES='https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events';
 export class CalendarClient {
  constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token=null;this.expires=0;this.clientId='';this.identityLoading=null;}
  get connected(){return !!this.token&&Date.now()<this.expires;}
+ // Keep only a short-lived access token in this tab's session; never in persistent app settings.
+ rememberSession(){
+  try{globalThis.sessionStorage?.setItem(SESSION_KEY,JSON.stringify({clientId:this.clientId,token:this.token,expires:this.expires}));}catch{}
+ }
+ forgetSession(){try{globalThis.sessionStorage?.removeItem(SESSION_KEY);}catch{}}
+ restoreSession(clientId){
+  if(!clientId)return false;
+  let saved;
+  try{saved=globalThis.sessionStorage?.getItem(SESSION_KEY);}catch{return false;}
+  if(!saved)return false;
+  try{
+   const session=JSON.parse(saved);
+   if(session.clientId!==clientId||typeof session.token!=='string'||!session.token||!Number.isFinite(session.expires)||session.expires<=Date.now()){
+    this.forgetSession();return false;
+   }
+   this.clientId=clientId;this.token=session.token;this.expires=session.expires;
+   return true;
+  }catch{this.forgetSession();return false;}
+ }
  async loadIdentity(){
   if(globalThis.google?.accounts?.oauth2)return;
   if(this.identityLoading)return this.identityLoading;
@@ -19,8 +39,8 @@ export class CalendarClient {
   }).finally(()=>{this.identityLoading=null;});
   return this.identityLoading;
  }
- authorize(clientId){if(!clientId) return Promise.reject(Error('アプリのGoogle認証設定が完了していません。'));if(!globalThis.google?.accounts?.oauth2)return Promise.reject(Error('認証を準備中です。少し待ってもう一度接続してください。'));this.clientId=clientId;return new Promise((resolve,reject)=>{const client=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:SCOPES,callback:r=>{if(r.error){reject(Error(`Google認証が完了しませんでした（${String(r.error)}）。Google CloudのクライアントID・テストユーザー・認証設定を確認してください。`));return;}if(!google.accounts.oauth2.hasGrantedAllScopes(r,...SCOPES.split(' '))){reject(Error('カレンダーの読み書き権限をすべて許可してください。'));return;}this.token=r.access_token;this.expires=Date.now()+(Number(r.expires_in)-60)*1000;resolve();},error_callback:r=>reject(Error(r.type==='popup_closed'?'認証画面が閉じられました。':'ポップアップを許可して再接続してください。'))});client.requestAccessToken({prompt:''});});}
- disconnect(){this.token=null;this.expires=0;}
+ authorize(clientId){if(!clientId) return Promise.reject(Error('アプリのGoogle認証設定が完了していません。'));if(!globalThis.google?.accounts?.oauth2)return Promise.reject(Error('認証を準備中です。少し待ってもう一度接続してください。'));this.clientId=clientId;return new Promise((resolve,reject)=>{const client=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:SCOPES,callback:r=>{if(r.error){reject(Error(`Google認証が完了しませんでした（${String(r.error)}）。Google CloudのクライアントID・テストユーザー・認証設定を確認してください。`));return;}if(!google.accounts.oauth2.hasGrantedAllScopes(r,...SCOPES.split(' '))){reject(Error('カレンダーの読み書き権限をすべて許可してください。'));return;}this.token=r.access_token;this.expires=Date.now()+(Number(r.expires_in)-60)*1000;this.rememberSession();resolve();},error_callback:r=>reject(Error(r.type==='popup_closed'?'認証画面が閉じられました。':'ポップアップを許可して再接続してください。'))});client.requestAccessToken({prompt:''});});}
+ disconnect(){this.token=null;this.expires=0;this.forgetSession();}
  async request(path,{method='GET',body,etag}={}){
   if(!this.connected){this.disconnect();throw Error('Googleへの再接続が必要です。入力内容は端末に残っています。');}
   const headers={Authorization:`Bearer ${this.token}`};if(body)headers['Content-Type']='application/json';if(etag)headers['If-Match']=etag;
