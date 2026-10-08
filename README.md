@@ -179,3 +179,15 @@ const provider = {
 - [Calendarの拡張プロパティ](https://developers.google.com/workspace/calendar/api/guides/extended-properties)
 - [Calendar ETagと更新競合](https://developers.google.com/calendar/api/guides/version-resources)
 - [GitHub Pagesカスタムワークフロー](https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages)
+
+
+## Googleドライブへの設定バックアップ（v1.1.0）
+
+設定画面の「Driveに保存」「Driveから復元」を操作した場合にのみ、Google Drive API の `appDataFolder` に設定を保存・復元します。通常の献立管理にはDrive権限は必要ありません。
+
+- Google Cloud Consoleで **Google Drive API** を有効化してください。
+- OAuthのデータアクセスに `https://www.googleapis.com/auth/drive.appdata` を追加してください。
+- 初回操作時にGoogleの認可画面が開きます。OAuthクライアントIDは引き続き最初に必要です。
+- 保存対象はカレンダー指定・料理の分類・献立ルール・テーマ・表示設定です。調理履歴キャッシュ・編集中の献立・認証トークン・AIキーはDriveへ保存しません。
+- バックアップは**手動のみ**で、自動同期しません。復元時は既存設定の上書きを確認します。実績が登録されたGoogleカレンダーは変更されません。
+- 別ブラウザで復元する場合も、最初は同じアプリのOAuthクライアントIDを入力する必要があります。
