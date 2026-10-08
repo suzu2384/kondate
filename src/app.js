@@ -167,7 +167,30 @@ const actions={
  'delete-record':()=>{modal('この実績を削除しますか？',`<p>${esc(editor.date)}：${esc(editor.dishes.map(d=>d.name).join('、'))}</p><p>Googleカレンダーからこの実績を削除します。ほかの予定には影響しません。</p>`,button('戻る','return-editor')+button('削除する','confirm-delete','danger'));},'return-editor':drawRecord,
  'confirm-delete':async()=>{if(editor.scope!==scopeKeyFor(editor.calendarId||state.calendarId))throw Error('元のカレンダーに戻って操作してください。');busy=true;updateConnection();try{const id=editor.calendarId||state.calendarId;await api.remove(id,editor);dataFor(id).events=dataFor(id).events.filter(e=>e.id!==editor.id);state.recordDraft=null;persist();closeModal();render();notify('実績を削除しました。');}finally{busy=false;updateConnection();}},
  unaccept:()=>{delete dataFor(editor.calendarId||state.calendarId).legacy[editor.id];state.recordDraft=null;persist();closeModal();render();notify('この端末の取り込みを解除しました。元の予定は残っています。');},
- connect:async()=>{const clientId=$('#client-id')?.value.trim()||state.clientId;if(!clientId.endsWith('.apps.googleusercontent.com'))throw Error('Google OAuthクライアントIDを入力してください。');if(state.clientId!==clientId){state.calendarId='';state.calendarName='';state.categoryCalendars={};}state.clientId=clientId;persist();await api.authorize(clientId);calendars=await api.calendars();if(state.calendarId&&!calendars.some(c=>c.id===state.calendarId)){state.calendarId='';state.calendarName='';persist();}render();notify('Googleに接続しました。献立用カレンダーを選択してください。');},
+ connect:async()=>{
+   const clientId=$('#client-id')?.value.trim()||state.clientId;
+   if(!clientId.endsWith('.apps.googleusercontent.com')){
+    const section=$('.oauth-setup');if(section)section.open=true;
+    $('#client-id')?.focus();
+    throw Error('初回のみGoogle CloudでOAuthクライアントIDを発行し、初期設定へ入力してください。GoogleアカウントだけではカレンダーAPIの認証を開始できません。');
+   }
+   // Opening an OAuth popup must stay in the user's click gesture.
+   // If the library is not ready, prepare it and require another tap.
+   if(!globalThis.google?.accounts?.oauth2){
+    api.loadIdentity().then(()=>notify('Google認証の準備ができました。「Googleでログイン」を押してください。')).catch(error=>notify(error.message));
+    throw Error('Google認証を準備しています。準備完了後にもう一度ログインを押してください。');
+   }
+   if(state.clientId!==clientId){state.calendarId='';state.calendarName='';state.categoryCalendars={};}
+   state.clientId=clientId;persist();
+   await api.authorize(clientId);
+   calendars=await api.calendars();
+   if(state.calendarId&&!calendars.some(c=>c.id===state.calendarId)){
+    state.calendarId='';state.calendarName='';persist();
+   }
+   render();
+   if(state.calendarId)await sync();
+   else notify('Google認証とカレンダー一覧の取得に成功しました。次に献立用カレンダーを選択してください。');
+  },
  disconnect:()=>{api.disconnect();calendars=[];render();notify('Googleとの接続を解除しました。端末の下書きは残しています。');},sync,'setup-help':setupHelp,
  theme:b=>{state.theme.color=b.dataset.color;persist();render();},
  rules:()=>modal('献立生成ルール',rulesFields(),button('完了','close-dialog','primary')),
@@ -229,4 +252,6 @@ window.addEventListener('offline',()=>notify('オフラインです。献立の�
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>applyTheme(state.theme));
 setInterval(updateConnection,30000);
 render();
+// Start downloading Google's OAuth library before the user opens Settings.
+api.loadIdentity().catch(()=>{});
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
