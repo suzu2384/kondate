@@ -30,8 +30,8 @@ test('more categories add dish rows without adding extra day cards',()=>{
 });
 test('compact generator defines single-column mobile layout and inline reroll',()=>{
  assert.match(css,/\.compact-plan-grid\{[\s\S]*?display:flex;flex:1 1 auto;flex-direction:column/);
- assert.match(css,/\.compact-plan-card\{[\s\S]*?grid-template-columns:48px minmax\(0,1fr\)/);
- assert.match(css,/\.compact-plan-dish\{[\s\S]*?grid-template-columns:72px minmax\(0,1fr\) 36px/);
+ assert.match(css,/\.compact-plan-card\{[\s\S]*?grid-template-columns:46px minmax\(0,1fr\)/);
+ assert.match(css,/\.compact-plan-dish\{[\s\S]*?grid-template-columns:65px minmax\(0,1fr\) 28px/);
  assert.match(source,/if\(state\.draft\[i\]\?\.dishes\[j\]\?\.locked\)state\.draft\[i\]\.dishes\[j\]=/);
 });
 
@@ -47,7 +47,27 @@ test('mixed day sizes keep individual containers with all their dish rows',()=>{
  assert.equal((html.match(/data-dish-count="2"/g)||[]).length,1);
  assert.equal((html.match(/data-dish-count="3"/g)||[]).length,1);
  assert.equal((html.match(/class="plan-dish compact-plan-dish/g)||[]).length,10);
- assert.doesNotMatch(css.slice(css.indexOf('/* v1.3.12:')),/auto-fill|repeat\(3/);
+ assert.doesNotMatch(css.slice(css.indexOf('/* v1.3.13:')),/auto-fill|repeat\(3/);
  assert.match(css,/flex:0 0 auto;width:100%;min-width:0;max-width:100%/);
  assert.match(css,/white-space:nowrap;overflow:hidden;text-overflow:ellipsis/);
+});
+
+test('two dishes per day use compact height budget and the day label is vertically centered',()=>{
+ const html=screen(Array.from({length:7},(_,i)=>[
+  {category:'main',name:'主菜'+i},{category:'side',name:'副菜'+i}
+ ]));
+ assert.equal((html.match(/data-dish-count="2"/g)||[]).length,7);
+ assert.equal((html.match(/class="plan-dish compact-plan-dish/g)||[]).length,14);
+ const compact=css.slice(css.indexOf('/* v1.3.13:'));
+ assert.match(compact,/--compact-row-height:clamp\(24px,3\.8dvh,29px\)/);
+ assert.match(compact,/\.compact-plan-card\{[\s\S]*?align-items:center;align-self:stretch/);
+ assert.match(compact,/\.compact-plan-head\{[\s\S]*?align-self:center/);
+ assert.match(compact,/\.compact-plan-card \.plan-dishes\{[\s\S]*?gap:0/);
+ assert.match(compact,/\.compact-plan-grid\{[\s\S]*?gap:3px/);
+ assert.match(compact,/\.compact-plan-dish \.reroll-button\{[\s\S]*?font-size:18px/);
+ assert.match(compact,/height:var\(--compact-row-height\)/);
+ // CSS maximum: two 29px dishes + 2px vertical padding + borders, times seven,
+ // plus 6 inter-card gaps. Leaves room for controls even on small displays.
+ const sevenDaysMax=7*(2*29+4)+6*3;
+ assert.ok(sevenDaysMax<=460,'seven days of two dishes fit a small phone content budget');
 });
