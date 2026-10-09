@@ -169,7 +169,7 @@ test('editing an existing meal-calendar event patches Google without changing it
   assert.equal(options.method,'PATCH');
   assert.equal(options.headers['If-Match'],'"source"');
   const body=JSON.parse(options.body);
-  assert.equal(body.summary,'【献立】鮭');
+  assert.equal(body.summary,'鮭');
   assert.equal(body.start,undefined);
   assert.equal(body.end,undefined);
   assert.deepEqual(body.extendedProperties.private,{other:'preserved',kondate:'1',state:'actual'});
