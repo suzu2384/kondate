@@ -4,12 +4,13 @@ import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
-test('calendar opens an already selected date on one tap while retaining focus for newly selected dates',()=>{
+test('calendar opens an already selected date on one tap without forcing touch focus',()=>{
  const select=app.slice(app.indexOf('function selectCalendarDate('),app.indexOf('const actions='));
  assert.match(select,/dateTapAction\(selected,date\)/);
  assert.match(select,/if\(next\.open\)\{/);
  assert.match(select,/modal\('日付の詳細',dayContent\(selected\)\)/);
- assert.match(select,/focus\(\{preventScroll:true\}\)/);
+ assert.doesNotMatch(select,/\.focus\(/);
+ assert.match(app,/patchCalendarCells\(\)/);
  assert.match(app,/aria-pressed="\$\{date===selected\}"/);
  assert.doesNotMatch(app,/lastTappedCalendarDate/);
 });
