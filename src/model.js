@@ -31,20 +31,21 @@ export function eventRecord(event,legacy={},categories=defaultCategories,timeZon
  if(!date||!/^\d{4}-\d{2}-\d{2}$/.test(date))return null;
  const p=event.extendedProperties?.private||{};
  if(p.kondate==='1'){
-  try {const data=JSON.parse(event.description?.split('\n--- kondate:v1 ---\n')[1]||'');return {id:event.id,date,status:p.state==='plan'?'plan':p.state==='actual'?'actual':'invalid',dishes:validateDishes(data.dishes),owned:true,etag:event.etag,raw:event};}catch{return {id:event.id,date,status:'invalid',dishes:[],owned:true,raw:event,etag:event.etag};}
+  try {const data=JSON.parse(event.description?.split('\n--- kondate:v1 ---\n')[1]||'');return {id:event.id,date,status:p.state==='plan'?'plan':p.state==='actual'?'actual':'invalid',dishes:validateDishes(data.dishes),owned:true,location:String(event.location||''),etag:event.etag,raw:event};}catch{return {id:event.id,date,status:'invalid',dishes:[],owned:true,location:String(event.location||''),raw:event,etag:event.etag};}
  }
  // All events in a selected meal calendar are confirmed; no device-local acceptance state.
  const dishes=parseLegacy(event,categories);
- return {id:event.id,date,status:dishes.length?'actual':'invalid',dishes,owned:false,etag:event.etag,raw:event};
+ return {id:event.id,date,status:dishes.length?'actual':'invalid',dishes,owned:false,location:String(event.location||''),etag:event.etag,raw:event};
 }
 export function buildMaster(records,aliases={},metadata={},manual=[]) {
  const map=new Map();
  const add=(dish,date)=>{const name=resolveName(dish.name,aliases),key=normalize(name);if(!key)return;let item=map.get(key);if(!item){item={...dish,name,key,dates:[],count:0,lastDate:null};map.set(key,item);}if(!date)for(const k of ['protein','method','genre'])if((!item[k]||item[k]==='不明')&&dish[k])item[k]=dish[k];if(date){item.dates.push(date);item.count++;if(!item.lastDate||date>item.lastDate)item.lastDate=date;}};
- for(const record of records)if(record.status==='actual')for(const dish of record.dishes)add(dish,record.date);
+ for(const record of records)if(record.status==='actual'&&!String(record.location||'').trim())for(const dish of record.dishes)add(dish,record.date);
  for(const dish of manual)add(dish,null);
  return [...map.values()].map(d=>({...d,...metadata[d.key],name:d.name,key:d.key,dates:d.dates.sort().reverse(),count:d.count,lastDate:d.lastDate})).sort((a,b)=>(b.lastDate||'').localeCompare(a.lastDate||'')||a.name.localeCompare(b.name,'ja'));
 }
 export function eventPayload(record) {
  const dishes=validateDishes(record.dishes); if(!/^\d{4}-\d{2}-\d{2}$/.test(record.date)||Number.isNaN(Date.parse(record.date)))throw Error('日付を入力してください。');
- return {summary:dishes.map(d=>d.name).join('、'),description:`献立ノートで登録した${record.status==='plan'?'献立案':'調理実績'}です。\n--- kondate:v1 ---\n${JSON.stringify({version:1,dishes})}`,start:{date:record.date},end:{date:addDays(record.date,1)},transparency:'transparent',extendedProperties:{private:{kondate:'1',state:record.status==='plan'?'plan':'actual'}}};
+ const location=String(record.location||'').trim();
+ return {summary:dishes.map(d=>d.name).join('、'),location,description:`献立ノートで登録した${record.status==='plan'?'献立案':'調理実績'}です。\n--- kondate:v1 ---\n${JSON.stringify({version:1,dishes})}`,start:{date:record.date},end:{date:addDays(record.date,1)},transparency:'transparent',extendedProperties:{private:{kondate:'1',state:record.status==='plan'?'plan':'actual'}}};
 }

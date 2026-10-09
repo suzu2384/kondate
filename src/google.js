@@ -133,14 +133,14 @@ export class CalendarClient {
  async calendars(){let list=[],pageToken;do{const q=new URLSearchParams({maxResults:'250'});if(pageToken)q.set('pageToken',pageToken);const r=await this.request('/users/me/calendarList?'+q);list.push(...r.items||[]);pageToken=r.nextPageToken;}while(pageToken);return list;}
  path(calendarId,id=''){return `/calendars/${encodeURIComponent(calendarId)}/events${id?'/'+encodeURIComponent(id):''}`;}
  async events(calendarId,from,to){let items=[],pageToken;do{const q=new URLSearchParams({timeMin:`${from}T00:00:00+09:00`,timeMax:`${to}T00:00:00+09:00`,singleEvents:'true',maxResults:'2500',orderBy:'startTime'});if(pageToken)q.set('pageToken',pageToken);const r=await this.request(this.path(calendarId)+'?'+q);items.push(...r.items||[]);pageToken=r.nextPageToken;}while(pageToken);return items;}
- async insert(calendarId,record){const payload={...eventPayload(record),id:record.id};try{return await this.request(this.path(calendarId),{method:'POST',body:payload});}catch(error){if(error.status===409){const found=await this.request(this.path(calendarId,record.id));if(found.extendedProperties?.private?.kondate==='1'&&found.description===payload.description&&found.start?.date===payload.start.date)return found;throw Error('同じ登録IDの内容が異なります。同期して確認してください。');}throw error;}}
+ async insert(calendarId,record){const payload={...eventPayload(record),id:record.id};try{return await this.request(this.path(calendarId),{method:'POST',body:payload});}catch(error){if(error.status===409){const found=await this.request(this.path(calendarId,record.id));if(found.extendedProperties?.private?.kondate==='1'&&found.description===payload.description&&found.start?.date===payload.start.date&&String(found.location||'')===payload.location)return found;throw Error('同じ登録IDの内容が異なります。同期して確認してください。');}throw error;}}
  update(calendarId,record){
   if(!record.etag)throw Error('予定の更新情報がありません。カレンダーを同期してから編集してください。');
   const payload=eventPayload(record);
   // Existing Google events are edited in place; retain original dates, times,
   // attendees and other unrelated fields while storing the confirmed dish data.
   const body=record.owned?payload:{
-   summary:payload.summary,description:payload.description,
+   summary:payload.summary,description:payload.description,location:payload.location,
    extendedProperties:{private:{...record.raw?.extendedProperties?.private,kondate:'1',state:record.status==='plan'?'plan':'actual'}}
   };
   return this.request(this.path(calendarId,record.id),{method:'PATCH',body,etag:record.etag});
