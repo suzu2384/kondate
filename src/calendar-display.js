@@ -15,8 +15,14 @@ export function matchIcon(title,rules=[]){
  const haystack=String(title||'').normalize('NFKC').toLocaleLowerCase('ja');
  for(const rule of rules){
   const needle=String(rule.keyword||'').normalize('NFKC').trim().toLocaleLowerCase('ja');
-  if(needle&&haystack.includes(needle)&&typeof rule.icon==='string')return rule.icon;
+  if(needle&&haystack.includes(needle)&&typeof rule.icon==='string')return normalizeIcon(rule.icon);
  }
  return '';
 }
-export const ICON_CHOICES=['📌','🗑️','♻️','🏫','🏥','🎂','💼','🏃','🛍️','🎉','🚗','🚃','✈️','💊','🍽️','⭐'];
+// SVG filenames supplied by the user. No icon meanings are assigned by this UI.
+export const ICON_CHOICES=["pin","trash","recycle","school","hospital","cake","briefcase-business","sport-shoe","shopping-cart","party-popper","car","tram-front","plane","pill"];
+export const LEGACY_ICONS={"📌":"pin","🗑️":"trash","♻️":"recycle","🏫":"school","🏥":"hospital","🎂":"cake","💼":"briefcase-business","🏃":"sport-shoe","🛍️":"shopping-cart","🎉":"party-popper","🚗":"car","🚃":"tram-front","✈️":"plane","💊":"pill","🍽️":"pin","⭐":"pin"};
+export const ICON_DEFAULT_COLOR='#436e57';
+export const isSupportedIcon=icon=>ICON_CHOICES.includes(icon)||Object.hasOwn(LEGACY_ICONS,icon);
+export const normalizeIcon=icon=>ICON_CHOICES.includes(icon)?icon:(LEGACY_ICONS[icon]||'pin');
+export const normalizeIconColor=color=>/^#[0-9a-fA-F]{6}$/.test(String(color||''))?color:ICON_DEFAULT_COLOR;

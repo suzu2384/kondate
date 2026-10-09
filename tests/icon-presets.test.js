@@ -8,17 +8,32 @@ const old={id:'old',keyword:'可燃ごみ',icon:'🗑️'};
 const a={id:'aaa',keyword:'ごみ回収',memo:'A地区',icon:'🗑️',calendarId:'calendar'};
 const b={id:'bbb',keyword:'ごみ回収',memo:'B地区',icon:'♻️',calendarId:'calendar'};
 const e=rule=>({...presetEventPayload(date,rule),id:rule.id,etag:'etag'});
+import {ICON_CHOICES,normalizeIcon,normalizeIconColor} from '../src/calendar-display.js';
+test('all fourteen supplied SVGs are included and old emoji convert',()=>{
+ assert.equal(ICON_CHOICES.length,14);
+ for(const icon of ICON_CHOICES){
+  const svg=readFileSync(new URL('../icons/presets/'+icon+'.svg',import.meta.url),'utf8');
+  assert.match(svg,/viewBox="0 0 24 24"/);
+  assert.match(svg,/stroke="currentColor"/);
+ }
+ assert.equal(normalizeIcon('📌'),'pin');
+ assert.equal(normalizeIcon('🏃'),'sport-shoe');
+ assert.equal(normalizeIcon('🛍️'),'shopping-cart');
+ assert.equal(normalizeIcon('⭐'),'pin');
+ assert.equal(normalizeIconColor('#FF4477'),'#FF4477');
+ assert.equal(normalizeIconColor('red;bad'),'#436e57');
+});
 test('legacy icon mappings work and only configured calendars are loaded',()=>{
  assert.deepEqual(presetCalendarIds([old,a,b]),['calendar']);
- assert.equal(presetIcon({summary:'可燃ごみの日'},'calendar',[old]),'🗑️');
+ assert.equal(presetIcon({summary:'可燃ごみの日'},'calendar',[old]),'trash');
  assert.equal(isPresetEvent({summary:'適当な料理',start:{date}},'calendar',[old,a]),false);
 });
 test('same title distinct memo and calendar precisely identifies separate events',()=>{
  const eventA=e(a),eventB=e(b);
  assert.equal(eventA.summary,eventB.summary);
  assert.equal(eventA.description,'A地区');
- assert.equal(presetIcon(eventA,'calendar',[a,b]),'🗑️');
- assert.equal(presetIcon(eventB,'calendar',[a,b]),'♻️');
+ assert.equal(presetIcon(eventA,'calendar',[a,b]),'trash');
+ assert.equal(presetIcon(eventB,'calendar',[a,b]),'recycle');
  assert.equal(matchingPresetEvent([eventB],'calendar',date,a),undefined);
  assert.equal(matchingPresetEvent([eventA,eventB],'calendar',date,b)?.id,'bbb');
  assert.equal(matchingPresetEvent([eventA],'other',date,a),undefined);
@@ -43,6 +58,11 @@ test('toolbar, handlers, and clipping CSS are wired',()=>{
  assert.match(app,/api\.removePreset/);
  assert.match(app,/api\.insertPreset/);
  assert.match(app,/data-icon-memo/);
+ assert.match(app,/data-action="choose-icon"/);
+ assert.match(app,/class="icon-tile/);
+ assert.match(app,/data-icon-color/);
+ assert.match(css,/mask-image:var\(--preset-svg\)/);
+ assert.match(css,/\.icon-tile-grid\{display:grid/);
  assert.match(app,/data-icon-calendar/);
  assert.match(css,/\.month-grid \.event-chip \.calendar-event-note\{[^}]*text-overflow:clip/);
  for(const path of ['src/app.js','src/google.js','src/icon-presets.js']){

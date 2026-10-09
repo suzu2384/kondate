@@ -1,5 +1,5 @@
 import {addDays} from './model.js';
-import {matchIcon} from './calendar-display.js';
+import {matchIcon,normalizeIcon,normalizeIconColor} from './calendar-display.js';
 export function presetCalendarIds(rules=[]){
  return [...new Set(rules.filter(r=>String(r.keyword||'').trim()&&r.calendarId).map(r=>r.calendarId))];
 }
@@ -16,9 +16,16 @@ export function isPresetEvent(event,calendarId,rules=[]){
 export function presetIcon(event,calendarId,rules=[]){
  const presetId=event?.extendedProperties?.private?.kondatePresetId;
  const byId=presetId&&rules.find(r=>r.id===presetId);
- if(byId?.icon)return byId.icon;
+ if(byId?.icon)return normalizeIcon(byId.icon);
  const exact=rules.find(rule=>matchesPreset(event,calendarId,rule));
- return exact?.icon||matchIcon(event?.summary,rules);
+ return exact?.icon?normalizeIcon(exact.icon):matchIcon(event?.summary,rules);
+}
+export function presetColor(event,calendarId,rules=[]){
+ const presetId=event?.extendedProperties?.private?.kondatePresetId;
+ const byId=presetId&&rules.find(r=>r.id===presetId);
+ const matched=byId||rules.find(rule=>matchesPreset(event,calendarId,rule))||
+  rules.find(rule=>rule.keyword&&String(event?.summary||'').normalize('NFKC').toLocaleLowerCase('ja').includes(String(rule.keyword).normalize('NFKC').trim().toLocaleLowerCase('ja')));
+ return normalizeIconColor(matched?.color);
 }
 export function matchingPresetEvent(events,calendarId,date,rule){
  return events.find(e=>e.status!=='cancelled'&&!e.recurringEventId&&

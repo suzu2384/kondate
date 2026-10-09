@@ -5,8 +5,8 @@ import {CalendarClient} from './google.js';
 import {CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefreshDue} from './calendar-auto-refresh.js';
 import {GOOGLE_CLIENT_ID} from './config.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
-import {eventDay,matchIcon,ICON_CHOICES} from './calendar-display.js';
-import {presetCalendarIds,isPresetEvent,presetIcon,matchingPresetEvent} from './icon-presets.js';
+import {eventDay,matchIcon,ICON_CHOICES,normalizeIcon,normalizeIconColor,isSupportedIcon} from './calendar-display.js';
+import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEvent} from './icon-presets.js';
 import {DriveSettingsClient} from './drive.js';
 import {dateTapAction,horizontalMonthSwipe,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync} from './drive-sync.js';
@@ -23,7 +23,8 @@ state.categoryCalendars=migrateCategoryCalendars(state.categories,loaded.categor
 // Legacy standard-calendar setting has been migrated to Main.
 state.calendarId='';state.calendarName='';
 state.extraCalendarIds=Array.isArray(loaded.extraCalendarIds)?loaded.extraCalendarIds:[];
-state.iconRules=Array.isArray(loaded.iconRules)?loaded.iconRules:[];
+const normalizePresetRules=rules=>(Array.isArray(rules)?rules:[]).map(rule=>({...rule,icon:normalizeIcon(rule.icon),color:normalizeIconColor(rule.color)}));
+state.iconRules=normalizePresetRules(loaded.iconRules);
 state.calendarRefreshMinutes=normalizeCalendarRefreshMinutes(state.calendarRefreshMinutes);
 const api=new CalendarClient(),ai=new AIService(),drive=new DriveSettingsClient();
 const restoredGoogleSession=api.restoreSession(GOOGLE_CLIENT_ID);
@@ -90,7 +91,7 @@ function extraEvents(){
    const date=eventDay(event,state.timeZone);
    if(!date)return null;
    const title=event.summary||'無題の予定';
-   return {calendarId,date,title,memo:String(event.description||''),icon:presetIcon(event,calendarId,state.iconRules)};
+   return {calendarId,date,title,memo:String(event.description||''),icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules)};
   }).filter(Boolean)
  );
 }
@@ -121,6 +122,10 @@ function render(){
  renderPresetBar();
  if(previousScroll!=null){const list=$('#main .settings-grid');if(list)list.scrollTop=previousScroll;}
 }
+function iconMarkup(name,color='',extraClass=''){
+ const icon=normalizeIcon(name),tint=normalizeIconColor(color);
+ return `<span class="preset-svg-icon ${extraClass}" aria-hidden="true" style="--preset-svg:url('./icons/presets/${icon}.svg');color:${tint}"></span>`;
+}
 function renderPresetBar(){
  const bar=$('#quick-preset-bar');
  const rules=state.iconRules.filter(rule=>String(rule.keyword||'').trim());
@@ -133,7 +138,7 @@ function renderPresetBar(){
   const title=String(rule.keyword||'').trim(),memo=String(rule.memo||'').trim();
   const label=[title,memo,rule.calendarId?'':'（登録先未設定）'].filter(Boolean).join('／');
   const pressed=selectedPresetId===rule.id;
-  return `<button type="button" data-action="select-preset" data-rule-id="${esc(rule.id)}" aria-label="${esc(label)}" title="${esc(label)}" aria-pressed="${pressed}" class="quick-preset ${pressed?'active':''}">${esc(rule.icon||'📌')}</button>`;
+  return `<button type="button" data-action="select-preset" data-rule-id="${esc(rule.id)}" aria-label="${esc(label)}" title="${esc(label)}" aria-pressed="${pressed}" class="quick-preset ${pressed?'active':''}">${iconMarkup(rule.icon,rule.color)}</button>`;
  }).join('');
 }
 function prepareGoogleIdentity(){
@@ -152,10 +157,10 @@ function button(text,action,cls='',attrs=''){return `<button class="${cls}" data
 function heading(label,title,sub,actions=''){return `<div class="page-heading"><div><div class="eyebrow">${label}</div><h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div>${actions}</div>`;}
 function calendarScreen(){const list=records(),extras=extraEvents();const cells=monthGridDates(month.getFullYear(),month.getMonth()).map(date=>{const d=new Date(`${date}T12:00:00`),events=list.filter(e=>e.date===date),extra=extras.filter(e=>e.date===date);
 const chips=[...events.map(e=>`<span class="event-chip ${e.status}">${esc(e.owned?e.dishes.map(d=>d.name).join('、'):(e.raw?.summary||e.dishes[0]?.name||'読み込み不可'))}</span>`),
- ...extra.map(e=>`<span class="event-chip general-event ${e.icon?'has-icon':''}" title="${esc(e.title+(e.memo?'／'+e.memo:''))}" aria-label="${esc(e.title+(e.memo?'／'+e.memo:''))}">${e.icon?`<span class="calendar-event-icon">${esc(e.icon)}</span><span class="calendar-event-note">${esc(e.memo.replace(/\r?\n/g,' '))}</span>`:`<span class="calendar-event-note">${esc(e.title)}</span>`}</span>`)];
+ ...extra.map(e=>`<span class="event-chip general-event ${e.icon?'has-icon':''}" title="${esc(e.title+(e.memo?'／'+e.memo:''))}" aria-label="${esc(e.title+(e.memo?'／'+e.memo:''))}">${e.icon?`<span class="calendar-event-icon">${iconMarkup(e.icon,e.color)}</span><span class="calendar-event-note">${esc(e.memo.replace(/\r?\n/g,' '))}</span>`:`<span class="calendar-event-note">${esc(e.title)}</span>`}</span>`)];
 return `<button class="day ${d.getMonth()!==month.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-pressed="${date===selected}" aria-label="${date}、${events.length+extra.length}件"><span class="day-number">${d.getDate()}</span>${chips.slice(0,2).join('')}${chips.length>2?`<small>+${chips.length-2}</small>`:''}</button>`;}).join('');
 return `<section class="screen calendar-screen"><div class="calendar-layout"><div class="calendar-card card"><div class="month-heading"><h2>${month.getFullYear()}年 <span>${month.getMonth()+1}月</span></h2><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid">${cells}</div></div><aside class="card day-panel">${dayContent(selected)}</aside></div></section>`;}
-function dayContent(date){const d=new Date(`${date}T12:00:00`);const list=records().filter(r=>r.date===date),extra=extraEvents().filter(e=>e.date===date);return `<h2>${d.getMonth()+1}月${d.getDate()}日 <small>（${'日月火水木金土'[d.getDay()]}）</small></h2><div class="date-label">${list.length+extra.length}件の記録・予定</div>${list.map(r=>`<div class="meal-group"><span class="tag ${r.status==='invalid'?'neutral':''}">${({actual:'調理実績',invalid:'書式を確認してください'})[r.status]}</span>${String(r.location||'').trim()?`<div class="date-label">外食・場所：${esc(r.location)}</div>`:''}${r.dishes.map(d=>`<div class="dish-line"><span class="category">${esc(categoryName(d.category))}</span><span>${esc(d.name)}</span></div>`).join('')}${r.status==='invalid'?`<p class="hint">元の予定をカレンダーで確認してください。変更せず保護しています。</p>`:button('詳細・編集','record','text-button mini',`data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"`)}</div>`).join('')||(!extra.length?empty('この日の記録はありません','何を作りましたか？料理名だけでも記録できます。'):'')}${extra.map(e=>`<div class="meal-group general-event-detail"><span aria-hidden="true">${esc(e.icon||'📅')}</span><span><strong>${esc(e.title)}</strong>${e.memo?`<span class="general-event-memo">${esc(e.memo)}</span>`:''}</span> <small>（表示のみ）</small></div>`).join('')}${button('＋ この日に登録','new-record','full',`data-date="${date}"`)}`;}
+function dayContent(date){const d=new Date(`${date}T12:00:00`);const list=records().filter(r=>r.date===date),extra=extraEvents().filter(e=>e.date===date);return `<h2>${d.getMonth()+1}月${d.getDate()}日 <small>（${'日月火水木金土'[d.getDay()]}）</small></h2><div class="date-label">${list.length+extra.length}件の記録・予定</div>${list.map(r=>`<div class="meal-group"><span class="tag ${r.status==='invalid'?'neutral':''}">${({actual:'調理実績',invalid:'書式を確認してください'})[r.status]}</span>${String(r.location||'').trim()?`<div class="date-label">外食・場所：${esc(r.location)}</div>`:''}${r.dishes.map(d=>`<div class="dish-line"><span class="category">${esc(categoryName(d.category))}</span><span>${esc(d.name)}</span></div>`).join('')}${r.status==='invalid'?`<p class="hint">元の予定をカレンダーで確認してください。変更せず保護しています。</p>`:button('詳細・編集','record','text-button mini',`data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"`)}</div>`).join('')||(!extra.length?empty('この日の記録はありません','何を作りましたか？料理名だけでも記録できます。'):'')}${extra.map(e=>`<div class="meal-group general-event-detail">${e.icon?iconMarkup(e.icon,e.color):''}<span><strong>${esc(e.title)}</strong>${e.memo?`<span class="general-event-memo">${esc(e.memo)}</span>`:''}</span> <small>（表示のみ）</small></div>`).join('')}${button('＋ この日に登録','new-record','full',`data-date="${date}"`)}`;}
 function generateScreen(){
  return `<section class="screen generation-screen">
  <div class="generation-controls">
@@ -194,7 +199,9 @@ function additionalCalendarSettings(){
   const chosen=String(rule.calendarId||'');
   const missing=chosen&&!writable.some(c=>c.id===chosen);
   return `<div class="icon-preset-settings">
-   <div class="icon-preset-heading"><strong>予定プリセット</strong><select data-icon-choice="${esc(rule.id)}" aria-label="表示アイコン">${ICON_CHOICES.map(icon=>`<option value="${icon}" ${rule.icon===icon?'selected':''}>${icon}</option>`).join('')}</select>${button('削除','remove-icon-rule','danger mini',`data-rule-id="${esc(rule.id)}" aria-label="プリセットを削除"`)}</div>
+   <div class="icon-preset-heading"><strong>予定プリセット</strong>${button('削除','remove-icon-rule','danger mini',`data-rule-id="${esc(rule.id)}" aria-label="プリセットを削除"`)}</div>
+   <div class="icon-tile-grid" role="group" aria-label="SVGアイコンの選択">${ICON_CHOICES.map((icon,index)=>`<button type="button" class="icon-tile ${normalizeIcon(rule.icon)===icon?'selected':''}" data-action="choose-icon" data-rule-id="${esc(rule.id)}" data-icon="${icon}" aria-pressed="${normalizeIcon(rule.icon)===icon}" aria-label="アイコン ${index+1}">${iconMarkup(icon,rule.color)}</button>`).join('')}</div>
+   <label class="field icon-color-field"><span>アイコンの色</span><input type="color" data-icon-color="${esc(rule.id)}" value="${normalizeIconColor(rule.color)}" aria-label="アイコンの色を選択"></label>
    <label class="field"><span>タイトル（表示の置き換えは部分一致）</span><input type="text" data-icon-keyword="${esc(rule.id)}" value="${esc(rule.keyword)}" maxlength="80" placeholder="例：可燃ごみ"></label>
    <label class="field"><span>メモ（同じタイトルでも別プリセットにできます）</span><textarea data-icon-memo="${esc(rule.id)}" maxlength="2000" rows="2" placeholder="登録時に予定の説明欄へ保存">${esc(rule.memo||'')}</textarea></label>
    <label class="field"><span>予定の登録先カレンダー</span><select data-icon-calendar="${esc(rule.id)}"><option value="">未設定（表示の置き換えのみ）</option>${writable.map(c=>`<option value="${esc(c.id)}" ${chosen===c.id?'selected':''}>${esc(c.summary)}</option>`).join('')}${missing?`<option value="${esc(chosen)}" selected>保存済みの設定（再接続して確認）</option>`:''}</select></label>
@@ -410,7 +417,7 @@ async function applyRemoteSettings(remoteVersion,remoteSnapshot){
  const saved=readDriveSnapshot(remoteSnapshot,state,validateImport);
  const wasBooting=driveAutoBooting;driveAutoBooting=true;
  try{
-  restoreDriveSnapshot(state,saved);
+  restoreDriveSnapshot(state,saved);state.iconRules=normalizePresetRules(state.iconRules);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
   persist();
@@ -627,7 +634,7 @@ const actions={
  },
  'confirm-drive-load':async()=>{
   if(!driveImported)throw Error('復元する設定がありません。');
-  restoreDriveSnapshot(state,driveImported);
+  restoreDriveSnapshot(state,driveImported);state.iconRules=normalizePresetRules(state.iconRules);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
   driveImported=null;
@@ -643,10 +650,11 @@ const actions={
    }catch(error){notify('Driveの設定は復元しました。カレンダーの同期に失敗しました：'+error.message);}
   }else notify('Driveの設定を復元しました。Googleカレンダーへ接続すると履歴を取得できます。');
  },
-  'add-icon-rule':()=>{state.iconRules.push({id:uid().slice(0,10),keyword:'',memo:'',calendarId:'',icon:'📌'});persist();render();},
+  'add-icon-rule':()=>{state.iconRules.push({id:uid().slice(0,10),keyword:'',memo:'',calendarId:'',icon:'pin',color:'#436e57'});persist();render();},
+   'choose-icon':b=>{const rule=state.iconRules.find(r=>r.id===b.dataset.ruleId);if(!rule||!ICON_CHOICES.includes(b.dataset.icon))return;rule.icon=b.dataset.icon;persist();render();},
   'remove-icon-rule':b=>{state.iconRules=state.iconRules.filter(rule=>rule.id!==b.dataset.ruleId);if(selectedPresetId===b.dataset.ruleId)selectedPresetId=null;persist();render();},
   export:exportState,import:()=>$('#import-file').click(),
- 'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
+ 'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.iconRules=normalizePresetRules(state.iconRules);state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
 };
 async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))return;await actions[action]?.(b);}catch(error){if($('#dialog').open&&$('#dialog-error'))$('#dialog-error').textContent=error.message;else notify(error.message);updateConnection();}}
 // Capture pointer selection before iOS dismisses the keyboard and changes focus.
@@ -774,7 +782,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   if(el.dataset.iconKeyword){const rule=state.iconRules.find(r=>r.id===el.dataset.iconKeyword);if(rule)rule.keyword=el.value;}
   if(el.dataset.iconMemo){const rule=state.iconRules.find(r=>r.id===el.dataset.iconMemo);if(rule)rule.memo=el.value;}
   if(el.dataset.iconCalendar){const rule=state.iconRules.find(r=>r.id===el.dataset.iconCalendar);if(rule)rule.calendarId=el.value;}
-  if(el.dataset.iconChoice){const rule=state.iconRules.find(r=>r.id===el.dataset.iconChoice);if(rule)rule.icon=el.value;}
+  if(el.dataset.iconColor){const rule=state.iconRules.find(r=>r.id===el.dataset.iconColor);if(rule)rule.color=normalizeIconColor(el.value);}
   if(el.id==='calendar-refresh-minutes'){state.calendarRefreshMinutes=normalizeCalendarRefreshMinutes(Number(el.value));el.value=String(state.calendarRefreshMinutes);}
  if(el.id==='history-from')state.from=el.value||'2000-01-01';
  if(el.id==='theme-mode'){state.theme.mode=el.value;applyTheme(state.theme);}
@@ -787,10 +795,11 @@ document.addEventListener('change',async e=>{const el=e.target;try{
  if(el.id==='import-file'){const file=el.files[0];if(file){if(file.size>10*1024*1024)throw Error('設定ファイルは10MB以下で読み込んでください。');const parsed=JSON.parse(await file.text());validateImport(parsed);imported=parsed.state;modal('設定と下書きを置き換えますか？','<p>この端末の設定・下書き・履歴キャッシュを、選択したファイルの内容に置き換えます。Googleカレンダーは変更しません。</p>',button('キャンセル','close-dialog')+button('読み込む','confirm-import','primary'));}}
  persist();updateConnection();
  if(el.id==='calendar-refresh-minutes')await autoRefreshCalendar();
+ if(el.dataset.iconColor)render();
  if(el.dataset.iconCalendar&&api.connected&&hasSyncedCalendars())await sync();
  }catch(error){notify(error.message);}});
 function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array.isArray(p.state.categories)||!Array.isArray(p.state.draft)||!p.state.rules||!p.state.scopes)throw Error('献立ノートの設定ファイルではありません。');if(!['timeZone','from'].every(k=>typeof p.state[k]==='string')||!/^\d{4}-\d{2}-\d{2}$/.test(p.state.from)||!['oldDays','recentDays'].every(k=>Number.isInteger(p.state.rules[k])&&p.state.rules[k]>=1&&p.state.rules[k]<=365)||!['preferOld','excludeRecent','unique','balance','newMain'].every(k=>typeof p.state.rules[k]==='boolean'))throw Error('設定値の形式が不正です。');if(JSON.stringify(p).includes('"__proto__"'))throw Error('設定ファイルが不正です。');if(!p.state.categories.every(c=>/^[a-z][a-z0-9-]*$/.test(c.id)&&typeof c.name==='string'&&c.name.length<=20)||!p.state.categories.some(c=>c.id==='main'))throw Error('分類の設定が不正です。');if(p.state.categoryCalendars&&(!Object.values(p.state.categoryCalendars).every(v=>typeof v==='string')||!Object.keys(p.state.categoryCalendars).every(k=>/^[a-z][a-z0-9-]*$/.test(k))))throw Error('分類別カレンダーの設定が不正です。');if(p.state.extraCalendarIds&&(!Array.isArray(p.state.extraCalendarIds)||!p.state.extraCalendarIds.every(x=>typeof x==='string')))throw Error('表示カレンダーの設定が不正です。');
- if(p.state.iconRules&&(!Array.isArray(p.state.iconRules)||!p.state.iconRules.every(r=>typeof r.id==='string'&&/^[0-9a-f]{10}$/.test(r.id)&&typeof r.keyword==='string'&&r.keyword.length<=80&&ICON_CHOICES.includes(r.icon)&&(r.memo===undefined||(typeof r.memo==='string'&&r.memo.length<=2000))&&(r.calendarId===undefined||(typeof r.calendarId==='string'&&r.calendarId.length<=512)))))throw Error('アイコンルールが不正です。');
+ if(p.state.iconRules&&(!Array.isArray(p.state.iconRules)||!p.state.iconRules.every(r=>typeof r.id==='string'&&/^[0-9a-f]{10}$/.test(r.id)&&typeof r.keyword==='string'&&r.keyword.length<=80&&isSupportedIcon(r.icon)&&(r.color===undefined||/^#[0-9a-f]{6}$/i.test(r.color))&&(r.memo===undefined||(typeof r.memo==='string'&&r.memo.length<=2000))&&(r.calendarId===undefined||(typeof r.calendarId==='string'&&r.calendarId.length<=512)))))throw Error('アイコンルールが不正です。');
  if(p.state.calendarRefreshMinutes!==undefined&&!CALENDAR_REFRESH_MINUTES.includes(p.state.calendarRefreshMinutes))throw Error('カレンダーの自動更新間隔が不正です。');
  if(!Number.isInteger(p.state.rules.days)||p.state.rules.days<1||p.state.rules.days>31||!Object.values(p.state.rules.counts).every(n=>Number.isInteger(n)&&n>=0&&n<=5)||!colors[p.state.theme?.color]||!['light','dark','auto'].includes(p.state.theme?.mode))throw Error('生成ルールまたはテーマが不正です。');for(const day of p.state.draft)if(day.dishes.length)validateDishes(day.dishes);for(const s of Object.values(p.state.scopes))if(!Array.isArray(s.events)||!s.legacy||!s.aliases||!s.metadata||!Array.isArray(s.manual))throw Error('履歴データが不正です。');}
 window.addEventListener('storage-failed',()=>notify('端末への保存に失敗しました。空き容量・ブラウザ設定を確認し、編集中の内容を書き出してください。'));

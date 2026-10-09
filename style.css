@@ -419,3 +419,31 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .quick-preset{height:33px;min-height:33px;min-width:36px;font-size:18px}
  .month-grid .event-chip.general-event.has-icon{font-size:9px;gap:2px}
 }
+
+/* v1.3.29: uploaded SVG icons, tile selector, and per-preset color. */
+.preset-svg-icon{display:inline-block;flex:0 0 auto;width:1em;height:1em;vertical-align:middle;
+ background-color:currentColor;
+ -webkit-mask-image:var(--preset-svg);mask-image:var(--preset-svg);
+ -webkit-mask-size:contain;mask-size:contain;
+ -webkit-mask-position:center;mask-position:center;
+ -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+.quick-preset .preset-svg-icon{width:21px;height:21px}
+.icon-tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(50px,1fr));
+ gap:8px;margin:12px 0;align-items:stretch}
+.icon-tile{width:100%;min-width:0;min-height:52px;display:flex;align-items:center;justify-content:center;
+ padding:8px;background:var(--surface);border:1px solid var(--line);border-radius:10px}
+.icon-tile.selected,.icon-tile[aria-pressed="true"]{background:var(--tint);border:2px solid var(--accent);
+ box-shadow:inset 0 0 0 1px var(--accent)}
+.icon-tile .preset-svg-icon{width:27px;height:27px}
+.icon-preset-settings .icon-color-field{display:flex;align-items:center;gap:12px}
+.icon-preset-settings .icon-color-field>span{min-width:92px;margin:0}
+.icon-preset-settings .icon-color-field input[type="color"]{width:70px;height:38px;min-height:38px;
+ padding:3px;flex:0 0 70px;cursor:pointer}
+.month-grid .event-chip .calendar-event-icon{display:inline-flex;align-items:center;flex:0 0 auto;
+ line-height:inherit;font-size:inherit}
+.month-grid .event-chip .calendar-event-icon .preset-svg-icon{width:1em;height:1em}
+.general-event-detail>.preset-svg-icon{width:17px;height:17px}
+@media(max-width:760px){
+ .icon-tile-grid{grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:7px}
+ .icon-tile{min-height:50px}
+}
