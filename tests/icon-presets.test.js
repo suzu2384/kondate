@@ -38,7 +38,7 @@ test('toolbar, handlers, and clipping CSS are wired',()=>{
  const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
  assert.ok(html.indexOf('id="quick-preset-bar"')>html.indexOf('id="main"'));
  assert.ok(html.indexOf('id="quick-preset-bar"')<html.indexOf('id="status-bar"'));
- assert.match(app,/if\(selectedPresetId\)\{await togglePresetOnDate\(date\);return;\}/);
+ assert.match(app,/if\(selectedPresetId\)\{selected=date;await togglePresetOnDate\(date\);return;\}/);
  assert.match(app,/matchingPresetEvent\(current,calendarId,date,rule\)/);
  assert.match(app,/api\.removePreset/);
  assert.match(app,/api\.insertPreset/);
