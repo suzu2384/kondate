@@ -26,7 +26,8 @@ test('thirty user-provided MingCute Solid SVGs are included, old assets removed'
  assert.equal(normalizeIcon('⭐'),'star_fill');
  assert.equal(normalizeIcon('trash'),'tag_fill');
  assert.equal(normalizeIconColor('#FF4477'),'#FF4477');
- assert.equal(normalizeIconColor('red;bad'),'#436e57');
+ assert.equal(normalizeIconColor('red;bad'),'#ffffff');
+ assert.equal(normalizeIconColor(undefined),'#ffffff');
 });
 test('legacy icon mappings work and only configured calendars are loaded',()=>{
  assert.deepEqual(presetCalendarIds([old,a,b]),['calendar']);
@@ -51,6 +52,17 @@ test('toggle does not target timed or recurring events',()=>{
  assert.equal(isPresetEvent(event,'calendar',[a,b]),true);
  assert.equal(event.end.date,'2026-10-11');
  assert.equal(event.extendedProperties.private.kondatePresetId,'aaa');
+});
+test('all calendar chips are rendered and clipped naturally, with centered icons',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
+ assert.match(app,/\$\{chips\.join\(''\)\}/);
+ assert.doesNotMatch(app,/chips\.slice\(0,2\)|chips\.length>2/);
+ assert.match(css,/\.month-grid \.day \.event-chip\{flex:0 0 auto\}/);
+ assert.match(css,/\.month-grid \.event-chip\.general-event\.has-icon\{align-items:center\}/);
+ assert.match(css,/\.calendar-event-icon:has\(\.preset-svg-icon\.is-white\)/);
+ assert.match(app,/icon:'tag_fill',color:'#ffffff'/);
+ assert.match(app,/is-white/);
 });
 test('toolbar, handlers, and clipping CSS are wired',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');

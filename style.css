@@ -474,3 +474,24 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 @media(max-width:760px){
  #preset-pending{font-size:10px;height:25px;min-height:25px;padding:2px 6px;max-width:52%}
 }
+
+/* v1.3.32 — default white icon contrast, unlimited day chips, centered icon/label. */
+.month-grid .day .event-chip{flex:0 0 auto}
+.month-grid .event-chip.general-event.has-icon{align-items:center}
+.month-grid .event-chip .calendar-event-icon{display:inline-flex;align-items:center;justify-content:center;
+ height:1.35em;line-height:1;vertical-align:middle}
+.month-grid .event-chip .calendar-event-icon .preset-svg-icon{display:block;width:1em;height:1em}
+.month-grid .event-chip .calendar-event-note{line-height:1.35;align-self:center}
+.calendar-event-icon:has(.preset-svg-icon.is-white){background:var(--accent);border-radius:3px;
+ min-width:1.45em;height:1.45em;padding:1px}
+.quick-preset:has(.preset-svg-icon.is-white),
+.icon-picker-trigger:has(.preset-svg-icon.is-white),
+.icon-tile:has(.preset-svg-icon.is-white){background:var(--accent);border-color:var(--accent)}
+.quick-preset.active:has(.preset-svg-icon.is-white){border-color:var(--on-accent);
+ outline:2px solid var(--accent);outline-offset:-1px}
+.icon-tile.selected:has(.preset-svg-icon.is-white){box-shadow:inset 0 0 0 2px var(--on-accent)}
+.icon-picker-trigger:has(.preset-svg-icon.is-white) span:last-child{color:var(--on-accent)}
+.general-event-detail-icon{display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 auto;width:23px;height:23px;border-radius:4px}
+.general-event-detail-icon:has(.preset-svg-icon.is-white){background:var(--accent)}
+.general-event-detail-icon .preset-svg-icon{width:17px;height:17px}
