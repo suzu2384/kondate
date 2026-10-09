@@ -353,3 +353,8 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .dialog-foot{min-width:0;max-width:100%;flex-wrap:wrap;}
  .dialog-foot button{min-width:0;max-width:100%;}
 }
+
+/* v1.3.22: permit vertical page gestures while recognizing horizontal month swipes.
+   Never apply swipe interception to buttons outside the date grid. */
+.calendar-card .month-grid{touch-action:pan-y;overscroll-behavior-x:contain;}
+.calendar-card .day{touch-action:pan-y;}

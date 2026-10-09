@@ -6,6 +6,7 @@ import {GOOGLE_CLIENT_ID} from './config.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES} from './calendar-display.js';
 import {DriveSettingsClient} from './drive.js';
+import {dateTapAction,horizontalMonthSwipe,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync} from './drive-sync.js';
 import {dishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
@@ -52,6 +53,7 @@ function showStatus(){
 }
 
 let tab='calendar',view='month',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',photoURL=null,photoFile=null;
+let lastTappedCalendarDate='',calendarTouchStart=null,ignoreDateClickUntil=0;
 const scopeKeyFor=id=>calendarKey(GOOGLE_CLIENT_ID,id);
 const primaryCalendarId=()=>activeCalendarIds('',state.categories,state.categoryCalendars)[0]||'';
 const scopeKey=()=>scopeKeyFor(primaryCalendarId());
@@ -123,7 +125,7 @@ function heading(label,title,sub,actions=''){return `<div class="page-heading"><
 function calendarScreen(){const list=records(),extras=extraEvents();const cells=monthGridDates(month.getFullYear(),month.getMonth()).map(date=>{const d=new Date(`${date}T12:00:00`),events=list.filter(e=>e.date===date),extra=extras.filter(e=>e.date===date);
 const chips=[...events.map(e=>`<span class="event-chip ${e.status}">${esc(e.owned?e.dishes.map(d=>d.name).join('、'):(e.raw?.summary||e.dishes[0]?.name||'読み込み不可'))}</span>`),
  ...extra.map(e=>`<span class="event-chip general-event ${e.icon?'icon-only':''}" title="${esc(e.title)}" aria-label="${esc(e.title)}">${esc(e.icon||e.title)}</span>`)];
-return `<button class="day ${d.getMonth()!==month.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-label="${date}、${events.length+extra.length}件"><span class="day-number">${d.getDate()}</span>${chips.slice(0,2).join('')}${chips.length>2?`<small>+${chips.length-2}</small>`:''}</button>`;}).join('');
+return `<button class="day ${d.getMonth()!==month.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-pressed="${date===selected}" aria-label="${date}、${events.length+extra.length}件"><span class="day-number">${d.getDate()}</span>${chips.slice(0,2).join('')}${chips.length>2?`<small>+${chips.length-2}</small>`:''}</button>`;}).join('');
 return `<section class="screen"><div class="toolbar calendar-toolbar"><div class="segmented"><button data-action="view-month" class="${view==='month'?'active':''}">月表示</button><button data-action="view-history" class="${view==='history'?'active':''}">履歴一覧</button></div>${button('料理マスター','master','text-button mini')}</div>${view==='month'?`<div class="calendar-layout"><div class="calendar-card card"><div class="month-heading"><h2>${month.getFullYear()}年 <span>${month.getMonth()+1}月</span></h2><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid">${cells}</div></div><aside class="card day-panel">${dayContent(selected)}</aside></div>`:`<div class="history-list scroll">${list.filter(r=>r.status==='actual').sort((a,b)=>b.date.localeCompare(a.date)).map(r=>`<button class="card history-item" data-action="record" data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"><small>${r.date} ${r.owned?'':'・既存予定'}</small><strong>${esc(r.dishes.map(d=>d.name).join(' / '))}</strong><span class="tag">実績</span></button>`).join('')||empty('まだ調理の記録がありません','カレンダーを接続して同期するか、実績を登録してください。')}</div>`}<div class="footer-note"><span>${assignedIds().some(id=>dataFor(id).lastSync)?'最終同期 '+new Date(Math.max(...assignedIds().map(id=>dataFor(id).lastSync||0))).toLocaleString('ja-JP'):'未同期'}${!navigator.onLine?' ・オフライン':''}</span><span>料理 ${master().filter(d=>d.count).length}品</span></div></section>`;}
 function dayContent(date){const d=new Date(`${date}T12:00:00`);const list=records().filter(r=>r.date===date),extra=extraEvents().filter(e=>e.date===date);return `<h2>${d.getMonth()+1}月${d.getDate()}日 <small>（${'日月火水木金土'[d.getDay()]}）</small></h2><div class="date-label">${list.length+extra.length}件の記録・予定</div>${list.map(r=>`<div class="meal-group"><span class="tag ${r.status==='unreviewed'?'neutral':''}">${({actual:'調理実績',plan:'献立案',invalid:'書式を確認してください'})[r.status]}</span>${r.dishes.map(d=>`<div class="dish-line"><span class="category">${esc(categoryName(d.category))}</span><span>${esc(d.name)}</span></div>`).join('')}${r.status==='invalid'?`<p class="hint">元の予定をカレンダーで確認してください。変更せず保護しています。</p>`:button('詳細・編集','record','text-button mini',`data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"`)}</div>`).join('')||(!extra.length?empty('この日の記録はありません','何を作りましたか？料理名だけでも記録できます。'):'')}${extra.map(e=>`<div class="meal-group general-event-detail"><span aria-hidden="true">${esc(e.icon||'📅')}</span> <span>${esc(e.title)}</span> <small>（表示のみ）</small></div>`).join('')}${button('＋ この日に登録','new-record','full',`data-date="${date}"`)}`;}
 function generateScreen(){
@@ -371,12 +373,28 @@ async function loadCalendarOptions(){
   throw error;
  }
 }
+function shiftCalendarMonth(offset){
+ month=moveMonth(month,offset);
+ lastTappedCalendarDate='';
+ render();
+}
+function selectCalendarDate(date){
+ const next=dateTapAction(selected,lastTappedCalendarDate,date);
+ selected=next.selected;lastTappedCalendarDate=next.lastTapped;
+ render();
+ if(next.open){
+  modal('日付の詳細',dayContent(selected));
+ }else{
+  // Re-rendering replaces the date buttons; restore keyboard/assistive focus.
+  document.querySelector(`.day[data-date="${date}"]`)?.focus({preventScroll:true});
+ }
+}
 const actions={
  'notice-detail':()=>{if(api.reauthenticationRequired&&!api.connected)return actions.connect();if(drive.autoEnabled&&!drive.connected)return actions['drive-reconnect']();if(currentNotice)modal('ステータス',`<p>${esc(currentNotice)}</p>`,button('閉じる','close-dialog'));},
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
  'view-month':()=>{view='month';render();},'view-history':()=>{view='history';render();},
- 'prev-month':()=>{month.setMonth(month.getMonth()-1);render();},'next-month':()=>{month.setMonth(month.getMonth()+1);render();},today:()=>{selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);render();},
- date:b=>{selected=b.dataset.date;render();if(matchMedia('(max-width:760px)').matches)modal('日付の詳細',dayContent(selected));},
+ 'prev-month':()=>shiftCalendarMonth(-1),'next-month':()=>shiftCalendarMonth(1),today:()=>{selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);lastTappedCalendarDate='';render();},
+ date:b=>selectCalendarDate(b.dataset.date),
  'new-record':b=>openRecord(null,{date:b.dataset.date||today()}),record:b=>openRecord(records().find(r=>r.id===b.dataset.id&&r.calendarId===(b.dataset.calendar||primaryCalendarId()))),
  'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
  'suggest-record-dish':pickRecordDishSuggestion,
@@ -490,7 +508,35 @@ document.addEventListener('pointerdown',e=>{
  e.preventDefault();
  pickRecordDishSuggestion(candidate);
 },true);
-document.addEventListener('click',e=>{const tabButton=e.target.closest('[data-tab]');if(tabButton){tab=tabButton.dataset.tab;notify('');render();if(tab==='settings')prepareGoogleIdentity();return;}const b=e.target.closest('[data-action]');if(b)run(b.dataset.action,b);});
+document.addEventListener('click',e=>{
+ const tabButton=e.target.closest('[data-tab]');
+ if(tabButton){tab=tabButton.dataset.tab;lastTappedCalendarDate='';notify('');render();if(tab==='settings')prepareGoogleIdentity();return;}
+ const b=e.target.closest('[data-action]');
+ if(!b)return;
+ // iOS may synthesize a click after touchend even when the grid was swiped.
+ if(b.dataset.action==='date'&&Date.now()<ignoreDateClickUntil){e.preventDefault();return;}
+ run(b.dataset.action,b);
+});
+// Swipe only inside the visible month grid, never on navigation buttons,
+// dialogs or page tabs. Vertical gestures remain available to the browser.
+document.addEventListener('touchstart',e=>{
+ calendarTouchStart=null;
+ if(tab!=='calendar'||view!=='month'||$('#dialog').open||e.touches.length!==1)return;
+ if(!e.target.closest?.('.month-grid'))return;
+ const touch=e.touches[0];
+ calendarTouchStart={x:touch.clientX,y:touch.clientY,time:Date.now()};
+},{passive:true});
+document.addEventListener('touchend',e=>{
+ const start=calendarTouchStart;calendarTouchStart=null;
+ if(!start||tab!=='calendar'||view!=='month'||$('#dialog').open||!e.changedTouches.length)return;
+ const touch=e.changedTouches[0];
+ const offset=horizontalMonthSwipe(start,{x:touch.clientX,y:touch.clientY,time:Date.now()});
+ if(!offset)return;
+ if(e.cancelable)e.preventDefault();
+ ignoreDateClickUntil=Date.now()+350;
+ shiftCalendarMonth(offset);
+},{passive:false});
+document.addEventListener('touchcancel',()=>{calendarTouchStart=null;},{passive:true});
 // The login action directly starts the OAuth popup from the first enabled tap.
 $('#connection').addEventListener('click',()=>run(api.connected?'settings':'connect'));
 $('#sync').addEventListener('click',()=>run('sync'));
