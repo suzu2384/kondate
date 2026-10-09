@@ -46,5 +46,5 @@ export function buildMaster(records,aliases={},metadata={},manual=[]) {
 }
 export function eventPayload(record) {
  const dishes=validateDishes(record.dishes); if(!/^\d{4}-\d{2}-\d{2}$/.test(record.date)||Number.isNaN(Date.parse(record.date)))throw Error('日付を入力してください。');
- return {summary:`${record.status==='plan'?'【献立案】':'【献立】'}${dishes.map(d=>d.name).join('、')}`,description:`献立ノートで登録した${record.status==='plan'?'献立案':'調理実績'}です。\n--- kondate:v1 ---\n${JSON.stringify({version:1,dishes})}`,start:{date:record.date},end:{date:addDays(record.date,1)},transparency:'transparent',extendedProperties:{private:{kondate:'1',state:record.status==='plan'?'plan':'actual'}}};
+ return {summary:dishes.map(d=>d.name).join('、'),description:`献立ノートで登録した${record.status==='plan'?'献立案':'調理実績'}です。\n--- kondate:v1 ---\n${JSON.stringify({version:1,dishes})}`,start:{date:record.date},end:{date:addDays(record.date,1)},transparency:'transparent',extendedProperties:{private:{kondate:'1',state:record.status==='plan'?'plan':'actual'}}};
 }
