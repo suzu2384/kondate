@@ -1,4 +1,5 @@
 import {eventPayload} from './model.js';
+import {presetEventPayload} from './icon-presets.js';
 const ROOT='https://www.googleapis.com/calendar/v3';
 const SESSION_KEY='kondate.google-calendar-session.v1';
 const KEEP_KEY='kondate.google-calendar-keep-connected.v1';
@@ -134,6 +135,19 @@ export class CalendarClient {
  path(calendarId,id=''){return `/calendars/${encodeURIComponent(calendarId)}/events${id?'/'+encodeURIComponent(id):''}`;}
  async events(calendarId,from,to){let items=[],pageToken;do{const q=new URLSearchParams({timeMin:`${from}T00:00:00+09:00`,timeMax:`${to}T00:00:00+09:00`,singleEvents:'true',maxResults:'2500',orderBy:'startTime'});if(pageToken)q.set('pageToken',pageToken);const r=await this.request(this.path(calendarId)+'?'+q);items.push(...r.items||[]);pageToken=r.nextPageToken;}while(pageToken);return items;}
  async insert(calendarId,record){const payload={...eventPayload(record),id:record.id};try{return await this.request(this.path(calendarId),{method:'POST',body:payload});}catch(error){if(error.status===409){const found=await this.request(this.path(calendarId,record.id));if(found.extendedProperties?.private?.kondate==='1'&&found.description===payload.description&&found.start?.date===payload.start.date&&String(found.location||'')===payload.location)return found;throw Error('同じ登録IDの内容が異なります。同期して確認してください。');}throw error;}}
+ async insertPreset(calendarId,date,rule,id){
+  const payload={...presetEventPayload(date,rule),id};
+  try{return await this.request(this.path(calendarId),{method:'POST',body:payload});}
+  catch(error){
+   if(error.status===409){
+    const found=await this.request(this.path(calendarId,id));
+    if(found.summary===payload.summary&&String(found.description||'')===payload.description&&found.start?.date===date&&
+       found.extendedProperties?.private?.kondatePresetId===String(rule.id))return found;
+   }
+   throw error;
+  }
+ }
+ removePreset(calendarId,event){return this.request(this.path(calendarId,event.id),{method:'DELETE',etag:event.etag});}
  update(calendarId,record){
   if(!record.etag)throw Error('予定の更新情報がありません。カレンダーを同期してから編集してください。');
   const payload=eventPayload(record);

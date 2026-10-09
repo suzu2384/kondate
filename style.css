@@ -385,3 +385,37 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .place-suggestion{min-height:42px}
  .place-suggestion span{font-size:14px}
 }
+
+/* v1.3.28: one-row preset toolbar between the calendar and status strip. */
+.app.has-quick-presets{grid-template-rows:54px minmax(0,1fr) 40px 30px 58px}
+.app.has-quick-presets .app-header{grid-row:1}
+.app.has-quick-presets #main{grid-row:2}
+#quick-preset-bar{grid-row:3;min-width:0;display:flex;align-items:center;gap:5px;padding:2px 8px;
+ white-space:nowrap;overflow-x:auto;overflow-y:hidden;border-top:1px solid var(--line);
+ scrollbar-width:thin;overscroll-behavior-x:contain}
+#quick-preset-bar[hidden]{display:none}
+.app.has-quick-presets #status-bar{grid-row:4}
+.app.has-quick-presets .tabs{grid-row:5}
+.quick-preset{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+ min-height:33px;height:33px;min-width:37px;padding:2px 7px;border-radius:8px;font-size:18px;
+ line-height:1;border:1px solid var(--line);background:var(--surface)}
+.quick-preset.active,.quick-preset[aria-pressed="true"]{border:2px solid var(--accent);background:var(--tint);
+ box-shadow:inset 0 0 0 1px var(--accent)}
+.icon-preset-settings{border:1px solid var(--line);border-radius:10px;padding:10px;margin:10px 0;background:var(--surface)}
+.icon-preset-heading{display:flex;gap:8px;align-items:center;justify-content:space-between}
+.icon-preset-heading strong{flex:1;font-size:12px}
+.icon-preset-heading select{flex:0 0 68px;width:68px;min-width:0;padding:4px;font-size:17px;text-align:center}
+.icon-preset-heading button{flex:0 0 auto}
+.icon-preset-settings .field{margin:9px 0}
+.icon-preset-settings textarea{resize:vertical;min-height:62px;white-space:pre-wrap}
+.month-grid .event-chip.general-event.has-icon{display:flex;align-items:baseline;gap:3px;
+ font-size:10px;line-height:1.35;white-space:nowrap;overflow:hidden;text-overflow:clip}
+.month-grid .event-chip .calendar-event-icon{display:inline-block;flex:0 0 auto;font-size:inherit;line-height:inherit}
+.month-grid .event-chip .calendar-event-note{display:inline-block;min-width:0;flex:1;overflow:hidden;
+ white-space:nowrap;text-overflow:clip;font-size:inherit}
+.general-event-detail .general-event-memo{display:block;margin-top:5px;white-space:pre-wrap;overflow-wrap:anywhere;font-weight:400}
+@media(max-width:760px){
+ .app.has-quick-presets{grid-template-rows:49px minmax(0,1fr) 38px 32px calc(54px + env(safe-area-inset-bottom))}
+ .quick-preset{height:33px;min-height:33px;min-width:36px;font-size:18px}
+ .month-grid .event-chip.general-event.has-icon{font-size:9px;gap:2px}
+}
