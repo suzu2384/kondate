@@ -1,28 +1,83 @@
 import {eventPayload} from './model.js';
 const ROOT='https://www.googleapis.com/calendar/v3';
 const SESSION_KEY='kondate.google-calendar-session.v1';
+const KEEP_KEY='kondate.google-calendar-keep-connected.v1';
+const PERSIST_KEY='kondate.google-calendar-token.v1';
 export const SCOPES='https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events';
 export class CalendarClient {
- constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token=null;this.expires=0;this.clientId='';this.identityLoading=null;}
+ constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token=null;this.expires=0;this.clientId='';this.identityLoading=null;this.needsReauth=false;}
  get connected(){return !!this.token&&Date.now()<this.expires;}
- // Keep only a short-lived access token in this tab's session; never in persistent app settings.
- rememberSession(){
-  try{globalThis.sessionStorage?.setItem(SESSION_KEY,JSON.stringify({clientId:this.clientId,token:this.token,expires:this.expires}));}catch{}
+ get reauthenticationRequired(){return this.needsReauth||Boolean(this.token&&Date.now()>=this.expires);}
+ get keepConnected(){
+  try{return globalThis.localStorage?.getItem(KEEP_KEY)==='1';}catch{return false;}
  }
- forgetSession(){try{globalThis.sessionStorage?.removeItem(SESSION_KEY);}catch{}}
+ tokenRecord(){return {clientId:this.clientId,token:this.token,expires:this.expires};}
+ // Persist access tokens only with an explicit opt-in by the device's user.
+ setKeepConnected(enabled){
+  if(!enabled){
+   try{globalThis.localStorage?.removeItem(KEEP_KEY);}catch{}
+   this.forgetPersistentToken();
+   return;
+  }
+  try{
+   if(!globalThis.localStorage)throw Error('Storage unavailable');
+   globalThis.localStorage.setItem(KEEP_KEY,'1');
+   if(this.connected)globalThis.localStorage.setItem(PERSIST_KEY,JSON.stringify(this.tokenRecord()));
+  }catch{
+   try{globalThis.localStorage?.removeItem(KEEP_KEY);}catch{}
+   this.forgetPersistentToken();
+   throw Error('この端末で接続を保持できません。プライベートブラウズやブラウザの保存設定を確認してください。');
+  }
+ }
+ forgetPersistentToken(){try{globalThis.localStorage?.removeItem(PERSIST_KEY);}catch{}}
+ rememberSession(){
+  if(!this.connected)return;
+  const record=JSON.stringify(this.tokenRecord());
+  try{globalThis.sessionStorage?.setItem(SESSION_KEY,record);}catch{}
+  if(this.keepConnected){
+   try{globalThis.localStorage?.setItem(PERSIST_KEY,record);}catch{}
+  }else this.forgetPersistentToken();
+  this.needsReauth=false;
+ }
+ forgetSession(){
+  try{globalThis.sessionStorage?.removeItem(SESSION_KEY);}catch{}
+  this.forgetPersistentToken();
+ }
+ clearToken(requiresLogin=false){
+  this.token=null;this.expires=0;this.needsReauth=requiresLogin;this.forgetSession();
+ }
+ // A deliberate sign-out opts out of auto-login on this device.
+ disconnect(){this.clearToken();this.setKeepConnected(false);}
  restoreSession(clientId){
   if(!clientId)return false;
-  let saved;
-  try{saved=globalThis.sessionStorage?.getItem(SESSION_KEY);}catch{return false;}
-  if(!saved)return false;
-  try{
-   const session=JSON.parse(saved);
-   if(session.clientId!==clientId||typeof session.token!=='string'||!session.token||!Number.isFinite(session.expires)||session.expires<=Date.now()){
-    this.forgetSession();return false;
-   }
-   this.clientId=clientId;this.token=session.token;this.expires=session.expires;
-   return true;
-  }catch{this.forgetSession();return false;}
+  const parseValid=raw=>{
+   if(!raw)return null;
+   try{
+    const saved=JSON.parse(raw);
+    if(saved.clientId!==clientId||typeof saved.token!=='string'||!saved.token||
+       !Number.isFinite(saved.expires)||saved.expires<=Date.now()||
+       saved.expires>Date.now()+24*60*60*1000)return null;
+    return saved;
+   }catch{return null;}
+  };
+  let sessionRaw;
+  try{sessionRaw=globalThis.sessionStorage?.getItem(SESSION_KEY);}catch{}
+  let selected=parseValid(sessionRaw),persistentRaw;
+  if(!selected){
+   try{globalThis.sessionStorage?.removeItem(SESSION_KEY);}catch{}
+   if(this.keepConnected){
+    try{persistentRaw=globalThis.localStorage?.getItem(PERSIST_KEY);}catch{}
+    selected=parseValid(persistentRaw);
+    if(!selected)this.forgetPersistentToken();
+   }else this.forgetPersistentToken();
+  }
+  if(!selected){
+   this.needsReauth=Boolean(sessionRaw||persistentRaw);
+   return false;
+  }
+  this.clientId=clientId;this.token=selected.token;this.expires=selected.expires;
+  this.rememberSession();
+  return true;
  }
  async loadIdentity(){
   if(globalThis.google?.accounts?.oauth2)return;
@@ -40,9 +95,8 @@ export class CalendarClient {
   return this.identityLoading;
  }
  authorize(clientId){if(!clientId) return Promise.reject(Error('アプリのGoogle認証設定が完了していません。'));if(!globalThis.google?.accounts?.oauth2)return Promise.reject(Error('認証を準備中です。少し待ってもう一度接続してください。'));this.clientId=clientId;return new Promise((resolve,reject)=>{const client=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:SCOPES,callback:r=>{if(r.error){reject(Error(`Google認証が完了しませんでした（${String(r.error)}）。Google CloudのクライアントID・テストユーザー・認証設定を確認してください。`));return;}if(!google.accounts.oauth2.hasGrantedAllScopes(r,...SCOPES.split(' '))){reject(Error('カレンダーの読み書き権限をすべて許可してください。'));return;}this.token=r.access_token;this.expires=Date.now()+(Number(r.expires_in)-60)*1000;this.rememberSession();resolve();},error_callback:r=>reject(Error(r.type==='popup_closed'?'認証画面が閉じられました。':'ポップアップを許可して再接続してください。'))});client.requestAccessToken({prompt:''});});}
- disconnect(){this.token=null;this.expires=0;this.forgetSession();}
  async request(path,{method='GET',body,etag}={}){
-  if(!this.connected){this.disconnect();throw Error('Googleへの再接続が必要です。入力内容は端末に残っています。');}
+  if(!this.connected){this.clearToken(true);throw Error('Googleへの再接続が必要です。再ログインしてください。');}
   const headers={Authorization:`Bearer ${this.token}`};if(body)headers['Content-Type']='application/json';if(etag)headers['If-Match']=etag;
   let response;
   try{
@@ -57,7 +111,7 @@ export class CalendarClient {
     throw Error('ブラウザがGoogle Calendar APIへの通信を完了できませんでした（'+name+': '+detail+'）。F12の「ネットワーク」でcalendarListへのアクセスがCORSエラー・ブロック・接続失敗になっていないか確認してください。入力内容は保持されています。');
    throw Error('Googleカレンダーへの通信処理でエラーが発生しました（'+name+': '+detail+'）。入力内容は保持されています。');
   }
-  if(response.status===401){this.disconnect();throw Error('認証の有効期限が切れました。Googleへ再接続してください。');}
+  if(response.status===401){this.clearToken(true);throw Error('認証の有効期限が切れました。Googleへ再接続してください。');}
   if(response.status===412)throw Error('他の端末で変更されています。同期して最新の内容を確認してください。入力は残しています。');
   if(!response.ok){
    let details;

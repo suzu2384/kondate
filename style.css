@@ -277,3 +277,8 @@ dialog::backdrop{background:#0008}
  .compact-plan-dish{grid-template-columns:43px minmax(0,1fr) 24px;gap:2px;}
  .compact-plan-dish .reroll-button{min-width:24px;width:24px;max-width:24px;font-size:16px;}
 }
+
+/* Attention-level authentication warning in the fixed global status strip. */
+#status-bar.auth-required{background:#8a261a;border-top-color:#8a261a;color:#fff}
+#status-bar.auth-required .status-message{color:#fff;font-weight:750;text-align:center;text-decoration:underline;text-underline-offset:2px}
+#status-bar.auth-required .status-message:focus-visible{outline:2px solid #fff;outline-offset:-2px}
