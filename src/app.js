@@ -257,7 +257,7 @@ function additionalCalendarSettings(){
   const title=String(rule.keyword||''),memo=String(rule.memo||'').replace(/\r?\n/g,' ');
   return `<div class="icon-preset-row" aria-label="${esc([title,memo].filter(Boolean).join('／'))}">
    <span class="preset-row-icon">${iconMarkup(rule.icon,rule.color)}</span>
-   <span class="preset-row-memo ${memo?'':'empty'}" title="${esc(memo||'メモなし')}">${esc(memo||'メモなし')}</span>
+   <span class="preset-row-memo ${memo?'':'no-memo'}" title="${esc(memo||'メモなし')}">${esc(memo||'メモなし')}</span>
    ${button('編集','edit-icon-rule','mini',`data-rule-id="${esc(rule.id)}" aria-label="${esc(title)}のプリセットを編集"`)}
    ${button('削除','remove-icon-rule','mini danger',`data-rule-id="${esc(rule.id)}" aria-label="${esc(title)}のプリセットを削除"`)}
   </div>`;
@@ -271,6 +271,16 @@ function capturePresetEditorFields(){
  if(memo)presetEditDraft.memo=memo.value;
  if(calendar&&calendar.value!==NEW_CALENDAR_VALUE)presetEditDraft.calendarId=calendar.value;
  if(color)presetEditDraft.color=normalizeIconColor(color.value);
+}
+function updatePresetEditorIconPreview(){
+ if(!presetEditDraft)return;
+ const field=$('#preset-edit-color');
+ const icon=$('#dialog-content .preset-edit-symbols .icon-picker-trigger .preset-svg-icon');
+ if(!field||!icon)return;
+ const tint=normalizeIconColor(field.value);
+ presetEditDraft.color=tint;
+ icon.style.color=tint;
+ icon.classList.toggle('is-white',tint.toLowerCase()==='#ffffff');
 }
 function openPresetEditor(ruleId=null){
  const original=ruleId?state.iconRules.find(rule=>rule.id===ruleId):null;
@@ -907,6 +917,7 @@ $('#connection').addEventListener('click',()=>run(api.connected?'settings':'conn
 $('#sync').addEventListener('click',()=>run('sync'));
 $('#dialog').addEventListener('cancel',()=>{editor=null;presetEditDraft=null;presetEditOriginalId=null;});
 document.addEventListener('input',e=>{const el=e.target;
+ if(el.id==='preset-edit-color'){updatePresetEditorIconPreview();return;}
  if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;showDishSuggestions(el);}
  if(editor&&el.id==='record-location'){editor.location=el.value;queuePlaceLookup(el);}
  if(el.id==='master-search'){const pos=el.selectionStart;masterQuery=el.value;masterModal();$('#master-search').focus();$('#master-search').setSelectionRange(pos,pos);}
@@ -987,6 +998,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   if(el.dataset.extraCalendar){state.extraCalendarIds=el.checked?[...new Set([...state.extraCalendarIds,el.dataset.extraCalendar])]:state.extraCalendarIds.filter(id=>id!==el.dataset.extraCalendar);persist();render();if(api.connected)await sync();}
   if(el.matches('[data-preset-draft]')){
   capturePresetEditorFields();
+  if(el.id==='preset-edit-color')updatePresetEditorIconPreview();
   if(el.id==='preset-edit-calendar'&&el.value===NEW_CALENDAR_VALUE){
    el.value=presetEditDraft?.calendarId||'';
    openCalendarCreation(presetEditDraft.id);

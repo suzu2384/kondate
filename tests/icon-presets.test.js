@@ -120,6 +120,15 @@ test('new calendar option opens a modal and automatically selects created calend
  assert.match(app,/found\.find\(c=>c\.id===calendar\.id\)\|\|calendar/);
 });
 
+test('editing an icon color updates its SVG preview immediately',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const preview=app.slice(app.indexOf('function updatePresetEditorIconPreview(){'),app.indexOf('function openPresetEditor('));
+ assert.match(preview,/presetEditDraft\.color=tint/);
+ assert.match(preview,/icon\.style\.color=tint/);
+ assert.match(preview,/icon\.classList\.toggle\('is-white'/);
+ assert.match(app,/if\(el\.id==='preset-edit-color'\)\{updatePresetEditorIconPreview\(\);return;\}/);
+ assert.match(app,/if\(el\.id==='preset-edit-color'\)updatePresetEditorIconPreview\(\);/);
+});
 test('preset list is a single row and editor is transactional',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
@@ -127,6 +136,10 @@ test('preset list is a single row and editor is transactional',()=>{
  assert.match(list,/class="icon-preset-row"/);
  assert.match(list,/class="preset-row-icon"/);
  assert.match(list,/class="preset-row-memo/);
+ // The generic .empty class applies 150px minimum height and padding.
+ assert.match(list,/memo\?'':'no-memo'/);
+ assert.doesNotMatch(list,/memo\?'':'empty'/);
+ assert.match(css,/\.icon-preset-row \.preset-row-memo\.no-memo\{color:var\(--muted\)\}/);
  assert.match(list,/button\('編集','edit-icon-rule'/);
  assert.match(list,/button\('削除','remove-icon-rule'/);
  assert.doesNotMatch(list,/<textarea|<select data-icon-calendar|data-icon-keyword/);

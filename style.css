@@ -511,7 +511,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .icon-preset-row .preset-row-icon .preset-svg-icon{width:20px;height:20px;flex:0 0 auto}
 .icon-preset-row .preset-row-memo{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;
  text-overflow:clip;font-size:12px;line-height:1.4}
-.icon-preset-row .preset-row-memo.empty{color:var(--muted)}
+.icon-preset-row .preset-row-memo.no-memo{color:var(--muted)}
 .icon-preset-row button{flex:0 0 auto;min-width:0;min-height:34px;height:34px;padding:4px 9px;font-size:12px}
 .preset-edit-symbols{display:flex;align-items:center;gap:12px;margin:4px 0 12px}
 .preset-edit-symbols .icon-picker-trigger{width:56px;min-height:42px;height:42px}
