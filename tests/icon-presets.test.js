@@ -129,6 +129,14 @@ test('editing an icon color updates its SVG preview immediately',()=>{
  assert.match(app,/if\(el\.id==='preset-edit-color'\)\{updatePresetEditorIconPreview\(\);return;\}/);
  assert.match(app,/if\(el\.id==='preset-edit-color'\)updatePresetEditorIconPreview\(\);/);
 });
+test('preset toolbar skips unset destination calendars and hides when there are none',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const bar=app.slice(app.indexOf('function renderPresetBar(){'),app.indexOf('function prepareGoogleIdentity(){'));
+ assert.match(bar,/rule\.keyword\|\|''\)\.trim\(\)\&\&String\(rule\.calendarId\|\|''\)\.trim\(\)/);
+ assert.match(bar,/const shown=tab==='calendar'&&rules\.length>0/);
+ assert.match(bar,/if\(!rules\.some\(rule=>rule\.id===selectedPresetId\)\)selectedPresetId=null/);
+ assert.match(bar,/bar\.hidden=!shown/);
+});
 test('preset list is a single row and editor is transactional',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');

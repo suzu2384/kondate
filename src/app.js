@@ -151,7 +151,7 @@ function iconMarkup(name,color='',extraClass=''){
 }
 function renderPresetBar(){
  const bar=$('#quick-preset-bar');
- const rules=state.iconRules.filter(rule=>String(rule.keyword||'').trim());
+ const rules=state.iconRules.filter(rule=>String(rule.keyword||'').trim()&&String(rule.calendarId||'').trim());
  const shown=tab==='calendar'&&rules.length>0;
  if(!rules.some(rule=>rule.id===selectedPresetId))selectedPresetId=null;
  document.querySelector('.app').classList.toggle('has-quick-presets',shown);
