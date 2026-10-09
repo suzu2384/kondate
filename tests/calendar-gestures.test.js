@@ -2,22 +2,20 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {dateTapAction,horizontalMonthSwipe,moveMonth} from '../src/calendar-gestures.js';
 
-test('the preselected today requires two real taps to open the date details',()=>{
- let selected='2026-10-09',lastTapped='';
- const first=dateTapAction(selected,lastTapped,'2026-10-09');
- assert.deepEqual(first,{selected:'2026-10-09',lastTapped:'2026-10-09',open:false});
- const second=dateTapAction(first.selected,first.lastTapped,'2026-10-09');
- assert.deepEqual(second,{selected:'2026-10-09',lastTapped:'',open:true});
- const third=dateTapAction(second.selected,second.lastTapped,'2026-10-09');
- assert.equal(third.open,false,'closing details does not make the next tap act like a second tap');
+test('a highlighted date opens its details immediately on a single tap',()=>{
+ const today='2026-10-09';
+ const action=dateTapAction(today,today);
+ assert.deepEqual(action,{selected:today,open:true});
+ // Closing the details doesn't deselect the day.
+ assert.equal(dateTapAction(action.selected,today).open,true);
 });
-test('a different day resets the two-tap sequence, even when another day was selected',()=>{
- const a=dateTapAction('2026-10-09','','2026-10-12');
- assert.equal(a.open,false);
- const b=dateTapAction(a.selected,a.lastTapped,'2026-10-13');
- assert.equal(b.open,false);
- const c=dateTapAction(b.selected,b.lastTapped,'2026-10-13');
- assert.equal(c.open,true);
+test('an unselected date is selected first, then opens on its next tap',()=>{
+ const first=dateTapAction('2026-10-09','2026-10-12');
+ assert.deepEqual(first,{selected:'2026-10-12',open:false});
+ assert.deepEqual(dateTapAction(first.selected,'2026-10-12'),{selected:'2026-10-12',open:true});
+});
+test('invalid date does not change selection or open the details',()=>{
+ assert.deepEqual(dateTapAction('2026-10-09','not-a-date'),{selected:'2026-10-09',open:false});
 });
 test('left swipe goes forward; right swipe goes back',()=>{
  const start={x:250,y:200,time:1000};

@@ -1,9 +1,9 @@
 // Shared touch/navigation rules for the Google Calendar month view.
-// The initial highlighted date does not count as a previous user tap.
-export function dateTapAction(selected,lastTapped,date){
- if(typeof date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(date))return {selected,lastTapped,open:false};
- const open=selected===date&&lastTapped===date;
- return {selected:date,lastTapped:open?'':date,open};
+// A highlighted date already has focus. Open immediately when it is tapped.
+// An unselected date is highlighted first, without opening the editor.
+export function dateTapAction(selected,date){
+ if(typeof date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(date))return {selected,open:false};
+ return {selected:date,open:selected===date};
 }
 export function horizontalMonthSwipe(start,end){
  if(!start||!end)return 0;

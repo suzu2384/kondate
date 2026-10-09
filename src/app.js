@@ -53,7 +53,7 @@ function showStatus(){
 }
 
 let tab='calendar',view='month',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',photoURL=null,photoFile=null;
-let lastTappedCalendarDate='',calendarTouchStart=null,ignoreDateClickUntil=0;
+let calendarTouchStart=null,ignoreDateClickUntil=0;
 const scopeKeyFor=id=>calendarKey(GOOGLE_CLIENT_ID,id);
 const primaryCalendarId=()=>activeCalendarIds('',state.categories,state.categoryCalendars)[0]||'';
 const scopeKey=()=>scopeKeyFor(primaryCalendarId());
@@ -375,25 +375,25 @@ async function loadCalendarOptions(){
 }
 function shiftCalendarMonth(offset){
  month=moveMonth(month,offset);
- lastTappedCalendarDate='';
  render();
 }
 function selectCalendarDate(date){
- const next=dateTapAction(selected,lastTappedCalendarDate,date);
- selected=next.selected;lastTappedCalendarDate=next.lastTapped;
- render();
+ const next=dateTapAction(selected,date);
  if(next.open){
+  // The selected day is already highlighted. One tap opens its details.
   modal('日付の詳細',dayContent(selected));
- }else{
-  // Re-rendering replaces the date buttons; restore keyboard/assistive focus.
-  document.querySelector(`.day[data-date="${date}"]`)?.focus({preventScroll:true});
+  return;
  }
+ selected=next.selected;
+ render();
+ // The new date is selected; keep keyboard focus on the corresponding button.
+ document.querySelector(`.day[data-date="${date}"]`)?.focus({preventScroll:true});
 }
 const actions={
  'notice-detail':()=>{if(api.reauthenticationRequired&&!api.connected)return actions.connect();if(drive.autoEnabled&&!drive.connected)return actions['drive-reconnect']();if(currentNotice)modal('ステータス',`<p>${esc(currentNotice)}</p>`,button('閉じる','close-dialog'));},
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
  'view-month':()=>{view='month';render();},'view-history':()=>{view='history';render();},
- 'prev-month':()=>shiftCalendarMonth(-1),'next-month':()=>shiftCalendarMonth(1),today:()=>{selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);lastTappedCalendarDate='';render();},
+ 'prev-month':()=>shiftCalendarMonth(-1),'next-month':()=>shiftCalendarMonth(1),today:()=>{selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);render();},
  date:b=>selectCalendarDate(b.dataset.date),
  'new-record':b=>openRecord(null,{date:b.dataset.date||today()}),record:b=>openRecord(records().find(r=>r.id===b.dataset.id&&r.calendarId===(b.dataset.calendar||primaryCalendarId()))),
  'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
@@ -510,7 +510,7 @@ document.addEventListener('pointerdown',e=>{
 },true);
 document.addEventListener('click',e=>{
  const tabButton=e.target.closest('[data-tab]');
- if(tabButton){tab=tabButton.dataset.tab;lastTappedCalendarDate='';notify('');render();if(tab==='settings')prepareGoogleIdentity();return;}
+ if(tabButton){tab=tabButton.dataset.tab;notify('');render();if(tab==='settings')prepareGoogleIdentity();return;}
  const b=e.target.closest('[data-action]');
  if(!b)return;
  // iOS may synthesize a click after touchend even when the grid was swiped.
