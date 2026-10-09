@@ -27,7 +27,7 @@ test('online search encodes Japanese input, caps suggestions and is aborted by c
    const parsed=new URL(url);
    assert.equal(parsed.host,'photon.komoot.io');
    assert.equal(parsed.searchParams.get('q'),'津田沼 レストラン');
-   assert.equal(parsed.searchParams.get('lang'),'ja');
+   assert.equal(parsed.searchParams.get('lang'),'default');
    assert.equal(opt.signal,controller.signal);
    return {ok:true,json:async()=>response};
   }

@@ -26,7 +26,7 @@ export async function searchPlaces(term,{fetcher=(...args)=>globalThis.fetch(...
  if(!online||Array.from(q).length<2)return [];
  const url=new URL(ENDPOINT);
  url.searchParams.set('q',q.slice(0,120));
- url.searchParams.set('lang','ja');
+ url.searchParams.set('lang','default');
  url.searchParams.set('limit','6');
  const result=await fetcher(url.toString(),{signal,headers:{Accept:'application/json'}});
  if(!result.ok)throw Error('地名候補の取得に失敗しました');
