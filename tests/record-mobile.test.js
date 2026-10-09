@@ -34,3 +34,17 @@ test('the updated app parses',()=>{
  const p=spawnSync(process.execPath,['--check','src/app.js'],{encoding:'utf8'});
  assert.equal(p.status,0,p.stderr);
 });
+
+test('selecting a dish uses early pointer handling and updates the live field without re-render',()=>{
+ const body=app.slice(app.indexOf('function pickRecordDishSuggestion('),app.indexOf('function openRecord('));
+ assert.match(body,/selectRecordDish\(editor,index,selected\)/);
+ assert.match(body,/input\.value=selected\.name/);
+ assert.match(body,/category\.value=selected\.category/);
+ assert.match(body,/hideDishSuggestions\(\)/);
+ assert.doesNotMatch(body,/drawRecord\(\)|\.innerHTML=/);
+ const pointer=app.slice(app.indexOf("document.addEventListener('pointerdown'"),app.indexOf("document.addEventListener('click'"));
+ assert.match(pointer,/e\.preventDefault\(\)/);
+ assert.match(pointer,/pickRecordDishSuggestion\(candidate\)/);
+ assert.match(pointer,/\},true\)/);
+ assert.match(app,/'suggest-record-dish':pickRecordDishSuggestion/);
+});
