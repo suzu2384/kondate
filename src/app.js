@@ -20,6 +20,14 @@ state.extraCalendarIds=Array.isArray(loaded.extraCalendarIds)?loaded.extraCalend
 state.iconRules=Array.isArray(loaded.iconRules)?loaded.iconRules:[];
 const api=new CalendarClient(),ai=new AIService(),drive=new DriveSettingsClient();
 const restoredGoogleSession=api.restoreSession(GOOGLE_CLIENT_ID);
+const restoredDriveSession=drive.restoreAuto(GOOGLE_CLIENT_ID);
+const DRIVE_REVISION='kondate.drive-auto-revision.v1';
+const DRIVE_DIRTY='kondate.drive-auto-pending.v1';
+const driveMeta=key=>{try{return localStorage.getItem(key)||'';}catch{return '';}};
+const setDriveMeta=(key,value)=>{try{if(value)localStorage.setItem(key,value);else localStorage.removeItem(key);}catch{}};
+let driveAutoReady=false,driveAutoBusy=false,driveAutoBooting=true,driveAutoTimer=null;
+let driveCloudRevision=driveMeta(DRIVE_REVISION),drivePending=driveMeta(DRIVE_DIRTY)==='1';
+
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let calendarLoadError='';
 let authReady=!!globalThis.google?.accounts?.oauth2;
@@ -28,14 +36,15 @@ let currentNotice='';
 const LOGIN_WARNING='⚠ Googleの再認証が必要です。タップして接続';
 function showStatus(){
  const warning=api.reauthenticationRequired&&!api.connected;
- const message=warning?LOGIN_WARNING:currentNotice;
+ const driveWarning=!warning&&drive.autoEnabled&&!drive.connected;
+ const message=warning?LOGIN_WARNING:driveWarning?'⚠ Driveの自動同期は停止中。タップして再接続':currentNotice;
  const notice=$('#notice');
  notice.hidden=!message;
  notice.textContent=message;
- notice.title=warning?'タップしてGoogleに再接続':message;
- notice.setAttribute('aria-label',warning?'Googleの再認証が必要です。タップして接続してください。':message);
+ notice.title=warning?'タップしてGoogleに再接続':driveWarning?'タップしてDriveを再認証':message;
+ notice.setAttribute('aria-label',warning?'Googleの再認証が必要です。タップして接続してください。':driveWarning?'Driveの自動同期を再開するためにタップしてください。':message);
  $('#status-bar').classList.toggle('has-message',!!message);
- $('#status-bar').classList.toggle('auth-required',warning);
+ $('#status-bar').classList.toggle('auth-required',warning||driveWarning);
 }
 
 let tab='calendar',view='month',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',photoURL=null,photoFile=null;
@@ -69,7 +78,7 @@ function extraEvents(){
  }).filter(Boolean));
 }
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
-function persist(){saveState(state);}
+function persist(){saveState(state);if(!driveAutoBooting&&drive.autoEnabled)markDriveDirty();}
 function notify(message){currentNotice=String(message||'');showStatus();}
 function updateConnection(){
  if(api.reauthenticationRequired&&!api.connected&&!api.needsReauth)api.clearToken(true);
@@ -149,7 +158,7 @@ function additionalCalendarSettings(){
  const rules=state.iconRules.map(rule=>`<div class="icon-rule-row"><input type="text" data-icon-keyword="${esc(rule.id)}" value="${esc(rule.keyword)}" maxlength="80" placeholder="例：可燃ごみ" aria-label="置き換える予定の文字列"><select data-icon-choice="${esc(rule.id)}" aria-label="表示アイコン">${ICON_CHOICES.map(icon=>`<option value="${icon}" ${rule.icon===icon?'selected':''}>${icon}</option>`).join('')}</select>${button('×','remove-icon-rule','danger mini',`data-rule-id="${esc(rule.id)}" aria-label="ルールを削除"`)}</div>`).join('');
  return `<section class="settings-card card"><h2>その他のカレンダー表示</h2><p>選んだカレンダーの予定を献立とは別に表示します。料理履歴には含まれず、予定を編集・削除しません。</p>${candidates||'<p class="hint">Googleでログインするとカレンダーが選べます。</p>'}${remaining}<h3>タイトルのアイコン置き換え</h3><p>予定タイトルに指定した文字が含まれる場合、アプリの月表示ではアイコンに置き換えます。元のGoogleカレンダーの文字はそのままです。</p>${rules}${button('＋ 表示ルールを追加','add-icon-rule','mini')}<p class="hint">ルールは上から順に判定します。複数一致すると最初のルールを使用します。</p></section>`;
 }
-function settingsScreen(){return `<section class="screen"><div class="settings-grid scroll"><section class="settings-card card"><h2>Googleカレンダー</h2><p>Googleでログインし、分類ごとのカレンダーを設定してください。</p>${!GOOGLE_CLIENT_ID?'<p class="hint">Googleログインの初期設定が完了していません。開発者による設定が必要です。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">この端末で接続を保持（有効期限内）</label></div><p class="hint">オンにすると短期のGoogle認証情報を端末のブラウザに保存し、アプリを閉じても期限内は認証画面を出さずに接続します。共有端末ではオフを推奨します。</p>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<label class="field"><span>履歴の取得開始日</span><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div><small>この日以降の履歴を料理マスターに利用します。取得対象は日本時間の日付基準です。</small></label>${button('履歴を再取得','sync','full',busy||!api.connected||!(assignedIds().length||state.extraCalendarIds.length)?'disabled':'')}<p class="hint" style="margin-top:12px">接続を保持する場合、短期アクセストークンをブラウザに保存します。Googleカレンダーの内容は保存しません。認証の期限切れ時は、共通ステータスバーから再接続できます。</p></section><section class="settings-card card"><h2>他の端末へ設定を引き継ぐ</h2><p>Googleドライブのアプリ専用領域に設定をバックアップします。同じGoogleアカウントで復元してください。</p><div class="toolbar">${button('Driveにバックアップ','drive-save','mini primary')}${button('Driveから復元','drive-load','mini')}</div><p class="hint">分類・カレンダーの割り当て・生成ルール・配色・表示設定・手動登録した料理マスター・献立生成の下書きを共有します。調理実績やGoogleの認証情報は含みません。</p><p class="hint">保存と復元は手動です。復元時には確認画面を表示し、現在の端末の設定を変更します。初回はGoogleドライブのアクセス許可が必要です。</p></section><section class="settings-card card"><h2>配色テーマ</h2><p>色と明るさを、それぞれ選べます。</p><div class="theme-options">${Object.entries(colors).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label><h3 style="margin-top:30px">候補と料理マスター</h3><div class="check-row"><input id="seed-enabled" type="checkbox" ${state.seedEnabled?'checked':''}><label for="seed-enabled">初期候補の料理を使う</label></div><p>初期候補は実績ではありません。過去の履歴はカレンダーから自動でまとめます。</p>${button('料理マスターを開く','master','full')}</section><section class="settings-card card"><h2>献立生成ルール</h2>${rulesFields()}</section><section class="settings-card card"><h2>料理の分類</h2><p>分類名を変えても、これまでの料理との対応は維持します。</p>${state.categories.map(c=>`<div class="category-row"><input aria-label="${esc(c.name)}の分類名" data-category-name="${c.id}" value="${esc(c.name)}" maxlength="20">${button('削除','remove-category','mini danger',`data-category="${c.id}" ${c.id==='main'?'disabled':''}`)}</div>`).join('')}${button('＋ 分類を追加','add-category','full')}<h2 style="margin-top:28px">AI拡張</h2><span class="tag neutral">${ai.available?'接続済み':'未設定'}</span><p style="margin-top:12px">献立選定と写真解析の接続基盤を用意しています。キーの保存方針が決まるまでは入力・保存しません。通常の献立管理はAIなしで利用できます。</p><h3>この端末のデータ</h3><p>分類・カレンダーの選択・下書き・表示設定は端末に保存します。認証期限が切れても、分類の設定は保持されます。実績の正本はGoogleカレンダーです。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"><p class="hint" style="margin-top:12px">書き出しには料理履歴を含みません。確定した料理の情報はGoogleカレンダーが正本です。</p></section>${additionalCalendarSettings()}</div></section>`;}
+function settingsScreen(){return `<section class="screen"><div class="settings-grid scroll"><section class="settings-card card"><h2>Googleカレンダー</h2><p>Googleでログインし、分類ごとのカレンダーを設定してください。</p>${!GOOGLE_CLIENT_ID?'<p class="hint">Googleログインの初期設定が完了していません。開発者による設定が必要です。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">この端末で接続を保持（有効期限内）</label></div><p class="hint">オンにすると短期のGoogle認証情報を端末のブラウザに保存し、アプリを閉じても期限内は認証画面を出さずに接続します。共有端末ではオフを推奨します。</p>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<label class="field"><span>履歴の取得開始日</span><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div><small>この日以降の履歴を料理マスターに利用します。取得対象は日本時間の日付基準です。</small></label>${button('履歴を再取得','sync','full',busy||!api.connected||!(assignedIds().length||state.extraCalendarIds.length)?'disabled':'')}<p class="hint" style="margin-top:12px">接続を保持する場合、短期アクセストークンをブラウザに保存します。Googleカレンダーの内容は保存しません。認証の期限切れ時は、共通ステータスバーから再接続できます。</p></section><section class="settings-card card"><h2>他の端末へ設定を引き継ぐ</h2><p>Googleドライブのアプリ専用領域に設定をバックアップします。同じGoogleアカウントで復元してください。</p><div class="toolbar">${button('Driveにバックアップ','drive-save','mini primary')}${button('Driveから復元','drive-load','mini')}</div><p class="hint">分類・カレンダーの割り当て・生成ルール・配色・表示設定・手動登録した料理マスター・献立生成の下書きを共有します。調理実績やGoogleの認証情報は含みません。</p><div class="check-row"><input id="drive-auto" type="checkbox" ${drive.autoEnabled?'checked':''}><label for="drive-auto">Driveの設定を自動同期する（保存・読み込み）</label></div><p class="hint">この端末で有効にすると、設定変更をDriveへ自動保存し、アプリ起動時・復帰時に他端末の変更を自動取得します。各端末で個別に有効化してください。初回はDriveに既存のバックアップがあればそちらを取り込みます。</p><p class="hint">同時変更で食い違った場合は自動上書きせず、手動で保存・復元を選べます。</p><p class="hint">認証は短時間だけ有効です。期限切れ後はステータスバーから再接続してください。バックグラウンドでは同期しません。手動保存・復元も引き続き利用できます。</p></section><section class="settings-card card"><h2>配色テーマ</h2><p>色と明るさを、それぞれ選べます。</p><div class="theme-options">${Object.entries(colors).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label><h3 style="margin-top:30px">候補と料理マスター</h3><div class="check-row"><input id="seed-enabled" type="checkbox" ${state.seedEnabled?'checked':''}><label for="seed-enabled">初期候補の料理を使う</label></div><p>初期候補は実績ではありません。過去の履歴はカレンダーから自動でまとめます。</p>${button('料理マスターを開く','master','full')}</section><section class="settings-card card"><h2>献立生成ルール</h2>${rulesFields()}</section><section class="settings-card card"><h2>料理の分類</h2><p>分類名を変えても、これまでの料理との対応は維持します。</p>${state.categories.map(c=>`<div class="category-row"><input aria-label="${esc(c.name)}の分類名" data-category-name="${c.id}" value="${esc(c.name)}" maxlength="20">${button('削除','remove-category','mini danger',`data-category="${c.id}" ${c.id==='main'?'disabled':''}`)}</div>`).join('')}${button('＋ 分類を追加','add-category','full')}<h2 style="margin-top:28px">AI拡張</h2><span class="tag neutral">${ai.available?'接続済み':'未設定'}</span><p style="margin-top:12px">献立選定と写真解析の接続基盤を用意しています。キーの保存方針が決まるまでは入力・保存しません。通常の献立管理はAIなしで利用できます。</p><h3>この端末のデータ</h3><p>分類・カレンダーの選択・下書き・表示設定は端末に保存します。認証期限が切れても、分類の設定は保持されます。実績の正本はGoogleカレンダーです。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"><p class="hint" style="margin-top:12px">書き出しには料理履歴を含みません。確定した料理の情報はGoogleカレンダーが正本です。</p></section>${additionalCalendarSettings()}</div></section>`;}
 function modal(title,body,foot=''){ $('#dialog-content').innerHTML=`<div class="dialog-head"><h2>${title}</h2>${button('×','close-dialog','icon-button','aria-label="閉じる"')}</div><div class="dialog-body">${body}<p class="form-error" id="dialog-error" role="alert"></p></div>${foot?`<div class="dialog-foot">${foot}</div>`:''}`;if(!$('#dialog').open)$('#dialog').showModal();}
 function closeModal(){$('#dialog').close();editor=null;}
 function categoryOptions(selectedId){return state.categories.map(c=>`<option value="${esc(c.id)}" ${c.id===selectedId?'selected':''}>${esc(c.name)}</option>`).join('');}
@@ -221,6 +230,68 @@ function exportState(){const blob=new Blob([JSON.stringify({format:'kondate-sett
 let imported=null,driveImported=null;
 function driveBackupTime(value){const date=new Date(value||'');return Number.isFinite(date.getTime())?date.toLocaleString('ja-JP'):'保存日時不明';}
 function driveBackupSummary(backup){const settings=backup.settings;return `<p>保存日時：<strong>${esc(driveBackupTime(backup.updatedAt))}</strong></p><p>分類：${settings.categories?.length||state.categories.length}件／手動の料理：${Object.values(backup.master||{}).reduce((n,s)=>n+s.manual.length,0)}品</p>`;}
+function markDriveDirty(){
+ drivePending=true;setDriveMeta(DRIVE_DIRTY,'1');
+ if(driveAutoTimer)clearTimeout(driveAutoTimer);
+ if(drive.connected&&driveAutoReady){
+  driveAutoTimer=setTimeout(()=>{driveAutoTimer=null;autoDriveSync();},1400);
+ }
+}
+function markDriveSynced(version){
+ driveCloudRevision=version||'';
+ setDriveMeta(DRIVE_REVISION,driveCloudRevision);
+ drivePending=false;setDriveMeta(DRIVE_DIRTY,'');
+}
+async function applyRemoteSettings(remoteVersion){
+ const saved=readDriveSnapshot(await drive.load(),state,validateImport);
+ const wasBooting=driveAutoBooting;driveAutoBooting=true;
+ try{
+  restoreDriveSnapshot(state,saved);
+  state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
+  state.calendarId='';state.calendarName='';
+  persist();
+ }finally{driveAutoBooting=wasBooting;}
+ markDriveSynced(remoteVersion);
+ render();
+ if(api.connected&&(assignedIds().length||state.extraCalendarIds.length)){
+  try{await sync();}catch(error){notify('Drive設定を取得しましたがカレンダー同期に失敗しました：'+error.message);return;}
+ }
+ notify('Googleドライブから新しい設定を同期しました。');
+}
+async function autoDriveSync(){
+ if(!drive.autoEnabled||!drive.connected||driveAutoBusy)return;
+ driveAutoBusy=true;
+ try{
+  const remote=await drive.find();
+  const remoteVersion=String(remote?.version||'');
+  driveAutoReady=true;
+  if(remoteVersion && !driveCloudRevision && !drivePending){
+   await applyRemoteSettings(remoteVersion);return;
+  }
+  if(remoteVersion!==driveCloudRevision){
+   if(drivePending){
+    notify('⚠ Driveの設定が競合しています。設定画面で手動保存か復元を選んでください。');
+    return;
+   }
+   if(remoteVersion){
+    await applyRemoteSettings(remoteVersion);return;
+   }
+   notify('⚠ Driveの同期先が見つかりません。設定画面からバックアップしてください。');
+   return;
+  }
+  if(!remoteVersion&&!drivePending){
+   drivePending=true;setDriveMeta(DRIVE_DIRTY,'1');
+  }
+  if(drivePending){
+   const nextVersion=await drive.saveChecked(createDriveSnapshot(state),remoteVersion);
+   markDriveSynced(nextVersion);
+   notify('設定をGoogleドライブへ自動保存しました。');
+  }
+ }catch(error){
+  notify('Drive自動同期：'+error.message);
+ }finally{driveAutoBusy=false;showStatus();}
+}
+
 function prepareDriveAuthorization(){
  if(!globalThis.google?.accounts?.oauth2){prepareGoogleIdentity();throw Error('Googleの認証を準備しています。準備完了後にもう一度操作してください。');}
 }
@@ -239,7 +310,7 @@ async function loadCalendarOptions(){
  }
 }
 const actions={
- 'notice-detail':()=>{if(api.reauthenticationRequired&&!api.connected)return actions.connect();if(currentNotice)modal('ステータス',`<p>${esc(currentNotice)}</p>`,button('閉じる','close-dialog'));},
+ 'notice-detail':()=>{if(api.reauthenticationRequired&&!api.connected)return actions.connect();if(drive.autoEnabled&&!drive.connected)return actions['drive-reconnect']();if(currentNotice)modal('ステータス',`<p>${esc(currentNotice)}</p>`,button('閉じる','close-dialog'));},
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
  'view-month':()=>{view='month';render();},'view-history':()=>{view='history';render();},
  'prev-month':()=>{month.setMonth(month.getMonth()-1);render();},'next-month':()=>{month.setMonth(month.getMonth()+1);render();},today:()=>{selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);render();},
@@ -284,6 +355,12 @@ const actions={
  'remove-category':b=>{const id=b.dataset.category;if(id==='main')throw Error('主菜は削除できません。');if(editor?.dishes?.some(d=>d.category===id))throw Error('この分類を使っている入力途中の実績があります。先に保存または破棄してください。');state.categories=state.categories.filter(c=>c.id!==id);state.draft=state.draft.map(day=>({...day,dishes:day.dishes.filter(d=>d.category!==id)}));delete state.rules.counts[id];delete state.categoryCalendars[id];persist();render();notify('分類を削除しました。Googleカレンダーの予定は削除していません。');},
  'pick-photo':()=>$('#photo-file').click(),
  'analyze-photo':async()=>{const dishes=await ai.analyzePhoto(photoFile);openRecord(null,{dishes});notify('写真の推定結果です。料理名と分類を確認してから登録してください。');},
+ 'drive-reconnect':async()=>{
+  prepareDriveAuthorization();
+  await drive.authorize(GOOGLE_CLIENT_ID);
+  showStatus();
+  await autoDriveSync();
+ },
  'drive-save':async()=>{
   prepareDriveAuthorization();
   await drive.authorize(GOOGLE_CLIENT_ID);
@@ -295,12 +372,14 @@ const actions={
    return;
   }
   await drive.save(createDriveSnapshot(state));
-  notify('設定をGoogleドライブにバックアップしました。別端末では「Driveから復元」を使ってください。');
+  if(drive.autoEnabled){const latest=await drive.find();markDriveSynced(String(latest?.version||''));driveAutoReady=true;}
+  notify('設定をGoogleドライブにバックアップしました。別端末でも同期できます。');
  },
  'confirm-drive-save':async()=>{
   await drive.save(createDriveSnapshot(state));
+  if(drive.autoEnabled){const latest=await drive.find();markDriveSynced(String(latest?.version||''));driveAutoReady=true;}
   closeModal();
-  notify('Googleドライブの設定を更新しました。別端末では「Driveから復元」を使ってください。');
+  notify('Googleドライブの設定を更新しました。');
  },
  'drive-load':async()=>{
   prepareDriveAuthorization();
@@ -317,7 +396,11 @@ const actions={
   restoreDriveSnapshot(state,driveImported);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
-  driveImported=null;persist();closeModal();render();
+  driveImported=null;
+  const wasBooting=driveAutoBooting;driveAutoBooting=true;
+  try{persist();}finally{driveAutoBooting=wasBooting;}
+  if(drive.autoEnabled){const latest=await drive.find();markDriveSynced(String(latest?.version||''));driveAutoReady=true;}
+  closeModal();render();
   if(api.connected&&(assignedIds().length||state.extraCalendarIds.length)){
    try{
     await sync();
@@ -341,6 +424,26 @@ document.addEventListener('input',e=>{const el=e.target;
  if(el.id==='master-search'){const pos=el.selectionStart;masterQuery=el.value;masterModal();$('#master-search').focus();$('#master-search').setSelectionRange(pos,pos);}
 });
 document.addEventListener('change',async e=>{const el=e.target;try{
+ if(el.id==='drive-auto'){
+  if(!el.checked){
+   drive.disableAuto();driveAutoReady=false;
+   drivePending=false;setDriveMeta(DRIVE_DIRTY,'');setDriveMeta(DRIVE_REVISION,'');
+   if(driveAutoTimer){clearTimeout(driveAutoTimer);driveAutoTimer=null;}
+   notify('この端末のDrive自動同期を停止しました。');render();return;
+  }
+  try{
+   prepareDriveAuthorization();
+   await drive.authorize(GOOGLE_CLIENT_ID);
+   drive.enableAuto();
+   driveAutoReady=false;driveCloudRevision='';drivePending=false;
+   setDriveMeta(DRIVE_REVISION,'');setDriveMeta(DRIVE_DIRTY,'');
+   await autoDriveSync();
+   if(drive.autoEnabled&&drive.connected&&!driveCloudRevision)
+    notify('Driveの自動同期を有効にしました。接続状況を確認してください。');
+  }catch(error){el.checked=drive.autoEnabled;throw error;}
+  render();return;
+ }
+
  if(editor){if(el.id==='record-date')editor.date=el.value;if(el.id==='record-status')editor.status=el.value;if(el.matches('[data-editor-category]'))editor.dishes[el.dataset.editorCategory].category=el.value;if(el.matches('[data-editor-name]')){const found=master().find(d=>normalize(d.name)===normalize(el.value));if(found){Object.assign(editor.dishes[el.dataset.editorName],{...found});drawRecord();}}}
  if(el.id==='keep-connected'){
   try{
@@ -382,5 +485,12 @@ if(restoredGoogleSession){
  }).catch(error=>notify(error.message));
 }
 // Preload OAuth before enabling login; avoid the former two-tap retry flow.
+driveAutoBooting=false;
 prepareGoogleIdentity();
+if(restoredDriveSession)autoDriveSync();
+window.addEventListener('focus',()=>{if(drive.autoEnabled)autoDriveSync();});
+document.addEventListener('visibilitychange',()=>{
+ if(!document.hidden&&drive.autoEnabled)autoDriveSync();
+});
+setInterval(()=>{if(!document.hidden&&drive.autoEnabled)autoDriveSync();},60000);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
