@@ -109,11 +109,11 @@ test('display-only event dates use local calendar timezone and skip cancelled ev
 test('icon matching displays only an icon without altering the original event',()=>{
  const rules=[{keyword:'可燃ごみ',icon:'🗑️'},{keyword:'資源ごみ',icon:'♻️'}];
  const event={summary:'可燃ごみ 回収',start:{date:'2026-10-08'}};
- assert.equal(matchIcon(event.summary,rules),'tag_fill');
- assert.equal(matchIcon('資源ごみ',rules),'leaf_3_fill');
+ assert.equal(matchIcon(event.summary,rules),'trash');
+ assert.equal(matchIcon('資源ごみ',rules),'recycle');
  assert.equal(matchIcon('打ち合わせ',rules),'');
  assert.equal(event.summary,'可燃ごみ 回収');
- assert.ok(ICON_CHOICES.includes('leaf_3_fill'));
+ assert.ok(ICON_CHOICES.includes('recycle'));
 });
 
 test('new installations start with Main only',()=>{

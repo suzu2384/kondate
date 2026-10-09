@@ -148,6 +148,70 @@ export class CalendarClient {
   }
  }
  removePreset(calendarId,event){return this.request(this.path(calendarId,event.id),{method:'DELETE',etag:event.etag});}
+ // Calendar supports multipart/mixed batches. Individual items have independent outcomes.
+ async batchPresetChanges(operations){
+  if(!operations.length)return [];
+  const direct=()=>Promise.all(operations.map(async op=>{
+   try{
+    if(op.type==='insert'){
+     const event=await this.insertPreset(op.calendarId,op.date,op.rule,op.id);
+     return {ok:true,status:201,event};
+    }
+    await this.removePreset(op.calendarId,op.event);
+    return {ok:true,status:204,event:null};
+   }catch(error){
+    if(op.type==='delete'&&error.status===404)return {ok:true,status:404,event:null};
+    return {ok:false,status:error.status||0,error:error.message};
+   }
+  }));
+  if(this.batchUnavailable||operations.length===1)return direct();
+  if(!this.connected){this.clearToken(true);throw Error('Googleへの再接続が必要です。');}
+  const boundary='kondate_batch_'+Math.random().toString(16).slice(2);
+  const parts=operations.map((op,i)=>{
+   const path='/calendar/v3'+this.path(op.calendarId,op.type==='delete'?op.event.id:'');
+   const headers=op.type==='insert'?'Content-Type: application/json; charset=UTF-8':
+    op.event.etag?'If-Match: '+op.event.etag:'';
+   const body=op.type==='insert'?JSON.stringify({...presetEventPayload(op.date,op.rule),id:op.id}):'';
+   return '--'+boundary+'\r\nContent-Type: application/http\r\nContent-ID: <item-'+i+'>\r\n\r\n'+
+    (op.type==='insert'?'POST':'DELETE')+' '+path+' HTTP/1.1\r\n'+
+    (headers?headers+'\r\n':'')+'\r\n'+body+'\r\n';
+  }).join('')+'--'+boundary+'--\r\n';
+  let response;
+  try{
+   const signal=typeof AbortSignal.timeout==='function'?AbortSignal.timeout(25000):undefined;
+   response=await this.fetcher('https://www.googleapis.com/batch/calendar/v3',{
+    method:'POST',headers:{Authorization:'Bearer '+this.token,'Content-Type':'multipart/mixed; boundary='+boundary},
+    body:parts,...(signal?{signal}:{})
+   });
+   if(response.status===401){this.clearToken(true);throw Error('Googleの認証が切れました。再接続してください。');}
+   if(!response.ok){if([404,405,415].includes(response.status)){this.batchUnavailable=true;return direct();}
+    throw Error('Google Calendarの一括保存に失敗しました（HTTP '+response.status+'）。');}
+   const contentType=response.headers.get('Content-Type')||'';
+   const match=contentType.match(/boundary="?([^";\s]+)"?/i);
+   if(!match){this.batchUnavailable=true;return direct();}
+   const raw=await response.text();
+   const blocks=raw.split('--'+match[1]).slice(1).filter(part=>part.trim()&&part.trim()!=='--');
+   if(blocks.length!==operations.length){this.batchUnavailable=true;return direct();}
+   return blocks.map((part,i)=>{
+    const found=part.match(/HTTP\/\d(?:\.\d)?\s+(\d{3})/);
+    if(!found)return {ok:false,status:0,error:'バッチ応答の解析に失敗しました。'};
+    const status=Number(found[1]);
+    const after=part.slice(found.index+found[0].length);
+    const separator=after.search(/\r?\n\r?\n/);
+    const body=separator>=0?after.slice(separator+(after[separator]==='\r'?4:2)).trim():'';
+    let event=null;
+    try{if(body)event=JSON.parse(body);}catch{}
+    const ok=(status>=200&&status<300)||(operations[i].type==='delete'&&status===404);
+    return {ok,status,event:ok?event:null,error:ok?'':String(event?.error?.message||'HTTP '+status)};
+   });
+  }catch(error){
+   if(!this.connected)throw error;
+   // A transient batch transport/CORS failure can fall back to idempotent writes.
+   if(response?.ok===undefined){this.batchUnavailable=true;return direct();}
+   throw error;
+  }
+ }
+
  update(calendarId,record){
   if(!record.etag)throw Error('予定の更新情報がありません。カレンダーを同期してから編集してください。');
   const payload=eventPayload(record);

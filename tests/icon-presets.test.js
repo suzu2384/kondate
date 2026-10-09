@@ -58,10 +58,12 @@ test('toolbar, handlers, and clipping CSS are wired',()=>{
  const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
  assert.ok(html.indexOf('id="quick-preset-bar"')>html.indexOf('id="main"'));
  assert.ok(html.indexOf('id="quick-preset-bar"')<html.indexOf('id="status-bar"'));
- assert.match(app,/if\(selectedPresetId\)\{selected=date;await togglePresetOnDate\(date\);return;\}/);
- assert.match(app,/matchingPresetEvent\(current,calendarId,date,rule\)/);
- assert.match(app,/api\.removePreset/);
- assert.match(app,/api\.insertPreset/);
+ assert.match(app,/if\(selectedPresetId\)\{selected=date;togglePresetOnDate\(date\);return;\}/);
+ assert.match(app,/matchingPresetEvent\(\[e\],calendarId,entry\.date,entry\.rule\)/);
+ assert.match(app,/api\.batchPresetChanges/);
+ assert.match(app,/presetQueue\.toggle\(rule,date/);
+ assert.match(app,/PRESET_FLUSH_INTERVAL_MS/);
+ assert.match(html,/id="preset-pending"/);
  assert.match(app,/data-icon-memo/);
  assert.match(app,/data-action="choose-icon"/);
  assert.match(app,/data-action="open-icon-picker"/);
@@ -73,7 +75,7 @@ test('toolbar, handlers, and clipping CSS are wired',()=>{
  assert.match(css,/\.dialog-body \.icon-tile-grid\{display:grid/);
  assert.match(app,/data-icon-calendar/);
  assert.match(css,/\.month-grid \.event-chip \.calendar-event-note\{[^}]*text-overflow:clip/);
- for(const path of ['src/app.js','src/google.js','src/icon-presets.js']){
+ for(const path of ['src/app.js','src/google.js','src/icon-presets.js','src/preset-queue.js']){
   const check=spawnSync(process.execPath,['--check',path],{encoding:'utf8'});
   assert.equal(check.status,0,check.stderr);
  }

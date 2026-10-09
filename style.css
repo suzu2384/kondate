@@ -460,3 +460,17 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .dialog-body .icon-tile-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
  .dialog-body .icon-tile{height:46px;min-height:46px}
 }
+
+/* v1.3.31 — nonblocking queued preset edits. The save button uses the existing status row. */
+#preset-pending{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;
+ height:26px;min-height:26px;min-width:0;padding:2px 9px;max-width:58%;
+ border:1px solid var(--accent);color:var(--accent);background:var(--tint);
+ font-size:11px;font-weight:700;line-height:1;white-space:nowrap;border-radius:7px}
+#preset-pending[hidden]{display:none}
+#preset-pending:disabled{opacity:.75}
+.status-bar:has(#preset-pending:not([hidden])) .status-legend{display:none}
+.status-bar:has(#preset-pending:not([hidden])) #notice.status-message{flex:1;max-width:100%;font-size:10px}
+.month-grid .event-chip.general-event.is-pending{border-bottom:1px dashed var(--accent)}
+@media(max-width:760px){
+ #preset-pending{font-size:10px;height:25px;min-height:25px;padding:2px 6px;max-width:52%}
+}

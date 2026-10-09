@@ -6,7 +6,8 @@ import {CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefre
 import {GOOGLE_CLIENT_ID} from './config.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES,normalizeIcon,normalizeIconColor,isSupportedIcon} from './calendar-display.js';
-import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEvent} from './icon-presets.js';
+import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEvent,presetEventPayload} from './icon-presets.js';
+import {PresetWriteQueue,PRESET_FLUSH_INTERVAL_MS} from './preset-queue.js';
 import {DriveSettingsClient} from './drive.js';
 import {dateTapAction,horizontalMonthSwipe,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync} from './drive-sync.js';
@@ -25,6 +26,8 @@ state.calendarId='';state.calendarName='';
 state.extraCalendarIds=Array.isArray(loaded.extraCalendarIds)?loaded.extraCalendarIds:[];
 const normalizePresetRules=rules=>(Array.isArray(rules)?rules:[]).map(rule=>({...rule,icon:normalizeIcon(rule.icon),color:normalizeIconColor(rule.color)}));
 state.iconRules=normalizePresetRules(loaded.iconRules);
+const presetQueue=new PresetWriteQueue(globalThis.localStorage,()=>uid());
+let presetFlushing=false,presetFlushPromise=null;
 state.calendarRefreshMinutes=normalizeCalendarRefreshMinutes(state.calendarRefreshMinutes);
 const api=new CalendarClient(),ai=new AIService(),drive=new DriveSettingsClient();
 const restoredGoogleSession=api.restoreSession(GOOGLE_CLIENT_ID);
@@ -49,6 +52,13 @@ function showStatus(){
  const warning=api.reauthenticationRequired&&!api.connected;
  const driveWarning=!warning&&drive.autoEnabled&&!drive.connected;
  const message=warning?LOGIN_WARNING:driveWarning?'⚠ Driveの自動同期は停止中。タップして再接続':currentNotice;
+ const pending=$('#preset-pending');
+ if(pending){
+  pending.hidden=presetQueue.size===0;
+  pending.textContent=presetFlushing?'予定を保存中…':`未同期 ${presetQueue.size}件 · 保存`;
+  pending.title=presetFlushing?'Googleカレンダーへ一括保存しています':'未同期の予定をGoogleカレンダーへ今すぐ保存';
+  pending.setAttribute('aria-label',pending.title);
+ }
  const notice=$('#notice');
  notice.hidden=!message;
  notice.textContent=message;
@@ -71,7 +81,7 @@ const hasSyncedCalendars=()=>syncedCalendarIds().length>0;
 function records(){return assignedIds().flatMap(calendarId=>{
  const bucket=dataFor(calendarId);
  const assigned=state.categories.filter(c=>calendarForCategory(c.id,'',state.categoryCalendars)===calendarId);
- return bucket.events.filter(e=>!isPresetEvent(e,calendarId,state.iconRules)).map(e=>{
+ return presetQueue.project(calendarId,bucket.events).filter(e=>!isPresetEvent(e,calendarId,state.iconRules)).map(e=>{
   const r=eventRecord(e,{},state.categories,state.timeZone);
   if(!r)return null;
   r.calendarId=calendarId;
@@ -84,14 +94,14 @@ function master(){const enabled=new Set(state.categories.map(c=>c.id));return bu
 function extraEvents(){
  const assigned=new Set(assignedIds()),explicit=new Set(state.extraCalendarIds);
  return [...new Set([...explicit,...presetCalendarIds(state.iconRules)])].flatMap(calendarId=>
-  dataFor(calendarId).events.filter(event=>assigned.has(calendarId)?
+  presetQueue.project(calendarId,dataFor(calendarId).events).filter(event=>assigned.has(calendarId)?
    isPresetEvent(event,calendarId,state.iconRules):
    explicit.has(calendarId)||isPresetEvent(event,calendarId,state.iconRules)
   ).map(event=>{
    const date=eventDay(event,state.timeZone);
    if(!date)return null;
    const title=event.summary||'無題の予定';
-   return {calendarId,date,title,memo:String(event.description||''),icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules)};
+   return {calendarId,date,title,memo:String(event.description||''),icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules),pending:!!event._presetPending};
   }).filter(Boolean)
  );
 }
@@ -157,7 +167,7 @@ function button(text,action,cls='',attrs=''){return `<button class="${cls}" data
 function heading(label,title,sub,actions=''){return `<div class="page-heading"><div><div class="eyebrow">${label}</div><h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div>${actions}</div>`;}
 function calendarScreen(){const list=records(),extras=extraEvents();const cells=monthGridDates(month.getFullYear(),month.getMonth()).map(date=>{const d=new Date(`${date}T12:00:00`),events=list.filter(e=>e.date===date),extra=extras.filter(e=>e.date===date);
 const chips=[...events.map(e=>`<span class="event-chip ${e.status}">${esc(e.owned?e.dishes.map(d=>d.name).join('、'):(e.raw?.summary||e.dishes[0]?.name||'読み込み不可'))}</span>`),
- ...extra.map(e=>`<span class="event-chip general-event ${e.icon?'has-icon':''}" title="${esc(e.title+(e.memo?'／'+e.memo:''))}" aria-label="${esc(e.title+(e.memo?'／'+e.memo:''))}">${e.icon?`<span class="calendar-event-icon">${iconMarkup(e.icon,e.color)}</span><span class="calendar-event-note">${esc(e.memo.replace(/\r?\n/g,' '))}</span>`:`<span class="calendar-event-note">${esc(e.title)}</span>`}</span>`)];
+ ...extra.map(e=>`<span class="event-chip general-event ${e.icon?'has-icon':''} ${e.pending?'is-pending':''}" title="${esc(e.title+(e.memo?'／'+e.memo:''))}" aria-label="${esc(e.title+(e.memo?'／'+e.memo:''))}">${e.icon?`<span class="calendar-event-icon">${iconMarkup(e.icon,e.color)}</span><span class="calendar-event-note">${esc(e.memo.replace(/\r?\n/g,' '))}</span>`:`<span class="calendar-event-note">${esc(e.title)}</span>`}</span>`)];
 return `<button class="day ${d.getMonth()!==month.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-pressed="${date===selected}" aria-label="${date}、${events.length+extra.length}件"><span class="day-number">${d.getDate()}</span>${chips.slice(0,2).join('')}${chips.length>2?`<small>+${chips.length-2}</small>`:''}</button>`;}).join('');
 return `<section class="screen calendar-screen"><div class="calendar-layout"><div class="calendar-card card"><div class="month-heading"><h2>${month.getFullYear()}年 <span>${month.getMonth()+1}月</span></h2><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid">${cells}</div></div><aside class="card day-panel">${dayContent(selected)}</aside></div></section>`;}
 function dayContent(date){const d=new Date(`${date}T12:00:00`);const list=records().filter(r=>r.date===date),extra=extraEvents().filter(e=>e.date===date);return `<h2>${d.getMonth()+1}月${d.getDate()}日 <small>（${'日月火水木金土'[d.getDay()]}）</small></h2><div class="date-label">${list.length+extra.length}件の記録・予定</div>${list.map(r=>`<div class="meal-group"><span class="tag ${r.status==='invalid'?'neutral':''}">${({actual:'調理実績',invalid:'書式を確認してください'})[r.status]}</span>${String(r.location||'').trim()?`<div class="date-label">外食・場所：${esc(r.location)}</div>`:''}${r.dishes.map(d=>`<div class="dish-line"><span class="category">${esc(categoryName(d.category))}</span><span>${esc(d.name)}</span></div>`).join('')}${r.status==='invalid'?`<p class="hint">元の予定をカレンダーで確認してください。変更せず保護しています。</p>`:button('詳細・編集','record','text-button mini',`data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"`)}</div>`).join('')||(!extra.length?empty('この日の記録はありません','何を作りましたか？料理名だけでも記録できます。'):'')}${extra.map(e=>`<div class="meal-group general-event-detail">${e.icon?iconMarkup(e.icon,e.color):''}<span><strong>${esc(e.title)}</strong>${e.memo?`<span class="general-event-memo">${esc(e.memo)}</span>`:''}</span> <small>（表示のみ）</small></div>`).join('')}${button('＋ この日に登録','new-record','full',`data-date="${date}"`)}`;}
@@ -350,6 +360,8 @@ function saveMaster(){const dish=validateDishes([{name:$('#master-name').value,c
 function editPlanDish(dayIndex,dishIndex=null){editingPlan={dayIndex,dishIndex};const d=state.draft[dayIndex].dishes[dishIndex]||{name:'',category:'main'};modal(dishIndex===null?'料理を追加':'料理を差し替える',`<label class="field"><span>料理名</span><input id="plan-name" value="${esc(d.name)}" list="plan-options" maxlength="100" placeholder="料理名を入力・候補から選択"></label><datalist id="plan-options">${master().map(d=>`<option value="${esc(d.name)}">${esc(categoryName(d.category))}</option>`).join('')}</datalist><label class="field"><span>分類</span><select id="plan-category">${categoryOptions(d.category)}</select></label><p class="hint">変更は下書きに反映されます。カレンダーには登録されません。</p>`,`${dishIndex!==null?button('この料理を削除','delete-plan-dish','danger'):''}${button('反映','save-plan-dish','primary')}`);}
 function checkDraft(){issues=validatePlan(state.draft,state.rules,master());persist();render();}
 async function sync({automatic=false}={}){
+ if(automatic&&(presetFlushing||presetQueue.size))return;
+ if(!automatic&&presetQueue.size&&!presetFlushing)await flushPendingPresets();
  if(automatic&&!isCalendarRefreshDue({
   minutes:state.calendarRefreshMinutes,lastSyncAt:lastCalendarSync,lastAttemptAt:lastCalendarAttempt,
   now:Date.now(),connected:api.connected,online:navigator.onLine!==false,
@@ -501,40 +513,90 @@ function shiftCalendarMonth(offset){
  month=moveMonth(month,offset);
  render();
 }
-async function togglePresetOnDate(date){
+// Reconcile the durable local desired state to Google every few seconds.
+// Sending a batch does not block the UI's calendar tap handler.
+async function flushPendingPresets(){
+ if(presetFlushPromise)return presetFlushPromise;
+ if(!presetQueue.size)return;
+ if(busy||!api.connected||navigator.onLine===false){showStatus();return;}
+ const entries=presetQueue.list(),keys=entries.map(e=>e.key);
+ presetQueue.markInflight(keys);
+ presetFlushing=true;showStatus();
+ presetFlushPromise=(async()=>{
+  let changed=false,failed=0,errorMessage='';
+  try{
+   const groups=new Map();
+   for(const entry of entries){
+    const groupKey=JSON.stringify([entry.rule.calendarId,entry.date.slice(0,7)]);
+    if(!groups.has(groupKey))groups.set(groupKey,[]);
+    groups.get(groupKey).push(entry);
+   }
+   const operations=[],counts=new Map();
+   for(const group of groups.values()){
+    const first=group[0],calendarId=first.rule.calendarId;
+    const [year,monthNo]=first.date.slice(0,7).split('-').map(Number);
+    const from=first.date.slice(0,7)+'-01';
+    const to=monthNo===12?`${year+1}-01-01`:`${year}-${String(monthNo+1).padStart(2,'0')}-01`;
+    const remote=await api.events(calendarId,from,to);
+    const bucket=dataFor(calendarId);
+    for(const entry of group){
+     // A later tap can supersede the queued operation during the GET.
+     if(presetQueue.get(entry.key)?.version!==entry.version)continue;
+     const match=e=>!!matchingPresetEvent([e],calendarId,entry.date,entry.rule);
+     const existing=remote.filter(match);
+     bucket.events=bucket.events.filter(e=>!match(e)).concat(existing);
+     const requested=entry.present&&!existing.length?[{type:'insert',calendarId,date:entry.date,rule:entry.rule,id:entry.id}]:
+      !entry.present?existing.map(event=>({type:'delete',calendarId,event})):[];
+     if(!requested.length){presetQueue.ack(entry.key,entry.version);changed=true;continue;}
+     counts.set(entry.key,{version:entry.version,total:requested.length,ok:0});
+     for(const op of requested)operations.push({...op,key:entry.key});
+    }
+   }
+   for(let offset=0;offset<operations.length;offset+=50){
+    const batch=operations.slice(offset,offset+50);
+    const outcomes=await api.batchPresetChanges(batch);
+    for(let i=0;i<batch.length;i++){
+     const op=batch[i],out=outcomes[i],record=counts.get(op.key);
+     if(!out?.ok){failed++;errorMessage=out?.error||'保存に失敗しました。';continue;}
+     record.ok++;
+     const bucket=dataFor(op.calendarId);
+     if(op.type==='insert'){
+      const created=out.event&&out.event.id?out.event:
+       {...presetEventPayload(op.date,op.rule),id:op.id};
+      bucket.events=bucket.events.filter(e=>e.id!==created.id).concat(created);
+     }else bucket.events=bucket.events.filter(e=>e.id!==op.event.id);
+     changed=true;
+    }
+   }
+   for(const [key,record] of counts){
+    if(record.ok===record.total)presetQueue.ack(key,record.version);
+   }
+   if(failed)notify(`${failed}件の予定を保存できませんでした。未同期のまま保持しています。${errorMessage}`);
+   else if(changed)notify('Googleカレンダーに予定をまとめて保存しました。');
+  }catch(error){
+   notify('予定の一括保存に失敗しました。未同期の変更は保持しています：'+error.message);
+  }finally{
+   presetQueue.unmarkInflight(keys);
+   presetFlushing=false;
+   lastCalendarAttempt=0;
+   render();
+  }
+ })();
+ try{return await presetFlushPromise;}finally{presetFlushPromise=null;}
+}
+function togglePresetOnDate(date){
  const rule=state.iconRules.find(rule=>rule.id===selectedPresetId);
  if(!rule)return;
  const calendarId=String(rule.calendarId||''),title=String(rule.keyword||'').trim();
  if(!title)throw Error('プリセットのタイトルが未設定です。');
  if(!calendarId)throw Error('このプリセットの登録先カレンダーが未設定です。設定から指定してください。');
- if(!api.connected)throw Error('Googleへログインしてから予定を登録してください。');
- if(navigator.onLine===false)throw Error('オフラインでは予定を変更できません。通信復帰後に再試行してください。');
- if(!calendars.some(c=>c.id===calendarId&&['owner','writer'].includes(c.accessRole)))
+ if(calendars.length&&!calendars.some(c=>c.id===calendarId&&['owner','writer'].includes(c.accessRole)))
   throw Error('指定されたカレンダーを編集できません。Googleカレンダーの設定・アクセス権を確認してください。');
- busy=true;updateConnection();
- try{
-  // Read authoritative day data to make the toggle safe across devices.
-  const current=await api.events(calendarId,date,addDays(date,1));
-  const existing=matchingPresetEvent(current,calendarId,date,rule);
-  const bucket=dataFor(calendarId);
-  bucket.events=bucket.events.filter(event=>
-   !matchingPresetEvent([event],calendarId,date,rule)||current.some(item=>item.id===event.id));
-  if(existing){
-   if(!existing.etag)throw Error('この予定の更新情報を取得できませんでした。再同期してください。');
-   await api.removePreset(calendarId,existing);
-   bucket.events=bucket.events.filter(event=>event.id!==existing.id);
-   render();notify('「'+title+'」の予定を削除しました。');
-  }else{
-   const created=await api.insertPreset(calendarId,date,rule,uid());
-   bucket.events=bucket.events.filter(event=>event.id!==created.id);
-   bucket.events.push(created);
-   render();notify('「'+title+'」の予定を登録しました。');
-  }
- }catch(error){lastCalendarSync=0;lastCalendarAttempt=0;throw error;}
- finally{busy=false;updateConnection();}
+ presetQueue.toggle(rule,date,dataFor(calendarId).events);
+ render();
 }
 async function selectCalendarDate(date){
- if(selectedPresetId){selected=date;await togglePresetOnDate(date);return;}
+ if(selectedPresetId){selected=date;togglePresetOnDate(date);return;}
  const next=dateTapAction(selected,date);
  if(next.open){
   // The selected day is already highlighted. One tap opens its details.
@@ -547,6 +609,7 @@ async function selectCalendarDate(date){
  document.querySelector(`.day[data-date="${date}"]`)?.focus({preventScroll:true});
 }
 const actions={
+ 'flush-presets':()=>flushPendingPresets(),
  'notice-detail':()=>{if(api.reauthenticationRequired&&!api.connected)return actions.connect();if(drive.autoEnabled&&!drive.connected)return actions['drive-reconnect']();if(currentNotice)modal('ステータス',`<p>${esc(currentNotice)}</p>`,button('閉じる','close-dialog'));},
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
  'prev-month':()=>shiftCalendarMonth(-1),'next-month':()=>shiftCalendarMonth(1),today:()=>{selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);render();},
@@ -810,7 +873,7 @@ function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array
  if(p.state.calendarRefreshMinutes!==undefined&&!CALENDAR_REFRESH_MINUTES.includes(p.state.calendarRefreshMinutes))throw Error('カレンダーの自動更新間隔が不正です。');
  if(!Number.isInteger(p.state.rules.days)||p.state.rules.days<1||p.state.rules.days>31||!Object.values(p.state.rules.counts).every(n=>Number.isInteger(n)&&n>=0&&n<=5)||!colors[p.state.theme?.color]||!['light','dark','auto'].includes(p.state.theme?.mode))throw Error('生成ルールまたはテーマが不正です。');for(const day of p.state.draft)if(day.dishes.length)validateDishes(day.dishes);for(const s of Object.values(p.state.scopes))if(!Array.isArray(s.events)||!s.legacy||!s.aliases||!s.metadata||!Array.isArray(s.manual))throw Error('履歴データが不正です。');}
 window.addEventListener('storage-failed',()=>notify('端末への保存に失敗しました。空き容量・ブラウザ設定を確認し、編集中の内容を書き出してください。'));
-window.addEventListener('online',()=>{notify('接続が戻りました。');void autoRefreshCalendar();});
+window.addEventListener('online',()=>{notify('接続が戻りました。');void flushPendingPresets();void autoRefreshCalendar();});
 window.addEventListener('offline',()=>notify('オフラインです。献立の編集は続けられます。カレンダーへの保存は接続後に行ってください。'));
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>applyTheme(state.theme));
 setInterval(updateConnection,30000);
@@ -827,9 +890,12 @@ if(restoredGoogleSession){
 driveAutoBooting=false;
 prepareGoogleIdentity();
 if(restoredDriveSession)autoDriveSync();
-window.addEventListener('focus',()=>{if(drive.autoEnabled)autoDriveSync();void autoRefreshCalendar();});
+window.addEventListener('focus',()=>{if(drive.autoEnabled)autoDriveSync();void flushPendingPresets();void autoRefreshCalendar();});
 document.addEventListener('visibilitychange',()=>{
- if(!document.hidden){if(drive.autoEnabled)autoDriveSync();void autoRefreshCalendar();}
+ if(!document.hidden){if(drive.autoEnabled)autoDriveSync();void flushPendingPresets();void autoRefreshCalendar();}
 });
 setInterval(()=>{if(!document.hidden&&drive.autoEnabled)autoDriveSync();void autoRefreshCalendar();},30000);
+// The journal is persisted on each tap; mobile browsers may suspend background timers.
+window.addEventListener('pagehide',()=>{void flushPendingPresets();});
+setInterval(()=>{if(presetQueue.size)void flushPendingPresets();},PRESET_FLUSH_INTERVAL_MS);
 if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
