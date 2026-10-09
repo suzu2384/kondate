@@ -12,3 +12,11 @@ test('split category destinations and preserve shared-calendar categories',()=>{
  assert.deepEqual(records.map(x=>eventPayload(x.record).summary),['魚','冷奴、味噌汁']);
  assert.deepEqual(eventRecord({...eventPayload(records[1].record),id:'part2'}).dishes.map(x=>x.category),['side','soup']);
 });
+
+test('planned dishes also have unprefixed titles and keep the plan marker',()=>{
+ const record={date:'2026-10-09',status:'plan',dishes:[{name:'カレー',category:'main'}]};
+ const event=eventPayload(record);
+ assert.equal(event.summary,'カレー');
+ assert.equal(event.extendedProperties.private.state,'plan');
+ assert.equal(eventRecord({...event,id:'plan'}).status,'plan');
+});
