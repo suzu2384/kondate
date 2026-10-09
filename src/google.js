@@ -5,8 +5,18 @@ const SESSION_KEY='kondate.google-calendar-session.v1';
 const KEEP_KEY='kondate.google-calendar-keep-connected.v1';
 const PERSIST_KEY='kondate.google-calendar-token.v1';
 export const SCOPES='https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events';
+// This scope is requested only when the user explicitly creates a calendar.
+export const CREATE_CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.app.created';
+export function calendarCreatePayload({summary,description='',timeZone='Asia/Tokyo'}={}){
+ const name=String(summary||'').trim(),details=String(description||'').trim(),zone=String(timeZone||'').trim();
+ if(!name||name.length>100)throw Error('カレンダー名を1〜100文字で入力してください。');
+ if(details.length>1000)throw Error('説明は1000文字以内で入力してください。');
+ try{new Intl.DateTimeFormat('ja-JP',{timeZone:zone});}
+ catch{throw Error('タイムゾーンが不正です。Asia/Tokyoなどの形式で入力してください。');}
+ return {summary:name,description:details,timeZone:zone};
+}
 export class CalendarClient {
- constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token=null;this.expires=0;this.clientId='';this.identityLoading=null;this.needsReauth=false;}
+ constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token=null;this.expires=0;this.clientId='';this.identityLoading=null;this.needsReauth=false;this.creationToken='';this.creationExpires=0;}
  get connected(){return !!this.token&&Date.now()<this.expires;}
  get reauthenticationRequired(){return this.needsReauth||Boolean(this.token&&Date.now()>=this.expires);}
  get keepConnected(){
@@ -48,7 +58,7 @@ export class CalendarClient {
   this.token=null;this.expires=0;this.needsReauth=requiresLogin;this.forgetSession();
  }
  // A deliberate sign-out opts out of auto-login on this device.
- disconnect(){this.clearToken();this.setKeepConnected(false);}
+ disconnect(){this.clearToken();this.creationToken='';this.creationExpires=0;this.setKeepConnected(false);}
  restoreSession(clientId){
   if(!clientId)return false;
   const parseValid=raw=>{
@@ -96,9 +106,38 @@ export class CalendarClient {
   return this.identityLoading;
  }
  authorize(clientId){if(!clientId) return Promise.reject(Error('アプリのGoogle認証設定が完了していません。'));if(!globalThis.google?.accounts?.oauth2)return Promise.reject(Error('認証を準備中です。少し待ってもう一度接続してください。'));this.clientId=clientId;return new Promise((resolve,reject)=>{const client=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:SCOPES,callback:r=>{if(r.error){reject(Error(`Google認証が完了しませんでした（${String(r.error)}）。Google CloudのクライアントID・テストユーザー・認証設定を確認してください。`));return;}if(!google.accounts.oauth2.hasGrantedAllScopes(r,...SCOPES.split(' '))){reject(Error('カレンダーの読み書き権限をすべて許可してください。'));return;}this.token=r.access_token;this.expires=Date.now()+(Number(r.expires_in)-60)*1000;this.rememberSession();resolve();},error_callback:r=>reject(Error(r.type==='popup_closed'?'認証画面が閉じられました。':'ポップアップを許可して再接続してください。'))});client.requestAccessToken({prompt:''});});}
- async request(path,{method='GET',body,etag}={}){
+ // Incremental, creation-only authorization keeps normal Calendar access unchanged.
+ authorizeCalendarCreation(clientId){
+  if(!clientId)return Promise.reject(Error('Googleの認証設定が完了していません。'));
+  if(!this.connected)return Promise.reject(Error('Googleへログインしてからカレンダーを作成してください。'));
+  if(this.creationToken&&Date.now()<this.creationExpires)return Promise.resolve(this.creationToken);
+  const oauth=globalThis.google?.accounts?.oauth2;
+  if(!oauth)return Promise.reject(Error('Google認証を準備しています。接続設定を確認してください。'));
+  // Invoke requestAccessToken synchronously from the actual create-button click.
+  return new Promise((resolve,reject)=>{
+   const client=oauth.initTokenClient({
+    client_id:clientId,scope:CREATE_CALENDAR_SCOPE,
+    callback:r=>{
+     if(r.error){reject(Error('カレンダー作成の許可を取得できませんでした（'+String(r.error)+'）。'));return;}
+     if(!r.access_token||!oauth.hasGrantedAllScopes(r,CREATE_CALENDAR_SCOPE)){
+      reject(Error('カレンダー作成の権限を許可してください。'));return;
+     }
+     this.creationToken=r.access_token;
+     this.creationExpires=Date.now()+Math.max(0,Number(r.expires_in||0)-60)*1000;
+     resolve(this.creationToken);
+    },
+    error_callback:r=>reject(Error(r.type==='popup_closed'?'Googleの権限確認画面が閉じられました。':'カレンダー作成の許可画面を開けませんでした。ポップアップを許可してください。'))
+   });
+   client.requestAccessToken({prompt:''});
+  });
+ }
+ createCalendar(input,accessToken){
+  if(!accessToken||typeof accessToken!=='string')throw Error('カレンダー作成の権限が必要です。');
+  return this.request('/calendars',{method:'POST',body:calendarCreatePayload(input),accessToken});
+ }
+ async request(path,{method='GET',body,etag,accessToken}={}){
   if(!this.connected){this.clearToken(true);throw Error('Googleへの再接続が必要です。再ログインしてください。');}
-  const headers={Authorization:`Bearer ${this.token}`};if(body)headers['Content-Type']='application/json';if(etag)headers['If-Match']=etag;
+  const headers={Authorization:`Bearer ${accessToken||this.token}`};if(body)headers['Content-Type']='application/json';if(etag)headers['If-Match']=etag;
   let response;
   try{
    const signal=typeof AbortSignal.timeout==='function'?AbortSignal.timeout(25000):undefined;
@@ -112,7 +151,10 @@ export class CalendarClient {
     throw Error('ブラウザがGoogle Calendar APIへの通信を完了できませんでした（'+name+': '+detail+'）。F12の「ネットワーク」でcalendarListへのアクセスがCORSエラー・ブロック・接続失敗になっていないか確認してください。入力内容は保持されています。');
    throw Error('Googleカレンダーへの通信処理でエラーが発生しました（'+name+': '+detail+'）。入力内容は保持されています。');
   }
-  if(response.status===401){this.clearToken(true);throw Error('認証の有効期限が切れました。Googleへ再接続してください。');}
+  if(response.status===401){
+   if(accessToken){this.creationToken='';this.creationExpires=0;throw Error('カレンダー作成の認証が期限切れです。もう一度作成してください。');}
+   this.clearToken(true);throw Error('認証の有効期限が切れました。Googleへ再接続してください。');
+  }
   if(response.status===412)throw Error('他の端末で変更されています。同期して最新の内容を確認してください。入力は残しています。');
   if(!response.ok){
    let details;

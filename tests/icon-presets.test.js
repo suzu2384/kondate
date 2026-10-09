@@ -104,3 +104,18 @@ test('toolbar, handlers, and clipping CSS are wired',()=>{
   assert.equal(check.status,0,check.stderr);
  }
 });
+
+test('new calendar option opens a modal and automatically selects created calendar',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ assert.match(app,/NEW_CALENDAR_VALUE='__kondate_create_calendar__'/);
+ assert.match(app,/<option value="\$\{NEW_CALENDAR_VALUE\}">＋ 新規作成…<\/option>/);
+ assert.match(app,/function openCalendarCreation\(ruleId\)/);
+ assert.match(app,/id="new-calendar-name"/);
+ assert.match(app,/id="new-calendar-description"/);
+ assert.match(app,/id="new-calendar-timezone"/);
+ assert.match(app,/const permission=api\.authorizeCalendarCreation\(GOOGLE_CLIENT_ID\)/);
+ assert.match(app,/api\.createCalendar\(input,await permission\)/);
+ assert.match(app,/rule\.calendarId=created\.id/);
+ assert.match(app,/el\.value=rule\?\.calendarId\|\|''/);
+ assert.match(app,/found\.find\(c=>c\.id===calendar\.id\)\|\|calendar/);
+});

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {CalendarClient} from '../src/google.js';
+import {CalendarClient,calendarCreatePayload,CREATE_CALENDAR_SCOPE,SCOPES} from '../src/google.js';
 import {eventPayload} from '../src/model.js';
 const response=(body,status=200)=>new Response(status===204?null:JSON.stringify(body),{status,headers:{'Content-Type':'application/json'}});
 function client(fn){const c=new CalendarClient(fn);c.token='fake-test-token';c.expires=Date.now()+60000;return c;}
@@ -177,4 +177,58 @@ test('editing an existing meal-calendar event patches Google without changing it
  });
  const result=await c.update('cal',{id:'outside',date:'2026-10-08',status:'actual',owned:false,etag:'"source"',raw,dishes:[{name:'鮭',category:'main'}]});
  assert.equal(result.id,'outside');
+});
+
+test('calendar creation validates name, description and IANA time zone',()=>{
+ assert.deepEqual(calendarCreatePayload({summary:'  家族の予定  ',description:' メモ ',timeZone:'Asia/Tokyo'}),{
+  summary:'家族の予定',description:'メモ',timeZone:'Asia/Tokyo'
+ });
+ assert.throws(()=>calendarCreatePayload({summary:'  '}),/カレンダー名/);
+ assert.throws(()=>calendarCreatePayload({summary:'ok',timeZone:'invalid/zone'}),/タイムゾーン/);
+ assert.throws(()=>calendarCreatePayload({summary:'x'.repeat(101)}),/カレンダー名/);
+ assert.throws(()=>calendarCreatePayload({summary:'ok',description:'x'.repeat(1001)}),/説明/);
+ assert.ok(!SCOPES.includes(CREATE_CALENDAR_SCOPE),'normal sign-in must keep its existing scopes');
+});
+test('calendar creation uses its separate, least-privilege token only for POST /calendars',async()=>{
+ const observed=[];
+ const c=client(async(url,options)=>{
+  observed.push({url,...options});
+  return response({id:'fresh@group.calendar.google.com',summary:'新しい予定',timeZone:'Asia/Tokyo'},200);
+ });
+ const created=await c.createCalendar({summary:'新しい予定',timeZone:'Asia/Tokyo'},'new-calendar-token');
+ assert.equal(created.id,'fresh@group.calendar.google.com');
+ assert.equal(observed.length,1);
+ assert.equal(observed[0].url,'https://www.googleapis.com/calendar/v3/calendars');
+ assert.equal(observed[0].method,'POST');
+ assert.equal(observed[0].headers.Authorization,'Bearer new-calendar-token');
+ assert.deepEqual(JSON.parse(observed[0].body),{summary:'新しい予定',description:'',timeZone:'Asia/Tokyo'});
+ assert.equal(c.token,'fake-test-token','normal Google session should be untouched');
+});
+test('calendar creation authorization requests scope in a synchronous user click',async()=>{
+ const original=globalThis.google;
+ let requestCalled=false;
+ globalThis.google={accounts:{oauth2:{
+  initTokenClient:options=>({requestAccessToken:({prompt})=>{
+   requestCalled=true;
+   assert.equal(prompt,'');
+   assert.equal(options.scope,CREATE_CALENDAR_SCOPE);
+   options.callback({access_token:'created-token',expires_in:3600,scope:CREATE_CALENDAR_SCOPE});
+  }}),
+  hasGrantedAllScopes:()=>true
+ }}};
+ try{
+  const c=client(()=>response({}));
+  const granted=c.authorizeCalendarCreation('client.apps.googleusercontent.com');
+  assert.equal(requestCalled,true);
+  assert.equal(await granted,'created-token');
+  assert.equal(await c.authorizeCalendarCreation('client.apps.googleusercontent.com'),'created-token');
+ }finally{globalThis.google=original;}
+});
+test('creation-token expiry never disconnects the normal calendar session',async()=>{
+ const c=client(async()=>response({error:{message:'Token expired'}},401));
+ c.creationToken='expired';
+ await assert.rejects(()=>c.createCalendar({summary:'家族の予定'},'expired'),/作成の認証が期限切れ/);
+ assert.equal(c.connected,true);
+ assert.equal(c.token,'fake-test-token');
+ assert.equal(c.creationToken,'');
 });
