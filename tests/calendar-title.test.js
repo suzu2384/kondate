@@ -13,10 +13,11 @@ test('split category destinations and preserve shared-calendar categories',()=>{
  assert.deepEqual(eventRecord({...eventPayload(records[1].record),id:'part2'}).dishes.map(x=>x.category),['side','soup']);
 });
 
-test('planned dishes also have unprefixed titles and keep the plan marker',()=>{
- const record={date:'2026-10-09',status:'plan',dishes:[{name:'カレー',category:'main'}]};
+test('Calendar payloads are always confirmed cooking records, and old plan entries are ignored',()=>{
+ const record={date:'2026-10-09',status:'actual',dishes:[{name:'カレー',category:'main'}]};
  const event=eventPayload(record);
  assert.equal(event.summary,'カレー');
- assert.equal(event.extendedProperties.private.state,'plan');
- assert.equal(eventRecord({...event,id:'plan'}).status,'plan');
+ assert.equal(event.extendedProperties.private.state,'actual');
+ assert.equal(eventRecord({...event,id:'actual'}).status,'actual');
+ assert.equal(eventRecord({...event,id:'old',extendedProperties:{private:{kondate:'1',state:'plan'}}}),null);
 });

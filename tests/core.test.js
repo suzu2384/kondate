@@ -11,11 +11,11 @@ const rules={...defaultRules,counts:{main:1,side:1,soup:1}};
 const master=buildMaster([],{}, {},catalog);
 test('normalization unifies full-width and spaces, aliases aggregate confirmed records only',()=>{
  assert.equal(normalize(' Ａ　B '),'ab');
- const records=[{status:'actual',date:'2026-09-01',dishes:[{name:'ぎょうざ',category:'main'}]},{status:'actual',date:'2026-09-03',dishes:[{name:'餃子',category:'main'}]},{status:'plan',date:ref,dishes:[{name:'餃子'}]},{status:'unreviewed',date:ref,dishes:[{name:'餃子'}]}];
+ const records=[{status:'actual',date:'2026-09-01',dishes:[{name:'ぎょうざ',category:'main'}]},{status:'actual',date:'2026-09-03',dishes:[{name:'餃子',category:'main'}]},{status:'unreviewed',date:ref,dishes:[{name:'餃子'}]}];
  const [d]=buildMaster(records,{'ぎょうざ':'餃子'});assert.equal(d.count,2);assert.equal(d.lastDate,'2026-09-03');assert.deepEqual(d.dates,['2026-09-03','2026-09-01']);
 });
-test('structured events round trip; plans do not become actuals; exclusive end date',()=>{
- const payload=eventPayload({date:'2026-12-31',status:'plan',dishes:[{name:'煮魚',category:'main'}]});assert.equal(payload.end.date,'2027-01-01');const r=eventRecord({...payload,id:'test',etag:'1'});assert.equal(r.status,'plan');assert.equal(r.dishes[0].name,'煮魚');assert.equal(buildMaster([r]).length,0);
+test('structured actual event round trip; deprecated Calendar-only plans are ignored; exclusive end date',()=>{
+ const payload=eventPayload({date:'2026-12-31',status:'actual',dishes:[{name:'煮魚',category:'main'}]});assert.equal(payload.end.date,'2027-01-01');const r=eventRecord({...payload,id:'test',etag:'1'});assert.equal(r.status,'actual');assert.equal(r.dishes[0].name,'煮魚');assert.equal(buildMaster([r]).length,1);const oldPlan={...payload,extendedProperties:{private:{kondate:'1',state:'plan'}}};assert.equal(eventRecord({...oldPlan,id:'old-plan'}),null);
 });
 test('existing meal-calendar events are confirmed immediately without local import decisions',()=>{
  const e={id:'legacy',summary:'夕食：鮭、サラダ',start:{date:'2026-10-01'}};

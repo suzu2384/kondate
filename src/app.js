@@ -9,6 +9,7 @@ import {DriveSettingsClient} from './drive.js';
 import {dateTapAction,horizontalMonthSwipe,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync} from './drive-sync.js';
 import {dishSuggestions,selectRecordDish} from './dish-suggestions.js';
+import {searchPlaces,LOCATION_ATTRIBUTION} from './place-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
 import {AIService} from './ai.js';
 import {catalog} from './catalog.js';
@@ -52,7 +53,7 @@ function showStatus(){
  $('#status-bar').classList.toggle('auth-required',warning||driveWarning);
 }
 
-let tab='calendar',view='month',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',photoURL=null,photoFile=null;
+let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',photoURL=null,photoFile=null;
 let calendarTouchStart=null,ignoreDateClickUntil=0;
 const scopeKeyFor=id=>calendarKey(GOOGLE_CLIENT_ID,id);
 const primaryCalendarId=()=>activeCalendarIds('',state.categories,state.categoryCalendars)[0]||'';
@@ -126,15 +127,15 @@ function calendarScreen(){const list=records(),extras=extraEvents();const cells=
 const chips=[...events.map(e=>`<span class="event-chip ${e.status}">${esc(e.owned?e.dishes.map(d=>d.name).join('、'):(e.raw?.summary||e.dishes[0]?.name||'読み込み不可'))}</span>`),
  ...extra.map(e=>`<span class="event-chip general-event ${e.icon?'icon-only':''}" title="${esc(e.title)}" aria-label="${esc(e.title)}">${esc(e.icon||e.title)}</span>`)];
 return `<button class="day ${d.getMonth()!==month.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-pressed="${date===selected}" aria-label="${date}、${events.length+extra.length}件"><span class="day-number">${d.getDate()}</span>${chips.slice(0,2).join('')}${chips.length>2?`<small>+${chips.length-2}</small>`:''}</button>`;}).join('');
-return `<section class="screen"><div class="toolbar calendar-toolbar"><div class="segmented"><button data-action="view-month" class="${view==='month'?'active':''}">月表示</button><button data-action="view-history" class="${view==='history'?'active':''}">履歴一覧</button></div>${button('料理マスター','master','text-button mini')}</div>${view==='month'?`<div class="calendar-layout"><div class="calendar-card card"><div class="month-heading"><h2>${month.getFullYear()}年 <span>${month.getMonth()+1}月</span></h2><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid">${cells}</div></div><aside class="card day-panel">${dayContent(selected)}</aside></div>`:`<div class="history-list scroll">${list.filter(r=>r.status==='actual').sort((a,b)=>b.date.localeCompare(a.date)).map(r=>`<button class="card history-item" data-action="record" data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"><small>${r.date} ${r.owned?'':'・既存予定'}</small><strong>${esc(r.dishes.map(d=>d.name).join(' / '))}</strong><span class="tag">${String(r.location||'').trim()?'外食':'実績'}</span></button>`).join('')||empty('まだ調理の記録がありません','カレンダーを接続して同期するか、実績を登録してください。')}</div>`}<div class="footer-note"><span>${assignedIds().some(id=>dataFor(id).lastSync)?'最終同期 '+new Date(Math.max(...assignedIds().map(id=>dataFor(id).lastSync||0))).toLocaleString('ja-JP'):'未同期'}${!navigator.onLine?' ・オフライン':''}</span><span>料理 ${master().filter(d=>d.count).length}品</span></div></section>`;}
-function dayContent(date){const d=new Date(`${date}T12:00:00`);const list=records().filter(r=>r.date===date),extra=extraEvents().filter(e=>e.date===date);return `<h2>${d.getMonth()+1}月${d.getDate()}日 <small>（${'日月火水木金土'[d.getDay()]}）</small></h2><div class="date-label">${list.length+extra.length}件の記録・予定</div>${list.map(r=>`<div class="meal-group"><span class="tag ${r.status==='unreviewed'?'neutral':''}">${({actual:'調理実績',plan:'献立案',invalid:'書式を確認してください'})[r.status]}</span>${String(r.location||'').trim()?`<div class="date-label">外食・場所：${esc(r.location)}</div>`:''}${r.dishes.map(d=>`<div class="dish-line"><span class="category">${esc(categoryName(d.category))}</span><span>${esc(d.name)}</span></div>`).join('')}${r.status==='invalid'?`<p class="hint">元の予定をカレンダーで確認してください。変更せず保護しています。</p>`:button('詳細・編集','record','text-button mini',`data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"`)}</div>`).join('')||(!extra.length?empty('この日の記録はありません','何を作りましたか？料理名だけでも記録できます。'):'')}${extra.map(e=>`<div class="meal-group general-event-detail"><span aria-hidden="true">${esc(e.icon||'📅')}</span> <span>${esc(e.title)}</span> <small>（表示のみ）</small></div>`).join('')}${button('＋ この日に登録','new-record','full',`data-date="${date}"`)}`;}
+return `<section class="screen calendar-screen"><div class="calendar-layout"><div class="calendar-card card"><div class="month-heading"><h2>${month.getFullYear()}年 <span>${month.getMonth()+1}月</span></h2><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid">${cells}</div></div><aside class="card day-panel">${dayContent(selected)}</aside></div></section>`;}
+function dayContent(date){const d=new Date(`${date}T12:00:00`);const list=records().filter(r=>r.date===date),extra=extraEvents().filter(e=>e.date===date);return `<h2>${d.getMonth()+1}月${d.getDate()}日 <small>（${'日月火水木金土'[d.getDay()]}）</small></h2><div class="date-label">${list.length+extra.length}件の記録・予定</div>${list.map(r=>`<div class="meal-group"><span class="tag ${r.status==='invalid'?'neutral':''}">${({actual:'調理実績',invalid:'書式を確認してください'})[r.status]}</span>${String(r.location||'').trim()?`<div class="date-label">外食・場所：${esc(r.location)}</div>`:''}${r.dishes.map(d=>`<div class="dish-line"><span class="category">${esc(categoryName(d.category))}</span><span>${esc(d.name)}</span></div>`).join('')}${r.status==='invalid'?`<p class="hint">元の予定をカレンダーで確認してください。変更せず保護しています。</p>`:button('詳細・編集','record','text-button mini',`data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"`)}</div>`).join('')||(!extra.length?empty('この日の記録はありません','何を作りましたか？料理名だけでも記録できます。'):'')}${extra.map(e=>`<div class="meal-group general-event-detail"><span aria-hidden="true">${esc(e.icon||'📅')}</span> <span>${esc(e.title)}</span> <small>（表示のみ）</small></div>`).join('')}${button('＋ この日に登録','new-record','full',`data-date="${date}"`)}`;}
 function generateScreen(){
  return `<section class="screen generation-screen">
  <div class="generation-controls">
   <label><input aria-label="生成日数" type="number" id="days" min="1" max="31" value="${state.rules.days}">日分</label>
   <select aria-label="選定モード" id="generate-mode"><option value="rules">ルールベース</option value="ai" ${ai.available?'':'disabled'}>AI${ai.available?'':'（未設定）'}</option></select>
   ${button('生成','generate','primary mini')}
-  ${button('ルール調整','rules','text-button mini')}
+  ${button('ルール調整','rules','text-button mini')}${button('料理マスター','master','text-button mini')}
  </div>
  ${issues.length?`<div class="issues"><strong>条件に合う候補が足りない場合があります</strong><ul>${issues.map(s=>`<li>${esc(s.replace(/：([a-z0-9-]+)の/g,(_,c)=>'：'+categoryName(c)+'の'))}</li>`).join('')}</ul><p>料理を追加するか、直近の除外日数・1日あたりの品数を減らして再生成できます。重複許可は設定から明示的に変更してください。</p>${button('条件を変更','rules','mini')} ${button('料理を追加','add-master','mini')}</div>`:''}
  <div class="plan-grid compact-plan-grid scroll">
@@ -178,6 +179,60 @@ function dishRows(dishes){
   ${button('×','editor-remove','danger',`data-index="${i}" aria-label="${i+1}品目を削除"`)}
  </div>`).join('');
 }
+let placeRequestTimer=null,placeRequestAbort=null,placeRequestId=0,lastPlaceRequest=0;
+const placeCache=new Map();
+function cancelPlaceLookup(){
+ if(placeRequestTimer!==null)clearTimeout(placeRequestTimer);
+ placeRequestTimer=null;placeRequestAbort?.abort();placeRequestAbort=null;placeRequestId++;
+}
+function hidePlaceSuggestions(){
+ const list=document.querySelector('#place-suggestions');
+ if(list){list.hidden=true;list.innerHTML='';}
+ document.querySelector('#record-location')?.setAttribute('aria-expanded','false');
+}
+function showPlaceChoices(field,places){
+ const list=document.querySelector('#place-suggestions');
+ if(!field?.isConnected||!list||field!==document.querySelector('#record-location'))return;
+ list.innerHTML=places.map(place=>'<button type="button" class="place-suggestion" role="option" data-action="pick-location" data-value="'+esc(place.value)+'"><span>'+esc(place.name)+'</span><small>'+esc(place.detail)+'</small></button>').join('');
+ list.hidden=!places.length;
+ field.setAttribute('aria-expanded',String(places.length>0));
+}
+function queuePlaceLookup(field){
+ cancelPlaceLookup();
+ hidePlaceSuggestions();
+ const query=String(field?.value||'').trim();
+ if(!globalThis.navigator?.onLine||Array.from(query).length<2)return;
+ const cache=placeCache.get(query);
+ if(cache){showPlaceChoices(field,cache);return;}
+ const id=placeRequestId;
+ // A keyless public demo has no SLA. Wait for idle typing, then rate-limit.
+ const delay=Math.max(750,1200-(Date.now()-lastPlaceRequest));
+ placeRequestTimer=setTimeout(async()=>{
+  placeRequestTimer=null;
+  if(id!==placeRequestId||!field.isConnected)return;
+  lastPlaceRequest=Date.now();
+  const controller=new AbortController();placeRequestAbort=controller;
+  try{
+   const choices=await searchPlaces(query,{signal:controller.signal,online:!!navigator.onLine});
+   if(id!==placeRequestId||field.value.trim()!==query||!field.isConnected)return;
+   if(placeCache.size>=30)placeCache.delete(placeCache.keys().next().value);
+   placeCache.set(query,choices);
+   showPlaceChoices(field,choices);
+  }catch(error){
+   if(id===placeRequestId&&error?.name!=='AbortError')hidePlaceSuggestions();
+  }finally{if(placeRequestAbort===controller)placeRequestAbort=null;}
+ },delay);
+}
+function pickPlaceSuggestion(button){
+ const field=document.querySelector('#record-location');
+ if(!editor||!button||!field)return;
+ const name=button.dataset.value||'';
+ if(!name)return;
+ cancelPlaceLookup();
+ field.value=name;editor.location=name;
+ hidePlaceSuggestions();
+ field.blur();
+}
 function hideDishSuggestions(){
  for(const list of document.querySelectorAll('.dish-suggestions'))list.hidden=true;
  for(const input of document.querySelectorAll('[data-editor-name]'))input.setAttribute('aria-expanded','false');
@@ -208,9 +263,9 @@ function pickRecordDishSuggestion(button){
 }
 function openRecord(record=null,{date=today(),dishes=null}={}){
  editor=record?structuredClone(record):{id:uid(),date,status:'actual',location:'',dishes:dishes?structuredClone(dishes):[{name:'',category:'main'}],owned:true,new:true,scope:scopeKey()};
- editor.scope??=scopeKey();editor.location??=editor.raw?.location||'';drawRecord();
+ editor.scope??=scopeKey();editor.location??=editor.raw?.location||'';editor.status='actual';drawRecord();
 }
-function drawRecord(){const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><span class="dialog-date-control"><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></span></label><label class="field"><span>状態</span><select id="record-status" ${legacy?'disabled':''}><option value="actual" ${editor.status!=='plan'?'selected':''}>調理実績</option><option value="plan" ${editor.status==='plan'?'selected':''}>献立案（履歴に含めない）</option></select></label><label class="field"><span>場所（任意・外食の場合に入力）</span><input id="record-location" type="text" value="${esc(editor.location||'')}" placeholder="例：レストラン名・お店の場所" maxlength="500" autocomplete="off"><small>場所がある記録は外食として扱い、献立生成の調理履歴には含めません。</small></label><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);}
+function drawRecord(){cancelPlaceLookup();const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><span class="dialog-date-control"><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></span></label><label class="field"><span>場所（任意・外食の場合に入力）</span><div class="place-input-group"><input id="record-location" type="text" value="${esc(editor.location||'')}" placeholder="店名・施設名を入力" maxlength="500" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><div id="place-suggestions" class="place-suggestions" role="listbox" aria-label="場所の候補" hidden></div></div><small>場所がある記録は外食として扱います。オンライン時は地名候補を表示（候補にない場所も入力可）。<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> / <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a></small></label><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);}
 async function saveRecord(){
  const current=structuredClone(editor);
  current.dishes=validateDishes(current.dishes);
@@ -393,12 +448,11 @@ function selectCalendarDate(date){
 const actions={
  'notice-detail':()=>{if(api.reauthenticationRequired&&!api.connected)return actions.connect();if(drive.autoEnabled&&!drive.connected)return actions['drive-reconnect']();if(currentNotice)modal('ステータス',`<p>${esc(currentNotice)}</p>`,button('閉じる','close-dialog'));},
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
- 'view-month':()=>{view='month';render();},'view-history':()=>{view='history';render();},
  'prev-month':()=>shiftCalendarMonth(-1),'next-month':()=>shiftCalendarMonth(1),today:()=>{selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);render();},
  date:b=>selectCalendarDate(b.dataset.date),
  'new-record':b=>openRecord(null,{date:b.dataset.date||today()}),record:b=>openRecord(records().find(r=>r.id===b.dataset.id&&r.calendarId===(b.dataset.calendar||primaryCalendarId()))),
  'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
- 'suggest-record-dish':pickRecordDishSuggestion,
+ 'suggest-record-dish':pickRecordDishSuggestion,'pick-location':pickPlaceSuggestion,
  'save-record':saveRecord,
  'delete-record':()=>{modal('この実績を削除しますか？',`<p>${esc(editor.date)}：${esc(editor.dishes.map(d=>d.name).join('、'))}</p><p>Googleカレンダーからこの予定を直接削除します。この操作は取り消せません。</p>`,button('戻る','return-editor')+button('削除する','confirm-delete','danger'));},'return-editor':drawRecord,
  'confirm-delete':async()=>{if(editor.scope!==scopeKeyFor(editor.calendarId||primaryCalendarId()))throw Error('元のカレンダーに戻って操作してください。');busy=true;updateConnection();try{const id=editor.calendarId||primaryCalendarId();await api.remove(id,editor);dataFor(id).events=dataFor(id).events.filter(e=>e.id!==editor.id);closeModal();render();notify('実績を削除しました。');}finally{busy=false;updateConnection();}},
@@ -504,6 +558,8 @@ async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))ret
 // Capture pointer selection before iOS dismisses the keyboard and changes focus.
 // The regular click action remains a fallback for keyboard and assistive tech.
 document.addEventListener('pointerdown',e=>{
+ const locationChoice=e.target.closest?.('[data-action="pick-location"]');
+ if(locationChoice){e.preventDefault();pickPlaceSuggestion(locationChoice);return;}
  const candidate=e.target.closest?.('[data-action="suggest-record-dish"]');
  if(!candidate)return;
  e.preventDefault();
@@ -522,14 +578,14 @@ document.addEventListener('click',e=>{
 // dialogs or page tabs. Vertical gestures remain available to the browser.
 document.addEventListener('touchstart',e=>{
  calendarTouchStart=null;
- if(tab!=='calendar'||view!=='month'||$('#dialog').open||e.touches.length!==1)return;
+ if(tab!=='calendar'||$('#dialog').open||e.touches.length!==1)return;
  if(!e.target.closest?.('.month-grid'))return;
  const touch=e.touches[0];
  calendarTouchStart={x:touch.clientX,y:touch.clientY,time:Date.now()};
 },{passive:true});
 document.addEventListener('touchend',e=>{
  const start=calendarTouchStart;calendarTouchStart=null;
- if(!start||tab!=='calendar'||view!=='month'||$('#dialog').open||!e.changedTouches.length)return;
+ if(!start||tab!=='calendar'||$('#dialog').open||!e.changedTouches.length)return;
  const touch=e.changedTouches[0];
  const offset=horizontalMonthSwipe(start,{x:touch.clientX,y:touch.clientY,time:Date.now()});
  if(!offset)return;
@@ -544,7 +600,7 @@ $('#sync').addEventListener('click',()=>run('sync'));
 $('#dialog').addEventListener('cancel',()=>{editor=null;});
 document.addEventListener('input',e=>{const el=e.target;
  if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;showDishSuggestions(el);}
- if(editor&&el.id==='record-location')editor.location=el.value;
+ if(editor&&el.id==='record-location'){editor.location=el.value;queuePlaceLookup(el);}
  if(el.id==='master-search'){const pos=el.selectionStart;masterQuery=el.value;masterModal();$('#master-search').focus();$('#master-search').setSelectionRange(pos,pos);}
 });
 document.addEventListener('focusin',e=>{
@@ -553,8 +609,27 @@ document.addEventListener('focusin',e=>{
   for(const list of document.querySelectorAll('.dish-suggestions'))if(list!==field.closest('.dish-input-group')?.querySelector('.dish-suggestions'))list.hidden=true;
   showDishSuggestions(field);
  }else if(!e.target.closest?.('.dish-suggestions'))hideDishSuggestions();
+ if(e.target.id==='record-location')queuePlaceLookup(e.target);
+ else if(!e.target.closest?.('.place-suggestions'))hidePlaceSuggestions();
 });
 document.addEventListener('keydown',e=>{
+ if(e.target.id==='record-location'){
+  if(e.key==='ArrowDown'){
+   const first=document.querySelector('#place-suggestions .place-suggestion');
+   if(first){e.preventDefault();first.focus();}
+  }else if(e.key==='Escape'){cancelPlaceLookup();hidePlaceSuggestions();}
+  return;
+ }
+ if(e.target.matches?.('.place-suggestion')){
+  if(e.key==='Escape'){
+   document.querySelector('#record-location')?.focus();hidePlaceSuggestions();
+  }else if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+   const options=Array.from(document.querySelectorAll('#place-suggestions .place-suggestion'));
+   const next=options.indexOf(e.target)+(e.key==='ArrowDown'?1:-1);
+   if(options[next]){e.preventDefault();options[next].focus();}
+  }
+  return;
+ }
  if(e.target.matches?.('[data-editor-name]')){
   if(e.key==='ArrowDown'){
    const suggestion=e.target.closest('.dish-input-group')?.querySelector('.dish-suggestion');
@@ -592,7 +667,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   render();return;
  }
 
- if(editor){if(el.id==='record-date')editor.date=el.value;if(el.id==='record-status')editor.status=el.value;if(el.id==='record-location')editor.location=el.value;if(el.matches('[data-editor-category]'))editor.dishes[el.dataset.editorCategory].category=el.value;if(el.matches('[data-editor-name]')){const found=master().find(d=>normalize(d.name)===normalize(el.value));if(found){Object.assign(editor.dishes[el.dataset.editorName],{...found});const category=el.closest('.dish-editor')?.querySelector('[data-editor-category]');if(category)category.value=found.category;}}}
+ if(editor){if(el.id==='record-date')editor.date=el.value;if(el.id==='record-location')editor.location=el.value;if(el.matches('[data-editor-category]'))editor.dishes[el.dataset.editorCategory].category=el.value;if(el.matches('[data-editor-name]')){const found=master().find(d=>normalize(d.name)===normalize(el.value));if(found){Object.assign(editor.dishes[el.dataset.editorName],{...found});const category=el.closest('.dish-editor')?.querySelector('[data-editor-category]');if(category)category.value=found.category;}}}
  if(el.id==='keep-connected'){
   try{
    api.setKeepConnected(el.checked);

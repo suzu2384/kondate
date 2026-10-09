@@ -30,8 +30,10 @@ export function eventRecord(event,legacy={},categories=defaultCategories,timeZon
  if(!date&&event.start?.dateTime){try{date=new Intl.DateTimeFormat('sv-SE',{timeZone,year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(event.start.dateTime));}catch{return null;}}
  if(!date||!/^\d{4}-\d{2}-\d{2}$/.test(date))return null;
  const p=event.extendedProperties?.private||{};
+ // Older draft-only Calendar entries remain on Google, but are not treated as meals.
+ if(p.kondate==='1'&&p.state==='plan')return null;
  if(p.kondate==='1'){
-  try {const data=JSON.parse(event.description?.split('\n--- kondate:v1 ---\n')[1]||'');return {id:event.id,date,status:p.state==='plan'?'plan':p.state==='actual'?'actual':'invalid',dishes:validateDishes(data.dishes),owned:true,location:String(event.location||''),etag:event.etag,raw:event};}catch{return {id:event.id,date,status:'invalid',dishes:[],owned:true,location:String(event.location||''),raw:event,etag:event.etag};}
+  try {const data=JSON.parse(event.description?.split('\n--- kondate:v1 ---\n')[1]||'');return {id:event.id,date,status:p.state==='actual'?'actual':'invalid',dishes:validateDishes(data.dishes),owned:true,location:String(event.location||''),etag:event.etag,raw:event};}catch{return {id:event.id,date,status:'invalid',dishes:[],owned:true,location:String(event.location||''),raw:event,etag:event.etag};}
  }
  // All events in a selected meal calendar are confirmed; no device-local acceptance state.
  const dishes=parseLegacy(event,categories);
@@ -47,5 +49,5 @@ export function buildMaster(records,aliases={},metadata={},manual=[]) {
 export function eventPayload(record) {
  const dishes=validateDishes(record.dishes); if(!/^\d{4}-\d{2}-\d{2}$/.test(record.date)||Number.isNaN(Date.parse(record.date)))throw Error('日付を入力してください。');
  const location=String(record.location||'').trim();
- return {summary:dishes.map(d=>d.name).join('、'),location,description:`献立ノートで登録した${record.status==='plan'?'献立案':'調理実績'}です。\n--- kondate:v1 ---\n${JSON.stringify({version:1,dishes})}`,start:{date:record.date},end:{date:addDays(record.date,1)},transparency:'transparent',extendedProperties:{private:{kondate:'1',state:record.status==='plan'?'plan':'actual'}}};
+ return {summary:dishes.map(d=>d.name).join('、'),location,description:`献立ノートで登録した調理実績です。\n--- kondate:v1 ---\n${JSON.stringify({version:1,dishes})}`,start:{date:record.date},end:{date:addDays(record.date,1)},transparency:'transparent',extendedProperties:{private:{kondate:'1',state:'actual'}}};
 }

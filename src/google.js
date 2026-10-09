@@ -141,7 +141,7 @@ export class CalendarClient {
   // attendees and other unrelated fields while storing the confirmed dish data.
   const body=record.owned?payload:{
    summary:payload.summary,description:payload.description,location:payload.location,
-   extendedProperties:{private:{...record.raw?.extendedProperties?.private,kondate:'1',state:record.status==='plan'?'plan':'actual'}}
+   extendedProperties:{private:{...record.raw?.extendedProperties?.private,kondate:'1',state:'actual'}}
   };
   return this.request(this.path(calendarId,record.id),{method:'PATCH',body,etag:record.etag});
  }
