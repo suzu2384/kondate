@@ -15,3 +15,17 @@ export function dishSuggestions(items,query='',category='',limit=8){
   .slice(0,limit)
   .map(entry=>entry.dish);
 }
+
+/** Apply a picked master dish to the record editor; do not rebuild the dialog. */
+export function selectRecordDish(editor,index,dish){
+ if(!editor||!Array.isArray(editor.dishes)||!Number.isInteger(index)||index<0||
+    index>=editor.dishes.length||!dish||typeof dish.name!=='string')return false;
+ editor.dishes[index]={
+  name:dish.name,
+  category:dish.category,
+  protein:dish.protein||'不明',
+  method:dish.method||'不明',
+  genre:dish.genre||'不明'
+ };
+ return true;
+}
