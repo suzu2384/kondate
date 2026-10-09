@@ -346,3 +346,10 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .dish-editor{grid-template-columns:minmax(0,65px) minmax(0,1fr) 30px;gap:4px;}
  .dialog-body{padding:10px;}
 }
+
+/* Keep the iOS text autosizing from altering form geometry after the keyboard closes. */
+@media(max-width:760px){
+ html{-webkit-text-size-adjust:100%;text-size-adjust:100%;}
+ .dialog-foot{min-width:0;max-width:100%;flex-wrap:wrap;}
+ .dialog-foot button{min-width:0;max-width:100%;}
+}
