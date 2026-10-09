@@ -64,6 +64,18 @@ test('all calendar chips are rendered and clipped naturally, with centered icons
  assert.match(app,/icon:'tag_fill',color:'#ffffff'/);
  assert.match(app,/is-white/);
 });
+test('calendar preserves its nodes, inset focus, and pending opacity instead of dashed lines',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
+ assert.match(app,/renderedViewTab==='calendar'&&renderedCalendarMonth===monthKey/);
+ assert.match(app,/patchCalendarCells\(\)/);
+ assert.match(app,/day\.innerHTML!==cell\.html/);
+ assert.match(app,/previous\[i\]\.outerHTML!==desired\[i\]\.outerHTML/);
+ assert.match(app,/if\(bar\.innerHTML!==nextMarkup\)bar\.innerHTML=nextMarkup/);
+ assert.doesNotMatch(app,/\.day\[data-date="\$\{date\}"\]\x60\)\?\.focus/);
+ assert.match(css,/#main \.month-grid \.day:focus-visible\{outline:2px solid var\(--accent\);outline-offset:-2px\}/);
+ assert.match(css,/#main \.month-grid \.event-chip\.general-event\.is-pending\{border-bottom:0;opacity:\.55\}/);
+});
 test('toolbar, handlers, and clipping CSS are wired',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');

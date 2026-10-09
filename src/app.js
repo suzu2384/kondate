@@ -122,13 +122,22 @@ function updateConnection(){
  $('#connection').classList.toggle('online',connected);
  $('#sync').disabled=busy||!connected||!hasSyncedCalendars();
 }
+let renderedViewTab='',renderedCalendarMonth='';
 function render(){
- // The Settings screen is rebuilt after every selection; preserve its scroll position.
+ // Keep the existing day buttons alive on taps and background saves.
+ // Rebuilding #main on every edit briefly clears all SVG masks and focus state.
  const previousScroll=tab==='settings'?$('#main .settings-grid')?.scrollTop:null;
  applyTheme(state.theme);
  updateConnection();
  document.querySelectorAll('[data-tab]').forEach(b=>{if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
- $('#main').innerHTML=({calendar:calendarScreen,generate:generateScreen,photo:photoScreen,settings:settingsScreen}[tab])();
+ const monthKey=`${month.getFullYear()}-${month.getMonth()}`;
+ if(tab==='calendar'&&renderedViewTab==='calendar'&&renderedCalendarMonth===monthKey&&$('#main .month-grid')){
+  patchCalendarCells();
+ }else{
+  $('#main').innerHTML=({calendar:calendarScreen,generate:generateScreen,photo:photoScreen,settings:settingsScreen}[tab])();
+  renderedViewTab=tab;
+  renderedCalendarMonth=tab==='calendar'?monthKey:'';
+ }
  renderPresetBar();
  if(previousScroll!=null){const list=$('#main .settings-grid');if(list)list.scrollTop=previousScroll;}
 }
@@ -144,12 +153,13 @@ function renderPresetBar(){
  document.querySelector('.app').classList.toggle('has-quick-presets',shown);
  bar.hidden=!shown;
  if(!shown){bar.innerHTML='';return;}
- bar.innerHTML=rules.map(rule=>{
+ const nextMarkup=rules.map(rule=>{
   const title=String(rule.keyword||'').trim(),memo=String(rule.memo||'').trim();
   const label=[title,memo,rule.calendarId?'':'（登録先未設定）'].filter(Boolean).join('／');
   const pressed=selectedPresetId===rule.id;
   return `<button type="button" data-action="select-preset" data-rule-id="${esc(rule.id)}" aria-label="${esc(label)}" title="${esc(label)}" aria-pressed="${pressed}" class="quick-preset ${pressed?'active':''}">${iconMarkup(rule.icon,rule.color)}</button>`;
  }).join('');
+ if(bar.innerHTML!==nextMarkup)bar.innerHTML=nextMarkup;
 }
 function prepareGoogleIdentity(){
  if(!GOOGLE_CLIENT_ID)return;
@@ -165,11 +175,46 @@ function prepareGoogleIdentity(){
 function empty(title,text,action=''){return `<div class="empty"><div class="empty-symbol">⌑</div><strong>${title}</strong><p>${text}</p>${action}</div>`;}
 function button(text,action,cls='',attrs=''){return `<button class="${cls}" data-action="${action}" ${attrs}>${text}</button>`;}
 function heading(label,title,sub,actions=''){return `<div class="page-heading"><div><div class="eyebrow">${label}</div><h1>${title}</h1>${sub?`<p>${sub}</p>`:''}</div>${actions}</div>`;}
-function calendarScreen(){const list=records(),extras=extraEvents();const cells=monthGridDates(month.getFullYear(),month.getMonth()).map(date=>{const d=new Date(`${date}T12:00:00`),events=list.filter(e=>e.date===date),extra=extras.filter(e=>e.date===date);
-const chips=[...events.map(e=>`<span class="event-chip ${e.status}">${esc(e.owned?e.dishes.map(d=>d.name).join('、'):(e.raw?.summary||e.dishes[0]?.name||'読み込み不可'))}</span>`),
- ...extra.map(e=>`<span class="event-chip general-event ${e.icon?'has-icon':''} ${e.pending?'is-pending':''}" title="${esc(e.title+(e.memo?'／'+e.memo:''))}" aria-label="${esc(e.title+(e.memo?'／'+e.memo:''))}">${e.icon?`<span class="calendar-event-icon">${iconMarkup(e.icon,e.color)}</span><span class="calendar-event-note">${esc(e.memo.replace(/\r?\n/g,' '))}</span>`:`<span class="calendar-event-note">${esc(e.title)}</span>`}</span>`)];
-return `<button class="day ${d.getMonth()!==month.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-pressed="${date===selected}" aria-label="${date}、${events.length+extra.length}件"><span class="day-number">${d.getDate()}</span>${chips.join('')}</button>`;}).join('');
-return `<section class="screen calendar-screen"><div class="calendar-layout"><div class="calendar-card card"><div class="month-heading"><h2>${month.getFullYear()}年 <span>${month.getMonth()+1}月</span></h2><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid">${cells}</div></div><aside class="card day-panel">${dayContent(selected)}</aside></div></section>`;}
+function calendarCellInfo(date,list,extras){
+ const d=new Date(`${date}T12:00:00`);
+ const events=list.filter(e=>e.date===date),extra=extras.filter(e=>e.date===date);
+ const chips=[...events.map(e=>`<span class="event-chip ${e.status}">${esc(e.owned?e.dishes.map(d=>d.name).join('、'):(e.raw?.summary||e.dishes[0]?.name||'読み込み不可'))}</span>`),
+  ...extra.map(e=>`<span class="event-chip general-event ${e.icon?'has-icon':''} ${e.pending?'is-pending':''}" title="${esc(e.title+(e.memo?'／'+e.memo:''))}" aria-label="${esc(e.title+(e.memo?'／'+e.memo:''))}">${e.icon?`<span class="calendar-event-icon">${iconMarkup(e.icon,e.color)}</span><span class="calendar-event-note">${esc(e.memo.replace(/\r?\n/g,' '))}</span>`:`<span class="calendar-event-note">${esc(e.title)}</span>`}</span>`)];
+ return {html:`<span class="day-number">${d.getDate()}</span>${chips.join('')}`,count:events.length+extra.length};
+}
+function calendarScreen(){
+ const list=records(),extras=extraEvents();
+ const cells=monthGridDates(month.getFullYear(),month.getMonth()).map(date=>{
+  const d=new Date(`${date}T12:00:00`),cell=calendarCellInfo(date,list,extras);
+  return `<button class="day ${d.getMonth()!==month.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-pressed="${date===selected}" aria-label="${date}、${cell.count}件">${cell.html}</button>`;
+ }).join('');
+ return `<section class="screen calendar-screen"><div class="calendar-layout"><div class="calendar-card card"><div class="month-heading"><h2>${month.getFullYear()}年 <span>${month.getMonth()+1}月</span></h2><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid">${cells}</div></div><aside class="card day-panel">${dayContent(selected)}</aside></div></section>`;
+}
+function patchCalendarCells(){
+ const list=records(),extras=extraEvents();
+ // The 42 buttons and unchanged chips retain their actual DOM nodes.
+ for(const day of document.querySelectorAll('#main .month-grid .day[data-date]')){
+  const date=day.dataset.date,cell=calendarCellInfo(date,list,extras);
+  if(day.innerHTML!==cell.html){
+   const template=document.createElement('template');
+   template.innerHTML=cell.html;
+   const desired=Array.from(template.content.children),previous=Array.from(day.children);
+   for(let i=0;i<Math.max(previous.length,desired.length);i++){
+    if(!desired[i])previous[i].remove();
+    else if(!previous[i])day.appendChild(desired[i]);
+    else if(previous[i].outerHTML!==desired[i].outerHTML)previous[i].replaceWith(desired[i]);
+   }
+  }
+  day.classList.toggle('selected',date===selected);
+  day.setAttribute('aria-pressed',String(date===selected));
+  day.setAttribute('aria-label',`${date}、${cell.count}件`);
+ }
+ const panel=$('#main .day-panel');
+ if(panel){
+  const markup=dayContent(selected);
+  if(panel.innerHTML!==markup)panel.innerHTML=markup;
+ }
+}
 function dayContent(date){const d=new Date(`${date}T12:00:00`);const list=records().filter(r=>r.date===date),extra=extraEvents().filter(e=>e.date===date);return `<h2>${d.getMonth()+1}月${d.getDate()}日 <small>（${'日月火水木金土'[d.getDay()]}）</small></h2><div class="date-label">${list.length+extra.length}件の記録・予定</div>${list.map(r=>`<div class="meal-group"><span class="tag ${r.status==='invalid'?'neutral':''}">${({actual:'調理実績',invalid:'書式を確認してください'})[r.status]}</span>${String(r.location||'').trim()?`<div class="date-label">外食・場所：${esc(r.location)}</div>`:''}${r.dishes.map(d=>`<div class="dish-line"><span class="category">${esc(categoryName(d.category))}</span><span>${esc(d.name)}</span></div>`).join('')}${r.status==='invalid'?`<p class="hint">元の予定をカレンダーで確認してください。変更せず保護しています。</p>`:button('詳細・編集','record','text-button mini',`data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"`)}</div>`).join('')||(!extra.length?empty('この日の記録はありません','何を作りましたか？料理名だけでも記録できます。'):'')}${extra.map(e=>`<div class="meal-group general-event-detail">${e.icon?`<span class="general-event-detail-icon">${iconMarkup(e.icon,e.color)}</span>`:''}<span><strong>${esc(e.title)}</strong>${e.memo?`<span class="general-event-memo">${esc(e.memo)}</span>`:''}</span> <small>（表示のみ）</small></div>`).join('')}${button('＋ この日に登録','new-record','full',`data-date="${date}"`)}`;}
 function generateScreen(){
  return `<section class="screen generation-screen">
@@ -605,8 +650,7 @@ async function selectCalendarDate(date){
  }
  selected=next.selected;
  render();
- // The new date is selected; keep keyboard focus on the corresponding button.
- document.querySelector(`.day[data-date="${date}"]`)?.focus({preventScroll:true});
+ // The tapped button already handles focus; do not force an oversized focus ring.
 }
 const actions={
  'flush-presets':()=>flushPendingPresets(),
