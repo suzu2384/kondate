@@ -500,3 +500,25 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 #main .month-grid .day:focus:not(:focus-visible){outline:none}
 #main .month-grid .day:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
 #main .month-grid .event-chip.general-event.is-pending{border-bottom:0;opacity:.55}
+
+/* v1.3.35 — compact one-line preset list and a separate draft editor. */
+.icon-preset-list{display:flex;flex-direction:column;gap:4px;min-width:0;margin:10px 0}
+.icon-preset-row{display:flex;align-items:center;gap:8px;min-width:0;min-height:46px;padding:4px 7px;
+ border:1px solid var(--line);border-radius:9px;background:var(--surface)}
+.icon-preset-row .preset-row-icon{display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 32px;width:32px;height:32px;border-radius:6px;overflow:hidden}
+.icon-preset-row .preset-row-icon:has(.preset-svg-icon.is-white){background:var(--accent)}
+.icon-preset-row .preset-row-icon .preset-svg-icon{width:20px;height:20px;flex:0 0 auto}
+.icon-preset-row .preset-row-memo{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;
+ text-overflow:clip;font-size:12px;line-height:1.4}
+.icon-preset-row .preset-row-memo.empty{color:var(--muted)}
+.icon-preset-row button{flex:0 0 auto;min-width:0;min-height:34px;height:34px;padding:4px 9px;font-size:12px}
+.preset-edit-symbols{display:flex;align-items:center;gap:12px;margin:4px 0 12px}
+.preset-edit-symbols .icon-picker-trigger{width:56px;min-height:42px;height:42px}
+.preset-edit-color{display:inline-flex;align-items:center;gap:8px;font-size:12px}
+.preset-edit-color input[type=color]{width:48px;min-width:48px;height:39px;min-height:39px;padding:3px;cursor:pointer}
+@media(max-width:420px){
+ .icon-preset-row{gap:5px;padding:4px 5px}
+ .icon-preset-row button{padding:4px 7px;font-size:11px}
+ .icon-preset-row .preset-row-icon{flex-basis:29px;width:29px;height:29px}
+}

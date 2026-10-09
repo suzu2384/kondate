@@ -8,6 +8,7 @@ import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCateg
 import {eventDay,matchIcon,ICON_CHOICES,normalizeIcon,normalizeIconColor,isSupportedIcon} from './calendar-display.js';
 import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEvent,presetEventPayload} from './icon-presets.js';
 import {PresetWriteQueue,PRESET_FLUSH_INTERVAL_MS} from './preset-queue.js';
+import {beginPresetEdit,commitPresetEdit} from './preset-editor.js';
 import {DriveSettingsClient} from './drive.js';
 import {dateTapAction,horizontalMonthSwipe,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync} from './drive-sync.js';
@@ -70,6 +71,7 @@ function showStatus(){
 
 const NEW_CALENDAR_VALUE='__kondate_create_calendar__';
 let calendarCreationBusy=false;
+let presetEditDraft=null,presetEditOriginalId=null;
 let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',photoURL=null,photoFile=null;
 let calendarTouchStart=null,ignoreDateClickUntil=0,selectedPresetId=null;
 const scopeKeyFor=id=>calendarKey(GOOGLE_CLIENT_ID,id);
@@ -252,36 +254,61 @@ function additionalCalendarSettings(){
  const unavailable=state.extraCalendarIds.filter(id=>!calendars.some(c=>c.id===id));
  const remaining=unavailable.map(id=>`<label class="check-row"><input type="checkbox" data-extra-calendar="${esc(id)}" checked><span>保存済みのカレンダー（要再接続）</span></label>`).join('');
  const rules=state.iconRules.map(rule=>{
-  const writable=calendars.filter(c=>['owner','writer'].includes(c.accessRole));
-  const chosen=String(rule.calendarId||'');
-  const missing=chosen&&!writable.some(c=>c.id===chosen);
-  return `<div class="icon-preset-settings">
-   <div class="icon-preset-heading"><strong>予定プリセット</strong>
-    <button type="button" class="icon-picker-trigger" data-action="open-icon-picker" data-rule-id="${esc(rule.id)}" title="アイコンを変更" aria-label="アイコンを変更">${iconMarkup(rule.icon,rule.color)}<span aria-hidden="true">▾</span></button>
-    <input class="icon-preset-color" type="color" data-icon-color="${esc(rule.id)}" value="${normalizeIconColor(rule.color)}" title="アイコンの色" aria-label="アイコンの色を選択">
-    ${button('削除','remove-icon-rule','danger mini',`data-rule-id="${esc(rule.id)}" aria-label="プリセットを削除"`)}</div>
-   <label class="field"><span>タイトル（表示の置き換えは部分一致）</span><input type="text" data-icon-keyword="${esc(rule.id)}" value="${esc(rule.keyword)}" maxlength="80" placeholder="例：可燃ごみ"></label>
-   <label class="field"><span>メモ（同じタイトルでも別プリセットにできます）</span><textarea data-icon-memo="${esc(rule.id)}" maxlength="2000" rows="2" placeholder="登録時に予定の説明欄へ保存">${esc(rule.memo||'')}</textarea></label>
-   <label class="field"><span>予定の登録先カレンダー</span><select data-icon-calendar="${esc(rule.id)}"><option value="">未設定（表示の置き換えのみ）</option>${writable.map(c=>`<option value="${esc(c.id)}" ${chosen===c.id?'selected':''}>${esc(c.summary)}</option>`).join('')}${missing?`<option value="${esc(chosen)}" selected>保存済みの設定（再接続して確認）</option>`:''}<option value="${NEW_CALENDAR_VALUE}">＋ 新規作成…</option></select></label>
+  const title=String(rule.keyword||''),memo=String(rule.memo||'').replace(/\r?\n/g,' ');
+  return `<div class="icon-preset-row" aria-label="${esc([title,memo].filter(Boolean).join('／'))}">
+   <span class="preset-row-icon">${iconMarkup(rule.icon,rule.color)}</span>
+   <span class="preset-row-memo ${memo?'':'empty'}" title="${esc(memo||'メモなし')}">${esc(memo||'メモなし')}</span>
+   ${button('編集','edit-icon-rule','mini',`data-rule-id="${esc(rule.id)}" aria-label="${esc(title)}のプリセットを編集"`)}
+   ${button('削除','remove-icon-rule','mini danger',`data-rule-id="${esc(rule.id)}" aria-label="${esc(title)}のプリセットを削除"`)}
   </div>`;
  }).join('');
- return `<section class="settings-card card"><h2>その他のカレンダー表示</h2><p>選んだカレンダーの予定を献立とは別に表示します。料理履歴には含まれず、予定を編集・削除しません。</p>${candidates||'<p class="hint">Googleでログインするとカレンダーが選べます。</p>'}${remaining}<h3>アイコンと予定プリセット</h3><p>タイトル・メモ・アイコン・登録先を設定します。同じタイトルでもメモが異なるプリセットを作れます。アイコン選択後、日付を押すと予定を追加／削除します。既存のGoogleカレンダーのタイトルは変更しません。</p>${rules}${button('＋ プリセットを追加','add-icon-rule','mini')}<p class="hint">既存タイトルの置き換えは部分一致です。メモ違いの予定はメモと登録先で区別します。登録先は編集可能なカレンダーを指定してください。</p></section>`;
+ return `<section class="settings-card card"><h2>その他のカレンダー表示</h2><p>選んだカレンダーの予定を献立とは別に表示します。料理履歴には含まれず、予定を編集・削除しません。</p>${candidates||'<p class="hint">Googleでログインするとカレンダーが選べます。</p>'}${remaining}<h3>アイコンと予定プリセット</h3><p>アイコン・メモを一覧で確認できます。編集からタイトル・メモ・アイコン・登録先を変更します。</p><div class="icon-preset-list">${rules||'<p class="hint">プリセットはまだありません。</p>'}</div>${button('＋ プリセットを追加','add-icon-rule','mini')}<p class="hint">同じタイトルでもメモの異なるプリセットを作れます。アイコンを選んで日付をタップすると予定を追加／削除します。</p></section>`;
+}
+function capturePresetEditorFields(){
+ if(!presetEditDraft)return;
+ const title=$('#preset-edit-title'),memo=$('#preset-edit-memo'),calendar=$('#preset-edit-calendar'),color=$('#preset-edit-color');
+ if(title)presetEditDraft.keyword=title.value;
+ if(memo)presetEditDraft.memo=memo.value;
+ if(calendar&&calendar.value!==NEW_CALENDAR_VALUE)presetEditDraft.calendarId=calendar.value;
+ if(color)presetEditDraft.color=normalizeIconColor(color.value);
+}
+function openPresetEditor(ruleId=null){
+ const original=ruleId?state.iconRules.find(rule=>rule.id===ruleId):null;
+ if(ruleId&&!original)throw Error('編集するプリセットが見つかりません。');
+ presetEditOriginalId=original?.id||null;
+ presetEditDraft=beginPresetEdit(original,uid().slice(0,10));
+ showPresetEditor();
+}
+function showPresetEditor(){
+ const rule=presetEditDraft;
+ if(!rule)return;
+ const writable=calendars.filter(c=>['owner','writer'].includes(c.accessRole));
+ const chosen=String(rule.calendarId||''),missing=chosen&&!writable.some(c=>c.id===chosen);
+ const options=`<option value="" ${chosen?'':'selected'}>未設定（表示の置き換えのみ）</option>${writable.map(c=>`<option value="${esc(c.id)}" ${chosen===c.id?'selected':''}>${esc(c.summary)}</option>`).join('')}${missing?`<option value="${esc(chosen)}" selected>保存済みのカレンダー（再接続して確認）</option>`:''}<option value="${NEW_CALENDAR_VALUE}">＋ 新規作成…</option>`;
+ modal(presetEditOriginalId?'プリセットを編集':'プリセットを追加',
+  `<div class="preset-edit-symbols">
+    <button type="button" class="icon-picker-trigger" data-action="open-icon-picker" title="アイコンを変更" aria-label="アイコンを変更">${iconMarkup(rule.icon,rule.color)}<span aria-hidden="true">▾</span></button>
+    <label class="preset-edit-color"><span>アイコンの色</span><input id="preset-edit-color" data-preset-draft type="color" value="${normalizeIconColor(rule.color)}"></label>
+   </div>
+   <label class="field"><span>タイトル（必須）</span><input id="preset-edit-title" data-preset-draft type="text" maxlength="80" required value="${esc(rule.keyword)}" placeholder="例：可燃ごみ"></label>
+   <label class="field"><span>メモ</span><textarea id="preset-edit-memo" data-preset-draft maxlength="2000" rows="2" placeholder="カレンダーの予定の説明欄に保存します">${esc(rule.memo)}</textarea><small>同じタイトルでもメモが違えば別のプリセットにできます。</small></label>
+   <label class="field"><span>予定の登録先カレンダー</span><select id="preset-edit-calendar" data-preset-draft>${options}</select></label>`,
+  button('キャンセル','close-dialog')+button('決定','save-preset-editor','primary'));
 }
 function openCalendarCreation(ruleId){
  if(!api.connected)throw Error('Googleへログインしてから新しいカレンダーを作成してください。');
- const rule=state.iconRules.find(r=>r.id===ruleId);
- if(!rule)throw Error('対象のプリセットが見つかりません。');
+ if(!presetEditDraft||presetEditDraft.id!==ruleId)throw Error('編集中のプリセットがありません。');
  const zone=state.timeZone||'Asia/Tokyo';
  modal('カレンダーを新規作成',
   `<label class="field"><span>カレンダー名（必須）</span><input id="new-calendar-name" type="text" maxlength="100" placeholder="例：家族の予定" required autocomplete="off"></label>
   <label class="field"><span>説明（任意）</span><textarea id="new-calendar-description" maxlength="1000" rows="2" placeholder="用途など"></textarea></label>
   <label class="field"><span>タイムゾーン</span><input id="new-calendar-timezone" type="text" list="new-calendar-timezone-list" maxlength="80" value="${esc(zone)}" autocomplete="off"><datalist id="new-calendar-timezone-list"><option value="Asia/Tokyo"><option value="Etc/UTC"><option value="America/Los_Angeles"><option value="Europe/London"></datalist></label>
-  <p class="hint">Googleカレンダーに新規作成し、このプリセットの登録先に自動設定します。初回はGoogleの追加許可が表示されることがあります。</p>`,
-  button('キャンセル','close-dialog')+button('作成して選択','confirm-create-calendar','primary',`data-rule-id="${esc(ruleId)}"`));
+  <p class="hint">Googleカレンダーに新規作成して、編集中のプリセットの登録先に選びます。プリセット自体の登録は「決定」で行います。</p>`,
+  button('戻る','return-preset-editor')+button('作成して選択','confirm-create-calendar','primary',`data-rule-id="${esc(ruleId)}"`));
 }
 function settingsScreen(){return `<section class="screen"><div class="settings-grid scroll"><section class="settings-card card"><h2>Googleカレンダー</h2><p>Googleでログインし、分類ごとのカレンダーを設定してください。</p>${!GOOGLE_CLIENT_ID?'<p class="hint">Googleログインの初期設定が完了していません。開発者による設定が必要です。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">この端末で接続を保持（有効期限内）</label></div><p class="hint">オンにすると短期のGoogle認証情報を端末のブラウザに保存し、アプリを閉じても期限内は認証画面を出さずに接続します。共有端末ではオフを推奨します。</p>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<label class="field"><span>カレンダーの自動更新間隔</span><select id="calendar-refresh-minutes">${CALENDAR_REFRESH_MINUTES.map(minutes=>`<option value="${minutes}" ${state.calendarRefreshMinutes===minutes?'selected':''}>${minutes===0?'自動更新しない':minutes+'分ごと'}</option>`).join('')}</select><small>画面の表示中、Googleに接続しているときだけ自動取得します。画面に戻ったときや通信復帰時も、更新間隔を過ぎていれば再取得します。入力途中の内容は変更しません。</small></label><label class="field"><span>履歴の取得開始日</span><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div><small>この日以降の履歴を料理マスターに利用します。取得対象は日本時間の日付基準です。</small></label>${button('履歴を再取得','sync','full',busy||!api.connected||!hasSyncedCalendars()?'disabled':'')}<p class="hint" style="margin-top:12px">接続を保持する場合、短期アクセストークンをブラウザに保存します。Googleカレンダーの内容は保存しません。認証の期限切れ時は、共通ステータスバーから再接続できます。</p></section><section class="settings-card card"><h2>他の端末へ設定を引き継ぐ</h2><p>Googleドライブのアプリ専用領域に設定をバックアップします。同じGoogleアカウントで復元してください。</p><div class="toolbar">${button('Driveにバックアップ','drive-save','mini primary')}${button('Driveから復元','drive-load','mini')}</div><p class="hint">分類・カレンダーの割り当て・生成ルール・配色・表示設定・手動登録した料理マスター・献立生成の下書きを共有します。調理実績やGoogleの認証情報は含みません。</p><div class="check-row"><input id="drive-auto" type="checkbox" ${drive.autoEnabled?'checked':''}><label for="drive-auto">Driveの設定を自動同期する（保存・読み込み）</label></div><p class="hint">この端末で有効にすると、設定変更をDriveへ自動保存し、アプリ起動時・復帰時に他端末の変更を自動取得します。各端末で個別に有効化してください。初回はDriveに既存のバックアップがあればそちらを取り込みます。</p><p class="hint">同時変更で食い違った場合は自動上書きせず、手動で保存・復元を選べます。</p><p class="hint">認証は短時間だけ有効です。期限切れ後はステータスバーから再接続してください。バックグラウンドでは同期しません。手動保存・復元も引き続き利用できます。</p></section><section class="settings-card card"><h2>配色テーマ</h2><p>色と明るさを、それぞれ選べます。</p><div class="theme-options">${Object.entries(colors).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label><h3 style="margin-top:30px">候補と料理マスター</h3><div class="check-row"><input id="seed-enabled" type="checkbox" ${state.seedEnabled?'checked':''}><label for="seed-enabled">初期候補の料理を使う</label></div><p>初期候補は実績ではありません。過去の履歴はカレンダーから自動でまとめます。</p>${button('料理マスターを開く','master','full')}</section><section class="settings-card card"><h2>献立生成ルール</h2>${rulesFields()}</section><section class="settings-card card"><h2>料理の分類</h2><p>分類名を変えても、これまでの料理との対応は維持します。</p>${state.categories.map(c=>`<div class="category-row"><input aria-label="${esc(c.name)}の分類名" data-category-name="${c.id}" value="${esc(c.name)}" maxlength="20">${button('削除','remove-category','mini danger',`data-category="${c.id}" ${c.id==='main'?'disabled':''}`)}</div>`).join('')}${button('＋ 分類を追加','add-category','full')}<h2 style="margin-top:28px">AI拡張</h2><span class="tag neutral">${ai.available?'接続済み':'未設定'}</span><p style="margin-top:12px">献立選定と写真解析の接続基盤を用意しています。キーの保存方針が決まるまでは入力・保存しません。通常の献立管理はAIなしで利用できます。</p><h3>この端末のデータ</h3><p>分類・カレンダーの選択・下書き・表示設定は端末に保存します。認証期限が切れても、分類の設定は保持されます。実績の正本はGoogleカレンダーです。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"><p class="hint" style="margin-top:12px">書き出しには料理履歴を含みません。確定した料理の情報はGoogleカレンダーが正本です。</p></section>${additionalCalendarSettings()}</div></section>`;}
 function modal(title,body,foot=''){ $('#dialog-content').innerHTML=`<div class="dialog-head"><h2>${title}</h2>${button('×','close-dialog','icon-button','aria-label="閉じる"')}</div><div class="dialog-body">${body}<p class="form-error" id="dialog-error" role="alert"></p></div>${foot?`<div class="dialog-foot">${foot}</div>`:''}`;if(!$('#dialog').open)$('#dialog').showModal();}
-function closeModal(){$('#dialog').close();editor=null;}
+function closeModal(){$('#dialog').close();editor=null;presetEditDraft=null;presetEditOriginalId=null;}
 function categoryOptions(selectedId){return state.categories.map(c=>`<option value="${esc(c.id)}" ${c.id===selectedId?'selected':''}>${esc(c.name)}</option>`).join('');}
 function dishRows(dishes){
  return dishes.map((d,i)=>`<div class="dish-editor">
@@ -670,15 +697,15 @@ const actions={
  'flush-presets':()=>flushPendingPresets(),
  'confirm-create-calendar':async b=>{
   if(calendarCreationBusy)return;
-  const rule=state.iconRules.find(r=>r.id===b.dataset.ruleId);
-  if(!rule)throw Error('対象のプリセットが見つかりません。');
+  const rule=presetEditDraft;
+  if(!rule||rule.id!==b.dataset.ruleId)throw Error('編集中のプリセットがありません。');
   if(!api.connected)throw Error('Googleへログインしてからカレンダーを作成してください。');
   const input=calendarCreatePayload({
    summary:$('#new-calendar-name')?.value,
    description:$('#new-calendar-description')?.value,
    timeZone:$('#new-calendar-timezone')?.value
   });
-  // Start Google OAuth directly in the user click so iOS can open its permission window.
+  // Authorization must begin synchronously from the click for iOS popup support.
   const permission=api.authorizeCalendarCreation(GOOGLE_CLIENT_ID);
   calendarCreationBusy=true;b.disabled=true;
   try{
@@ -686,16 +713,14 @@ const actions={
    if(!created?.id)throw Error('カレンダーが作成されましたが、IDを取得できませんでした。Googleカレンダーを確認してください。');
    const calendar={...created,summary:created.summary||input.summary,accessRole:'owner'};
    calendars=[...calendars.filter(c=>c.id!==calendar.id),calendar];
-   // A real Google Calendar was created; persist the newly assigned destination.
+   // The new calendar exists remotely; the preset itself is still a draft.
    rule.calendarId=created.id;
-   persist();
-   closeModal();render();
-   notify('「'+calendar.summary+'」を作成し、プリセットの登録先に設定しました。');
-   // CalendarList can lag immediately after creation, so preserve the local entry.
+   showPresetEditor();
+   notify('「'+calendar.summary+'」を作成しました。プリセットは「決定」で保存してください。');
    void api.calendars().then(found=>{
     calendars=[...found.filter(c=>c.id!==calendar.id),found.find(c=>c.id===calendar.id)||calendar];
     if(tab==='settings')render();
-   }).catch(()=>{ /* Selection already works; regular refresh will retry. */ });
+   }).catch(()=>{});
   }finally{calendarCreationBusy=false;b.disabled=false;}
  },
  'notice-detail':()=>{if(api.reauthenticationRequired&&!api.connected)return actions.connect();if(drive.autoEnabled&&!drive.connected)return actions['drive-reconnect']();if(currentNotice)modal('ステータス',`<p>${esc(currentNotice)}</p>`,button('閉じる','close-dialog'));},
@@ -802,15 +827,38 @@ const actions={
    }catch(error){notify('Driveの設定は復元しました。カレンダーの同期に失敗しました：'+error.message);}
   }else notify('Driveの設定を復元しました。Googleカレンダーへ接続すると履歴を取得できます。');
  },
-  'add-icon-rule':()=>{state.iconRules.push({id:uid().slice(0,10),keyword:'',memo:'',calendarId:'',icon:'tag_fill',color:'#ffffff'});persist();render();},
-   'open-icon-picker':b=>{
-    const rule=state.iconRules.find(r=>r.id===b.dataset.ruleId);
-    if(!rule)return;
-    const palette=ICON_CHOICES.map((icon,index)=>`<button type="button" class="icon-tile ${normalizeIcon(rule.icon)===icon?'selected':''}" data-action="choose-icon" data-rule-id="${esc(rule.id)}" data-icon="${icon}" aria-pressed="${normalizeIcon(rule.icon)===icon}" aria-label="アイコン ${index+1}">${iconMarkup(icon,rule.color)}</button>`).join('');
-    modal('アイコンを選択',`<div class="icon-tile-grid" role="group" aria-label="SVGアイコンの選択">${palette}</div>`);
-   },
-   'choose-icon':b=>{const rule=state.iconRules.find(r=>r.id===b.dataset.ruleId);if(!rule||!ICON_CHOICES.includes(b.dataset.icon))return;rule.icon=b.dataset.icon;persist();closeModal();render();},
-  'remove-icon-rule':b=>{state.iconRules=state.iconRules.filter(rule=>rule.id!==b.dataset.ruleId);if(selectedPresetId===b.dataset.ruleId)selectedPresetId=null;persist();render();},
+  'add-icon-rule':()=>openPresetEditor(),
+  'edit-icon-rule':b=>openPresetEditor(b.dataset.ruleId),
+  'save-preset-editor':async()=>{
+   capturePresetEditorFields();
+   const rule=commitPresetEdit(presetEditDraft);
+   const index=state.iconRules.findIndex(r=>r.id===presetEditOriginalId);
+   const oldCalendarId=index>=0?state.iconRules[index].calendarId:'';
+   if(index>=0)state.iconRules[index]=rule;
+   else state.iconRules.push(rule);
+   persist();
+   closeModal();render();
+   notify(index>=0?'プリセットを更新しました。':'プリセットを追加しました。');
+   if(api.connected&&rule.calendarId!==oldCalendarId&&hasSyncedCalendars())await sync();
+  },
+  'return-preset-editor':()=>showPresetEditor(),
+  'open-icon-picker':()=>{
+   if(!presetEditDraft)return;
+   capturePresetEditorFields();
+   const rule=presetEditDraft;
+   const palette=ICON_CHOICES.map((icon,index)=>`<button type="button" class="icon-tile ${normalizeIcon(rule.icon)===icon?'selected':''}" data-action="choose-icon" data-icon="${icon}" aria-pressed="${normalizeIcon(rule.icon)===icon}" aria-label="アイコン ${index+1}">${iconMarkup(icon,rule.color)}</button>`).join('');
+   modal('アイコンを選択',`<div class="icon-tile-grid" role="group" aria-label="SVGアイコンの選択">${palette}</div>`,button('戻る','return-preset-editor'));
+  },
+  'choose-icon':b=>{
+   if(!presetEditDraft||!ICON_CHOICES.includes(b.dataset.icon))return;
+   presetEditDraft.icon=b.dataset.icon;
+   showPresetEditor();
+  },
+  'remove-icon-rule':b=>{
+   state.iconRules=state.iconRules.filter(rule=>rule.id!==b.dataset.ruleId);
+   if(selectedPresetId===b.dataset.ruleId)selectedPresetId=null;
+   persist();render();
+  },
   export:exportState,import:()=>$('#import-file').click(),
  'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.iconRules=normalizePresetRules(state.iconRules);state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
 };
@@ -857,7 +905,7 @@ document.addEventListener('touchcancel',()=>{calendarTouchStart=null;},{passive:
 // The login action directly starts the OAuth popup from the first enabled tap.
 $('#connection').addEventListener('click',()=>run(api.connected?'settings':'connect'));
 $('#sync').addEventListener('click',()=>run('sync'));
-$('#dialog').addEventListener('cancel',()=>{editor=null;});
+$('#dialog').addEventListener('cancel',()=>{editor=null;presetEditDraft=null;presetEditOriginalId=null;});
 document.addEventListener('input',e=>{const el=e.target;
  if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;showDishSuggestions(el);}
  if(editor&&el.id==='record-location'){editor.location=el.value;queuePlaceLookup(el);}
@@ -937,18 +985,14 @@ document.addEventListener('change',async e=>{const el=e.target;try{
  }
  if(el.dataset.categoryCalendar){state.categoryCalendars[el.dataset.categoryCalendar]=el.value;const c=calendars.find(c=>c.id===state.categoryCalendars.main);state.timeZone=c?.timeZone||state.timeZone;persist();render();if(api.connected&&hasSyncedCalendars())await sync();}
   if(el.dataset.extraCalendar){state.extraCalendarIds=el.checked?[...new Set([...state.extraCalendarIds,el.dataset.extraCalendar])]:state.extraCalendarIds.filter(id=>id!==el.dataset.extraCalendar);persist();render();if(api.connected)await sync();}
-  if(el.dataset.iconKeyword){const rule=state.iconRules.find(r=>r.id===el.dataset.iconKeyword);if(rule)rule.keyword=el.value;}
-  if(el.dataset.iconMemo){const rule=state.iconRules.find(r=>r.id===el.dataset.iconMemo);if(rule)rule.memo=el.value;}
-  if(el.dataset.iconCalendar){
-   const rule=state.iconRules.find(r=>r.id===el.dataset.iconCalendar);
-   if(el.value===NEW_CALENDAR_VALUE){
-    el.value=rule?.calendarId||'';
-    openCalendarCreation(el.dataset.iconCalendar);
-    return;
-   }
-   if(rule)rule.calendarId=el.value;
+  if(el.matches('[data-preset-draft]')){
+  capturePresetEditorFields();
+  if(el.id==='preset-edit-calendar'&&el.value===NEW_CALENDAR_VALUE){
+   el.value=presetEditDraft?.calendarId||'';
+   openCalendarCreation(presetEditDraft.id);
   }
-  if(el.dataset.iconColor){const rule=state.iconRules.find(r=>r.id===el.dataset.iconColor);if(rule)rule.color=normalizeIconColor(el.value);}
+  return;
+ }
   if(el.id==='calendar-refresh-minutes'){state.calendarRefreshMinutes=normalizeCalendarRefreshMinutes(Number(el.value));el.value=String(state.calendarRefreshMinutes);}
  if(el.id==='history-from')state.from=el.value||'2000-01-01';
  if(el.id==='theme-mode'){state.theme.mode=el.value;applyTheme(state.theme);}
@@ -961,8 +1005,6 @@ document.addEventListener('change',async e=>{const el=e.target;try{
  if(el.id==='import-file'){const file=el.files[0];if(file){if(file.size>10*1024*1024)throw Error('設定ファイルは10MB以下で読み込んでください。');const parsed=JSON.parse(await file.text());validateImport(parsed);imported=parsed.state;modal('設定と下書きを置き換えますか？','<p>この端末の設定・下書き・履歴キャッシュを、選択したファイルの内容に置き換えます。Googleカレンダーは変更しません。</p>',button('キャンセル','close-dialog')+button('読み込む','confirm-import','primary'));}}
  persist();updateConnection();
  if(el.id==='calendar-refresh-minutes')await autoRefreshCalendar();
- if(el.dataset.iconColor)render();
- if(el.dataset.iconCalendar&&api.connected&&hasSyncedCalendars())await sync();
  }catch(error){notify(error.message);}});
 function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array.isArray(p.state.categories)||!Array.isArray(p.state.draft)||!p.state.rules||!p.state.scopes)throw Error('献立ノートの設定ファイルではありません。');if(!['timeZone','from'].every(k=>typeof p.state[k]==='string')||!/^\d{4}-\d{2}-\d{2}$/.test(p.state.from)||!['oldDays','recentDays'].every(k=>Number.isInteger(p.state.rules[k])&&p.state.rules[k]>=1&&p.state.rules[k]<=365)||!['preferOld','excludeRecent','unique','balance','newMain'].every(k=>typeof p.state.rules[k]==='boolean'))throw Error('設定値の形式が不正です。');if(JSON.stringify(p).includes('"__proto__"'))throw Error('設定ファイルが不正です。');if(!p.state.categories.every(c=>/^[a-z][a-z0-9-]*$/.test(c.id)&&typeof c.name==='string'&&c.name.length<=20)||!p.state.categories.some(c=>c.id==='main'))throw Error('分類の設定が不正です。');if(p.state.categoryCalendars&&(!Object.values(p.state.categoryCalendars).every(v=>typeof v==='string')||!Object.keys(p.state.categoryCalendars).every(k=>/^[a-z][a-z0-9-]*$/.test(k))))throw Error('分類別カレンダーの設定が不正です。');if(p.state.extraCalendarIds&&(!Array.isArray(p.state.extraCalendarIds)||!p.state.extraCalendarIds.every(x=>typeof x==='string')))throw Error('表示カレンダーの設定が不正です。');
  if(p.state.iconRules&&(!Array.isArray(p.state.iconRules)||!p.state.iconRules.every(r=>typeof r.id==='string'&&/^[0-9a-f]{10}$/.test(r.id)&&typeof r.keyword==='string'&&r.keyword.length<=80&&isSupportedIcon(r.icon)&&(r.color===undefined||/^#[0-9a-f]{6}$/i.test(r.color))&&(r.memo===undefined||(typeof r.memo==='string'&&r.memo.length<=2000))&&(r.calendarId===undefined||(typeof r.calendarId==='string'&&r.calendarId.length<=512)))))throw Error('アイコンルールが不正です。');

@@ -61,7 +61,7 @@ test('all calendar chips are rendered and clipped naturally, with centered icons
  assert.match(css,/\.month-grid \.day \.event-chip\{flex:0 0 auto\}/);
  assert.match(css,/\.month-grid \.event-chip\.general-event\.has-icon\{align-items:center\}/);
  assert.match(css,/\.calendar-event-icon:has\(\.preset-svg-icon\.is-white\)/);
- assert.match(app,/icon:'tag_fill',color:'#ffffff'/);
+ assert.match(app,/beginPresetEdit\(original,uid\(\)\.slice\(0,10\)\)/);
  assert.match(app,/is-white/);
 });
 test('calendar preserves its nodes, inset focus, and pending opacity instead of dashed lines',()=>{
@@ -88,16 +88,16 @@ test('toolbar, handlers, and clipping CSS are wired',()=>{
  assert.match(app,/presetQueue\.toggle\(rule,date/);
  assert.match(app,/PRESET_FLUSH_INTERVAL_MS/);
  assert.match(html,/id="preset-pending"/);
- assert.match(app,/data-icon-memo/);
+ assert.match(app,/id="preset-edit-memo"/);
  assert.match(app,/data-action="choose-icon"/);
  assert.match(app,/data-action="open-icon-picker"/);
  assert.match(app,/modal\('アイコンを選択'/);
  assert.doesNotMatch(app.match(/function additionalCalendarSettings\(\)\{[\s\S]*?\n\}/)?.[0]||'',/icon-tile-grid/);
  assert.match(app,/class="icon-tile/);
- assert.match(app,/data-icon-color/);
+ assert.match(app,/id="preset-edit-color"/);
  assert.match(css,/mask-image:var\(--preset-svg\)/);
  assert.match(css,/\.dialog-body \.icon-tile-grid\{display:grid/);
- assert.match(app,/data-icon-calendar/);
+ assert.match(app,/id="preset-edit-calendar"/);
  assert.match(css,/\.month-grid \.event-chip \.calendar-event-note\{[^}]*text-overflow:clip/);
  for(const path of ['src/app.js','src/google.js','src/icon-presets.js','src/preset-queue.js']){
   const check=spawnSync(process.execPath,['--check',path],{encoding:'utf8'});
@@ -116,6 +116,27 @@ test('new calendar option opens a modal and automatically selects created calend
  assert.match(app,/const permission=api\.authorizeCalendarCreation\(GOOGLE_CLIENT_ID\)/);
  assert.match(app,/api\.createCalendar\(input,await permission\)/);
  assert.match(app,/rule\.calendarId=created\.id/);
- assert.match(app,/el\.value=rule\?\.calendarId\|\|''/);
+ assert.match(app,/el\.value=presetEditDraft\?\.calendarId\|\|''/);
  assert.match(app,/found\.find\(c=>c\.id===calendar\.id\)\|\|calendar/);
+});
+
+test('preset list is a single row and editor is transactional',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
+ const list=app.slice(app.indexOf('function additionalCalendarSettings(){'),app.indexOf('function capturePresetEditorFields(){'));
+ assert.match(list,/class="icon-preset-row"/);
+ assert.match(list,/class="preset-row-icon"/);
+ assert.match(list,/class="preset-row-memo/);
+ assert.match(list,/button\('編集','edit-icon-rule'/);
+ assert.match(list,/button\('削除','remove-icon-rule'/);
+ assert.doesNotMatch(list,/<textarea|<select data-icon-calendar|data-icon-keyword/);
+ assert.match(app,/'add-icon-rule':\(\)=>openPresetEditor\(\)/);
+ assert.match(app,/'edit-icon-rule':b=>openPresetEditor\(b\.dataset\.ruleId\)/);
+ assert.match(app,/'save-preset-editor':async\(\)=>\{/);
+ assert.match(app,/const rule=commitPresetEdit\(presetEditDraft\)/);
+ assert.match(app,/else state\.iconRules\.push\(rule\)/);
+ assert.match(app,/presetEditDraft=null;presetEditOriginalId=null/);
+ assert.match(app,/rule\.calendarId=created\.id/);
+ assert.match(css,/\.icon-preset-row\{display:flex;align-items:center/);
+ assert.match(css,/\.preset-row-memo\{flex:1 1 0/);
 });
