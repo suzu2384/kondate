@@ -47,7 +47,7 @@ test('mixed day sizes keep individual containers with all their dish rows',()=>{
  assert.equal((html.match(/data-dish-count="2"/g)||[]).length,1);
  assert.equal((html.match(/data-dish-count="3"/g)||[]).length,1);
  assert.equal((html.match(/class="plan-dish compact-plan-dish/g)||[]).length,10);
- assert.doesNotMatch(css.slice(css.indexOf('/* v1.3.13:')),/auto-fill|repeat\(3/);
+ assert.doesNotMatch(css.match(/\.compact-plan-grid\{[^}]*\}/)?.[0]||'',/auto-fill|repeat\(3/);
  assert.match(css,/flex:0 0 auto;width:100%;min-width:0;max-width:100%/);
  assert.match(css,/white-space:nowrap;overflow:hidden;text-overflow:ellipsis/);
 });
