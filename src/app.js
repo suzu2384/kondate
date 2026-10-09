@@ -6,7 +6,7 @@ import {GOOGLE_CLIENT_ID} from './config.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES} from './calendar-display.js';
 import {DriveSettingsClient} from './drive.js';
-import {dishSuggestions} from './dish-suggestions.js';
+import {dishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
 import {AIService} from './ai.js';
 import {catalog} from './catalog.js';
@@ -187,6 +187,20 @@ function showDishSuggestions(input){
  list.hidden=!choices.length;
  input.setAttribute('aria-expanded',String(!!choices.length));
 }
+function pickRecordDishSuggestion(button){
+ if(!editor||!button)return;
+ const index=Number(button.dataset.index);
+ const selected=master().find(d=>d.name===button.dataset.name);
+ const input=document.querySelector(`[data-editor-name="${index}"]`);
+ if(!selected||!input||!selectRecordDish(editor,index,selected))return;
+ // Update the live input before focus/blur events; replacing the modal's HTML
+ // here can discard the selection on iOS Safari during a touch sequence.
+ input.value=selected.name;
+ const category=input.closest('.dish-editor')?.querySelector('[data-editor-category]');
+ if(category)category.value=selected.category;
+ hideDishSuggestions();
+ input.blur();
+}
 function openRecord(record=null,{date=today(),dishes=null}={}){
  editor=record?structuredClone(record):{id:uid(),date,status:'actual',dishes:dishes?structuredClone(dishes):[{name:'',category:'main'}],owned:true,new:true,scope:scopeKey()};
  editor.scope??=scopeKey();drawRecord();
@@ -341,16 +355,7 @@ const actions={
  date:b=>{selected=b.dataset.date;render();if(matchMedia('(max-width:760px)').matches)modal('日付の詳細',dayContent(selected));},
  'new-record':b=>openRecord(null,{date:b.dataset.date||today()}),record:b=>openRecord(records().find(r=>r.id===b.dataset.id&&r.calendarId===(b.dataset.calendar||primaryCalendarId()))),
  'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
- 'suggest-record-dish':b=>{
-  if(!editor)return;
-  const i=Number(b.dataset.index),d=master().find(d=>d.name===b.dataset.name);
-  if(!Number.isInteger(i)||!editor.dishes[i]||!d)return;
-  editor.dishes[i]={name:d.name,category:d.category,protein:d.protein||'不明',method:d.method||'不明',genre:d.genre||'不明'};
-  drawRecord();
-  const input=$(`[data-editor-name="${i}"]`);
-  input?.focus();
-  hideDishSuggestions();
- },
+ 'suggest-record-dish':pickRecordDishSuggestion,
  'save-record':saveRecord,
  'delete-record':()=>{modal('この実績を削除しますか？',`<p>${esc(editor.date)}：${esc(editor.dishes.map(d=>d.name).join('、'))}</p><p>Googleカレンダーからこの予定を直接削除します。この操作は取り消せません。</p>`,button('戻る','return-editor')+button('削除する','confirm-delete','danger'));},'return-editor':drawRecord,
  'confirm-delete':async()=>{if(editor.scope!==scopeKeyFor(editor.calendarId||primaryCalendarId()))throw Error('元のカレンダーに戻って操作してください。');busy=true;updateConnection();try{const id=editor.calendarId||primaryCalendarId();await api.remove(id,editor);dataFor(id).events=dataFor(id).events.filter(e=>e.id!==editor.id);closeModal();render();notify('実績を削除しました。');}finally{busy=false;updateConnection();}},
@@ -449,6 +454,14 @@ const actions={
  'confirm-import':()=>{const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
 };
 async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))return;await actions[action]?.(b);}catch(error){if($('#dialog').open&&$('#dialog-error'))$('#dialog-error').textContent=error.message;else notify(error.message);updateConnection();}}
+// Capture pointer selection before iOS dismisses the keyboard and changes focus.
+// The regular click action remains a fallback for keyboard and assistive tech.
+document.addEventListener('pointerdown',e=>{
+ const candidate=e.target.closest?.('[data-action="suggest-record-dish"]');
+ if(!candidate)return;
+ e.preventDefault();
+ pickRecordDishSuggestion(candidate);
+},true);
 document.addEventListener('click',e=>{const tabButton=e.target.closest('[data-tab]');if(tabButton){tab=tabButton.dataset.tab;notify('');render();if(tab==='settings')prepareGoogleIdentity();return;}const b=e.target.closest('[data-action]');if(b)run(b.dataset.action,b);});
 // The login action directly starts the OAuth popup from the first enabled tap.
 $('#connection').addEventListener('click',()=>run(api.connected?'settings':'connect'));
