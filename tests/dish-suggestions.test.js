@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {dishSuggestions} from '../src/dish-suggestions.js';
+import {dishSuggestions,selectRecordDish} from '../src/dish-suggestions.js';
 const options=[
  {name:'煮魚',category:'main'},{name:'サラダ',category:'side'},
  {name:'鮭の塩焼き',category:'main'},{name:'鯖の味噌煮',category:'main'},
@@ -20,4 +20,14 @@ test('the selected category is preferred, without hiding other category dishes',
 test('exact names rank above prefix and partial matches',()=>{
  const source=[{name:'鶏の照り焼き弁当',category:'side'},{name:'照り焼き',category:'main'},{name:'鶏の照り焼き',category:'main'}];
  assert.equal(dishSuggestions(source,'照り焼き','main')[0].name,'照り焼き');
+});
+
+test('selecting a suggestion immediately replaces the input record and carries category',()=>{
+ const editor={dishes:[{name:'サ',category:'main'},{name:'他',category:'soup'}]};
+ const selected={name:'サラダ',category:'side',protein:'野菜・豆',method:'和える',genre:'洋食'};
+ assert.equal(selectRecordDish(editor,0,selected),true);
+ assert.deepEqual(editor.dishes[0],selected);
+ assert.deepEqual(editor.dishes[1],{name:'他',category:'soup'});
+ assert.equal(selectRecordDish(editor,3,selected),false);
+ assert.equal(selectRecordDish(editor,0,null),false);
 });
