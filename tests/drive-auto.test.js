@@ -47,7 +47,7 @@ test('auto sync checks Drive revision before write and rejects stale device',asy
   throw Error('Unexpected request '+request.method+' '+url);
  });
  client.token='fake';client.expires=Date.now()+120000;
- await assert.rejects(()=>client.saveChecked({settings:{}},'2'),/他の端末で設定/);
+ await assert.rejects(()=>client.saveChecked({settings:{}},'2'),/Drive上の設定が変更/);
  assert.equal(updates,0);
  assert.equal(await client.saveChecked({settings:{}},'3'),'4');
  assert.equal(updates,1);
