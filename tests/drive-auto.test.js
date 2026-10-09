@@ -52,3 +52,24 @@ test('auto sync checks Drive revision before write and rejects stale device',asy
  assert.equal(await client.saveChecked({settings:{}},'3'),'4');
  assert.equal(updates,1);
 });
+
+test('saveChecked trusts the upload version instead of a stale file-list result',async()=>{
+ let lists=0,uploads=0;
+ const client=new DriveSettingsClient(async(url,options)=>{
+  const reply=data=>new Response(JSON.stringify(data),{status:200,headers:{'Content-Type':'application/json'}});
+  if(url.includes('/drive/v3/files?')&&options.method==='GET'){
+   lists++;
+   return reply({files:[{id:'file-1',name:'kondate-settings.json',version:'12'}]});
+  }
+  if(url.includes('/upload/drive/v3/files/')&&options.method==='PATCH'){
+   uploads++;
+   assert.match(url,/fields=id,version,modifiedTime/);
+   return reply({id:'file-1',version:'13'});
+  }
+  throw Error('Unexpected request '+url);
+ });
+ client.token='fake';client.expires=Date.now()+120000;
+ assert.equal(await client.saveChecked({settings:{theme:'green'}},'12'),'13');
+ assert.equal(lists,1,'no metadata fetch after an authoritative PATCH response');
+ assert.equal(uploads,1);
+});

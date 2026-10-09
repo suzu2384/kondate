@@ -84,19 +84,25 @@ export class DriveSettingsClient{
    file=await this.request('/drive/v3/files?fields=id',{method:'POST',contentType:'application/json',body:JSON.stringify({name:FILE,mimeType:'application/json',parents:['appDataFolder']})});
   }
   if(!file?.id)throw Error('Googleドライブに保存先を作成できませんでした。');
-  await this.request('/upload/drive/v3/files/'+encodeURIComponent(file.id)+'?uploadType=media',{method:'PATCH',contentType:'application/json',body:JSON.stringify(value)});
+  return this.request('/upload/drive/v3/files/'+encodeURIComponent(file.id)+'?uploadType=media&fields=id,version,modifiedTime',{method:'PATCH',contentType:'application/json',body:JSON.stringify(value)});
  }
- async load(){
-  const file=await this.find();
+ async load(fileId=null){
+  const file=fileId?{id:fileId}:await this.find();
   if(!file)throw Error('保存済みの献立ノート設定が見つかりません。');
   return this.request('/drive/v3/files/'+encodeURIComponent(file.id)+'?alt=media');
  }
  async saveChecked(value,expectedVersion){
   const file=await this.find();
-  if((file?.version||'')!==expectedVersion)
-   throw Error('他の端末で設定が更新されています。確認するまで自動保存は行いません。');
-  await this.save(value);
-  return (await this.find())?.version||'';
+  if(String(file?.version||'')!==String(expectedVersion||''))
+   throw Error('Drive上の設定が変更されています。同期状態を再確認してください。');
+  // Prefer the upload response version: a subsequent file-list request can
+  // temporarily return old metadata for our own successful write.
+  if(!file){
+   const created=await this.save(value);
+   return String(created?.version||(await this.find())?.version||'');
+  }
+  const updated=await this.request('/upload/drive/v3/files/'+encodeURIComponent(file.id)+'?uploadType=media&fields=id,version,modifiedTime',{method:'PATCH',contentType:'application/json',body:JSON.stringify(value)});
+  return String(updated?.version||(await this.find())?.version||'');
  }
 
 }
