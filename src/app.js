@@ -526,7 +526,7 @@ async function togglePresetOnDate(date){
  finally{busy=false;updateConnection();}
 }
 async function selectCalendarDate(date){
- if(selectedPresetId){await togglePresetOnDate(date);return;}
+ if(selectedPresetId){selected=date;await togglePresetOnDate(date);return;}
  const next=dateTapAction(selected,date);
  if(next.open){
   // The selected day is already highlighted. One tap opens its details.
@@ -562,13 +562,13 @@ const actions={
   await api.authorize(GOOGLE_CLIENT_ID);
   currentNotice='';showStatus();
   if(!await loadCalendarOptions()){notify(calendarLoadError);return;}
-  ifhasSyncedCalendars()await sync();
+  if(hasSyncedCalendars())await sync();
   else notify('Googleに接続しました。分類ごとのカレンダーを設定してください。');
  },
  'refresh-calendars':async()=>{
   if(!api.connected)throw Error('Googleへログインしてからカレンダー一覧を取得してください。');
   if(!await loadCalendarOptions()){notify(calendarLoadError);return;}
-  ifhasSyncedCalendars()await sync();
+  if(hasSyncedCalendars())await sync();
   else notify(`${calendars.length}件のカレンダーを取得しました。分類ごとにカレンダーを設定してください。`);
  },
  disconnect:()=>{calendarAutoReady=false;api.disconnect();currentNotice='';calendars=[];calendarLoadError='';for(const bucket of Object.values(state.scopes)){bucket.events=[];bucket.lastSync=null;}render();notify('Googleとの接続を解除しました。端末の下書きは残しています。');},sync,
