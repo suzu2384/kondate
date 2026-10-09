@@ -199,9 +199,10 @@ function additionalCalendarSettings(){
   const chosen=String(rule.calendarId||'');
   const missing=chosen&&!writable.some(c=>c.id===chosen);
   return `<div class="icon-preset-settings">
-   <div class="icon-preset-heading"><strong>予定プリセット</strong>${button('削除','remove-icon-rule','danger mini',`data-rule-id="${esc(rule.id)}" aria-label="プリセットを削除"`)}</div>
-   <div class="icon-tile-grid" role="group" aria-label="SVGアイコンの選択">${ICON_CHOICES.map((icon,index)=>`<button type="button" class="icon-tile ${normalizeIcon(rule.icon)===icon?'selected':''}" data-action="choose-icon" data-rule-id="${esc(rule.id)}" data-icon="${icon}" aria-pressed="${normalizeIcon(rule.icon)===icon}" aria-label="アイコン ${index+1}">${iconMarkup(icon,rule.color)}</button>`).join('')}</div>
-   <label class="field icon-color-field"><span>アイコンの色</span><input type="color" data-icon-color="${esc(rule.id)}" value="${normalizeIconColor(rule.color)}" aria-label="アイコンの色を選択"></label>
+   <div class="icon-preset-heading"><strong>予定プリセット</strong>
+    <button type="button" class="icon-picker-trigger" data-action="open-icon-picker" data-rule-id="${esc(rule.id)}" title="アイコンを変更" aria-label="アイコンを変更">${iconMarkup(rule.icon,rule.color)}<span aria-hidden="true">▾</span></button>
+    <input class="icon-preset-color" type="color" data-icon-color="${esc(rule.id)}" value="${normalizeIconColor(rule.color)}" title="アイコンの色" aria-label="アイコンの色を選択">
+    ${button('削除','remove-icon-rule','danger mini',`data-rule-id="${esc(rule.id)}" aria-label="プリセットを削除"`)}</div>
    <label class="field"><span>タイトル（表示の置き換えは部分一致）</span><input type="text" data-icon-keyword="${esc(rule.id)}" value="${esc(rule.keyword)}" maxlength="80" placeholder="例：可燃ごみ"></label>
    <label class="field"><span>メモ（同じタイトルでも別プリセットにできます）</span><textarea data-icon-memo="${esc(rule.id)}" maxlength="2000" rows="2" placeholder="登録時に予定の説明欄へ保存">${esc(rule.memo||'')}</textarea></label>
    <label class="field"><span>予定の登録先カレンダー</span><select data-icon-calendar="${esc(rule.id)}"><option value="">未設定（表示の置き換えのみ）</option>${writable.map(c=>`<option value="${esc(c.id)}" ${chosen===c.id?'selected':''}>${esc(c.summary)}</option>`).join('')}${missing?`<option value="${esc(chosen)}" selected>保存済みの設定（再接続して確認）</option>`:''}</select></label>
@@ -650,8 +651,14 @@ const actions={
    }catch(error){notify('Driveの設定は復元しました。カレンダーの同期に失敗しました：'+error.message);}
   }else notify('Driveの設定を復元しました。Googleカレンダーへ接続すると履歴を取得できます。');
  },
-  'add-icon-rule':()=>{state.iconRules.push({id:uid().slice(0,10),keyword:'',memo:'',calendarId:'',icon:'pin',color:'#436e57'});persist();render();},
-   'choose-icon':b=>{const rule=state.iconRules.find(r=>r.id===b.dataset.ruleId);if(!rule||!ICON_CHOICES.includes(b.dataset.icon))return;rule.icon=b.dataset.icon;persist();render();},
+  'add-icon-rule':()=>{state.iconRules.push({id:uid().slice(0,10),keyword:'',memo:'',calendarId:'',icon:'tag_fill',color:'#436e57'});persist();render();},
+   'open-icon-picker':b=>{
+    const rule=state.iconRules.find(r=>r.id===b.dataset.ruleId);
+    if(!rule)return;
+    const palette=ICON_CHOICES.map((icon,index)=>`<button type="button" class="icon-tile ${normalizeIcon(rule.icon)===icon?'selected':''}" data-action="choose-icon" data-rule-id="${esc(rule.id)}" data-icon="${icon}" aria-pressed="${normalizeIcon(rule.icon)===icon}" aria-label="アイコン ${index+1}">${iconMarkup(icon,rule.color)}</button>`).join('');
+    modal('アイコンを選択',`<div class="icon-tile-grid" role="group" aria-label="SVGアイコンの選択">${palette}</div>`);
+   },
+   'choose-icon':b=>{const rule=state.iconRules.find(r=>r.id===b.dataset.ruleId);if(!rule||!ICON_CHOICES.includes(b.dataset.icon))return;rule.icon=b.dataset.icon;persist();closeModal();render();},
   'remove-icon-rule':b=>{state.iconRules=state.iconRules.filter(rule=>rule.id!==b.dataset.ruleId);if(selectedPresetId===b.dataset.ruleId)selectedPresetId=null;persist();render();},
   export:exportState,import:()=>$('#import-file').click(),
  'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.iconRules=normalizePresetRules(state.iconRules);state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}

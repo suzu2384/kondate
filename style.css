@@ -404,7 +404,6 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .icon-preset-settings{border:1px solid var(--line);border-radius:10px;padding:10px;margin:10px 0;background:var(--surface)}
 .icon-preset-heading{display:flex;gap:8px;align-items:center;justify-content:space-between}
 .icon-preset-heading strong{flex:1;font-size:12px}
-.icon-preset-heading select{flex:0 0 68px;width:68px;min-width:0;padding:4px;font-size:17px;text-align:center}
 .icon-preset-heading button{flex:0 0 auto}
 .icon-preset-settings .field{margin:9px 0}
 .icon-preset-settings textarea{resize:vertical;min-height:62px;white-space:pre-wrap}
@@ -435,10 +434,6 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .icon-tile.selected,.icon-tile[aria-pressed="true"]{background:var(--tint);border:2px solid var(--accent);
  box-shadow:inset 0 0 0 1px var(--accent)}
 .icon-tile .preset-svg-icon{width:27px;height:27px}
-.icon-preset-settings .icon-color-field{display:flex;align-items:center;gap:12px}
-.icon-preset-settings .icon-color-field>span{min-width:92px;margin:0}
-.icon-preset-settings .icon-color-field input[type="color"]{width:70px;height:38px;min-height:38px;
- padding:3px;flex:0 0 70px;cursor:pointer}
 .month-grid .event-chip .calendar-event-icon{display:inline-flex;align-items:center;flex:0 0 auto;
  line-height:inherit;font-size:inherit}
 .month-grid .event-chip .calendar-event-icon .preset-svg-icon{width:1em;height:1em}
@@ -446,4 +441,22 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 @media(max-width:760px){
  .icon-tile-grid{grid-template-columns:repeat(auto-fill,minmax(48px,1fr));gap:7px}
  .icon-tile{min-height:50px}
+}
+
+/* v1.3.30 — compact preset selector; 30 MingCute filled icons appear only on demand. */
+.icon-picker-trigger{display:inline-flex;align-items:center;justify-content:center;gap:4px;
+ flex:0 0 auto;width:56px;height:38px;min-height:38px;padding:5px;
+ border:1px solid var(--line);border-radius:9px;line-height:1}
+.icon-picker-trigger .preset-svg-icon{width:23px;height:23px}
+.icon-picker-trigger span:last-child{font-size:12px;color:var(--muted)}
+.icon-preset-settings .icon-preset-color{flex:0 0 40px;width:40px;min-width:40px;height:38px;min-height:38px;
+ padding:3px;cursor:pointer;border-radius:9px}
+.icon-preset-heading strong{min-width:0}
+.dialog-body .icon-tile-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));
+ gap:7px;width:min(100%,355px);margin:2px auto 6px}
+.dialog-body .icon-tile{min-height:47px;height:47px;padding:8px}
+.dialog-body .icon-tile .preset-svg-icon{width:27px;height:27px}
+@media(max-width:420px){
+ .dialog-body .icon-tile-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+ .dialog-body .icon-tile{height:46px;min-height:46px}
 }
