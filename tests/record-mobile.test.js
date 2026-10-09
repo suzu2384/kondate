@@ -12,7 +12,7 @@ test('record input provides a native-independent, selectable dish suggestion lis
  assert.doesNotMatch(block,/list="dish-options"/);
  assert.match(app,/function showDishSuggestions\(input\)/);
  assert.match(app,/dishSuggestions\(master\(\),input\.value/);
- assert.match(app,/'suggest-record-dish':b=>/);
+ assert.match(app,/'suggest-record-dish':pickRecordDishSuggestion/);
  assert.match(app,/document\.addEventListener\('focusin'/);
  assert.match(app,/if\(e\.key==='ArrowDown'\)/);
 });
