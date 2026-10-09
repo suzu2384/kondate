@@ -31,9 +31,16 @@ export class DriveSettingsClient{
   return response.status===204?null:response.json();
  }
  async find(){
-  const query=new URLSearchParams({spaces:'appDataFolder',q:`name = '${FILE}' and trashed = false`,fields:'files(id,name),nextPageToken',pageSize:'100'});
-  const result=await this.request('/drive/v3/files?'+query);
-  return result.files?.find(f=>f.name===FILE)||null;
+  let pageToken='';
+  do{
+   const query=new URLSearchParams({spaces:'appDataFolder',q:`name = '${FILE}' and trashed = false`,fields:'files(id,name,modifiedTime),nextPageToken',pageSize:'100'});
+   if(pageToken)query.set('pageToken',pageToken);
+   const result=await this.request('/drive/v3/files?'+query);
+   const found=result.files?.find(f=>f.name===FILE);
+   if(found)return found;
+   pageToken=result.nextPageToken||'';
+  }while(pageToken);
+  return null;
  }
  async save(value){
   let file=await this.find();
