@@ -6,6 +6,7 @@ import {GOOGLE_CLIENT_ID} from './config.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES} from './calendar-display.js';
 import {DriveSettingsClient} from './drive.js';
+import {dishSuggestions} from './dish-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
 import {AIService} from './ai.js';
 import {catalog} from './catalog.js';
@@ -162,12 +163,35 @@ function settingsScreen(){return `<section class="screen"><div class="settings-g
 function modal(title,body,foot=''){ $('#dialog-content').innerHTML=`<div class="dialog-head"><h2>${title}</h2>${button('×','close-dialog','icon-button','aria-label="閉じる"')}</div><div class="dialog-body">${body}<p class="form-error" id="dialog-error" role="alert"></p></div>${foot?`<div class="dialog-foot">${foot}</div>`:''}`;if(!$('#dialog').open)$('#dialog').showModal();}
 function closeModal(){$('#dialog').close();editor=null;}
 function categoryOptions(selectedId){return state.categories.map(c=>`<option value="${esc(c.id)}" ${c.id===selectedId?'selected':''}>${esc(c.name)}</option>`).join('');}
-function dishRows(dishes){return dishes.map((d,i)=>`<div class="dish-editor"><select data-editor-category="${i}" aria-label="${i+1}品目の分類">${categoryOptions(d.category)}</select><input data-editor-name="${i}" aria-label="${i+1}品目の料理名" value="${esc(d.name)}" list="dish-options" placeholder="料理名" maxlength="100">${button('×','editor-remove','danger',`data-index="${i}" aria-label="${i+1}品目を削除"`)}</div>`).join('')+`<datalist id="dish-options">${master().map(d=>`<option value="${esc(d.name)}">${esc(categoryName(d.category))}</option>`).join('')}</datalist>`;}
+function dishRows(dishes){
+ return dishes.map((d,i)=>`<div class="dish-editor">
+  <select data-editor-category="${i}" aria-label="${i+1}品目の分類">${categoryOptions(d.category)}</select>
+  <div class="dish-input-group">
+   <input id="record-dish-${i}" data-editor-name="${i}" aria-label="${i+1}品目の料理名" value="${esc(d.name)}" placeholder="料理名" maxlength="100" autocomplete="off" aria-autocomplete="list" aria-expanded="false" aria-controls="dish-suggestions-${i}">
+   <div id="dish-suggestions-${i}" class="dish-suggestions" role="listbox" aria-label="料理名の候補" hidden></div>
+  </div>
+  ${button('×','editor-remove','danger',`data-index="${i}" aria-label="${i+1}品目を削除"`)}
+ </div>`).join('');
+}
+function hideDishSuggestions(){
+ for(const list of document.querySelectorAll('.dish-suggestions'))list.hidden=true;
+ for(const input of document.querySelectorAll('[data-editor-name]'))input.setAttribute('aria-expanded','false');
+}
+function showDishSuggestions(input){
+ if(!input||!editor)return;
+ const index=Number(input.dataset.editorName);
+ const list=input.closest('.dish-input-group')?.querySelector('.dish-suggestions');
+ if(!list||!editor.dishes[index])return;
+ const choices=dishSuggestions(master(),input.value,editor.dishes[index].category,8);
+ list.innerHTML=choices.map((d,n)=>`<button type="button" class="dish-suggestion" role="option" data-action="suggest-record-dish" data-index="${index}" data-name="${esc(d.name)}"><span>${esc(d.name)}</span><small>${esc(categoryName(d.category))}</small></button>`).join('');
+ list.hidden=!choices.length;
+ input.setAttribute('aria-expanded',String(!!choices.length));
+}
 function openRecord(record=null,{date=today(),dishes=null}={}){
  editor=record?structuredClone(record):{id:uid(),date,status:'actual',dishes:dishes?structuredClone(dishes):[{name:'',category:'main'}],owned:true,new:true,scope:scopeKey()};
  editor.scope??=scopeKey();drawRecord();
 }
-function drawRecord(){const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></label><label class="field"><span>状態</span><select id="record-status" ${legacy?'disabled':''}><option value="actual" ${editor.status!=='plan'?'selected':''}>調理実績</option><option value="plan" ${editor.status==='plan'?'selected':''}>献立案（履歴に含めない）</option></select></label><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);}
+function drawRecord(){const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><span class="dialog-date-control"><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></span></label><label class="field"><span>状態</span><select id="record-status" ${legacy?'disabled':''}><option value="actual" ${editor.status!=='plan'?'selected':''}>調理実績</option><option value="plan" ${editor.status==='plan'?'selected':''}>献立案（履歴に含めない）</option></select></label><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);}
 async function saveRecord(){
  const current=structuredClone(editor);
  current.dishes=validateDishes(current.dishes);
@@ -316,7 +340,18 @@ const actions={
  'prev-month':()=>{month.setMonth(month.getMonth()-1);render();},'next-month':()=>{month.setMonth(month.getMonth()+1);render();},today:()=>{selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);render();},
  date:b=>{selected=b.dataset.date;render();if(matchMedia('(max-width:760px)').matches)modal('日付の詳細',dayContent(selected));},
  'new-record':b=>openRecord(null,{date:b.dataset.date||today()}),record:b=>openRecord(records().find(r=>r.id===b.dataset.id&&r.calendarId===(b.dataset.calendar||primaryCalendarId()))),
- 'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},'save-record':saveRecord,
+ 'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
+ 'suggest-record-dish':b=>{
+  if(!editor)return;
+  const i=Number(b.dataset.index),d=master().find(d=>d.name===b.dataset.name);
+  if(!Number.isInteger(i)||!editor.dishes[i]||!d)return;
+  editor.dishes[i]={name:d.name,category:d.category,protein:d.protein||'不明',method:d.method||'不明',genre:d.genre||'不明'};
+  drawRecord();
+  const input=$(`[data-editor-name="${i}"]`);
+  input?.focus();
+  hideDishSuggestions();
+ },
+ 'save-record':saveRecord,
  'delete-record':()=>{modal('この実績を削除しますか？',`<p>${esc(editor.date)}：${esc(editor.dishes.map(d=>d.name).join('、'))}</p><p>Googleカレンダーからこの予定を直接削除します。この操作は取り消せません。</p>`,button('戻る','return-editor')+button('削除する','confirm-delete','danger'));},'return-editor':drawRecord,
  'confirm-delete':async()=>{if(editor.scope!==scopeKeyFor(editor.calendarId||primaryCalendarId()))throw Error('元のカレンダーに戻って操作してください。');busy=true;updateConnection();try{const id=editor.calendarId||primaryCalendarId();await api.remove(id,editor);dataFor(id).events=dataFor(id).events.filter(e=>e.id!==editor.id);closeModal();render();notify('実績を削除しました。');}finally{busy=false;updateConnection();}},
  connect:async()=>{
@@ -420,8 +455,32 @@ $('#connection').addEventListener('click',()=>run(api.connected?'settings':'conn
 $('#sync').addEventListener('click',()=>run('sync'));
 $('#dialog').addEventListener('cancel',()=>{editor=null;});
 document.addEventListener('input',e=>{const el=e.target;
- if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;}
+ if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;showDishSuggestions(el);}
  if(el.id==='master-search'){const pos=el.selectionStart;masterQuery=el.value;masterModal();$('#master-search').focus();$('#master-search').setSelectionRange(pos,pos);}
+});
+document.addEventListener('focusin',e=>{
+ const field=e.target.closest?.('[data-editor-name]');
+ if(field){
+  for(const list of document.querySelectorAll('.dish-suggestions'))if(list!==field.closest('.dish-input-group')?.querySelector('.dish-suggestions'))list.hidden=true;
+  showDishSuggestions(field);
+ }else if(!e.target.closest?.('.dish-suggestions'))hideDishSuggestions();
+});
+document.addEventListener('keydown',e=>{
+ if(e.target.matches?.('[data-editor-name]')){
+  if(e.key==='ArrowDown'){
+   const suggestion=e.target.closest('.dish-input-group')?.querySelector('.dish-suggestion');
+   if(suggestion){e.preventDefault();suggestion.focus();}
+  }else if(e.key==='Escape')hideDishSuggestions();
+ }else if(e.target.matches?.('.dish-suggestion')){
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+   const buttons=Array.from(e.target.closest('.dish-suggestions')?.querySelectorAll('.dish-suggestion')||[]);
+   const next=buttons.indexOf(e.target)+(e.key==='ArrowDown'?1:-1);
+   if(buttons[next]){e.preventDefault();buttons[next].focus();}
+  }else if(e.key==='Escape'){
+   const input=e.target.closest('.dish-input-group')?.querySelector('[data-editor-name]');
+   input?.focus();hideDishSuggestions();
+  }
+ }
 });
 document.addEventListener('change',async e=>{const el=e.target;try{
  if(el.id==='drive-auto'){
@@ -444,7 +503,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   render();return;
  }
 
- if(editor){if(el.id==='record-date')editor.date=el.value;if(el.id==='record-status')editor.status=el.value;if(el.matches('[data-editor-category]'))editor.dishes[el.dataset.editorCategory].category=el.value;if(el.matches('[data-editor-name]')){const found=master().find(d=>normalize(d.name)===normalize(el.value));if(found){Object.assign(editor.dishes[el.dataset.editorName],{...found});drawRecord();}}}
+ if(editor){if(el.id==='record-date')editor.date=el.value;if(el.id==='record-status')editor.status=el.value;if(el.matches('[data-editor-category]'))editor.dishes[el.dataset.editorCategory].category=el.value;if(el.matches('[data-editor-name]')){const found=master().find(d=>normalize(d.name)===normalize(el.value));if(found){Object.assign(editor.dishes[el.dataset.editorName],{...found});const category=el.closest('.dish-editor')?.querySelector('[data-editor-category]');if(category)category.value=found.category;}}}
  if(el.id==='keep-connected'){
   try{
    api.setKeepConnected(el.checked);

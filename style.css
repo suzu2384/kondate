@@ -282,3 +282,67 @@ dialog::backdrop{background:#0008}
 #status-bar.auth-required{background:#8a261a;border-top-color:#8a261a;color:#fff}
 #status-bar.auth-required .status-message{color:#fff;font-weight:750;text-align:center;text-decoration:underline;text-underline-offset:2px}
 #status-bar.auth-required .status-message:focus-visible{outline:2px solid #fff;outline-offset:-2px}
+
+/* v1.3.19: reliably sized editable controls on iPhone, inside and outside dialogs.
+   Do not disable pinch zoom: accessibility zoom remains available. */
+dialog, #dialog-content, .dialog-body, .dialog-body .field,
+.dish-editor, .dish-input-group {min-width:0;max-width:100%;box-sizing:border-box;}
+.dialog-body{overflow-x:hidden;}
+.dialog-body .field{display:block;min-width:0;width:100%;max-width:100%;}
+.dialog-date-control{
+ display:block;width:min(100%,230px);max-width:100%;min-width:0;
+ margin:0;overflow:hidden;
+}
+.dialog-date-control input[type=date]{
+ display:block;box-sizing:border-box;width:100%;max-width:100%;
+ min-width:0;min-inline-size:0;max-inline-size:100%;
+ overflow:hidden;-webkit-appearance:none;appearance:none;
+ font-size:16px;line-height:1.35;text-align:left;
+}
+.dialog-date-control input[type=date]::-webkit-date-and-time-value{
+ text-align:left;min-width:0;min-inline-size:0;max-width:100%;padding:0;
+}
+.dialog-date-control input[type=date]::-webkit-calendar-picker-indicator{
+ max-width:24px;margin:0;padding:0;
+}
+.dish-editor{align-items:start;}
+.dish-input-group{min-width:0;max-width:100%;width:100%;position:relative;}
+.dish-input-group>input{display:block;width:100%;min-width:0;max-width:100%;}
+.dish-suggestions{
+ display:flex;flex-direction:column;gap:1px;min-width:0;
+ max-height:168px;overflow-y:auto;overscroll-behavior:contain;
+ margin-top:3px;padding:3px;border:1px solid var(--line);border-radius:9px;
+ background:var(--surface);box-shadow:0 4px 12px #00000012;
+}
+.dish-suggestions[hidden]{display:none;}
+.dish-suggestion{
+ display:flex;align-items:center;justify-content:space-between;gap:8px;
+ min-height:36px;padding:5px 7px;border:0;border-radius:6px;
+ background:transparent;text-align:left;font-weight:500;
+}
+.dish-suggestion span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.dish-suggestion small{flex-shrink:0;font-size:11px;color:var(--muted);}
+.dish-suggestion:focus-visible{outline:2px solid var(--accent);outline-offset:-2px;background:var(--tint);}
+@media(max-width:760px){
+ html,body,.app,#main{max-width:100%;overflow-x:clip;}
+ dialog{
+  width:calc(100% - 16px);max-width:calc(100vw - 16px);min-width:0;
+  overflow-x:hidden;
+ }
+ #dialog-content,.dialog-body{min-width:0;max-width:100%;}
+ .dialog-body{padding:12px;overflow-x:hidden;}
+ .dialog-date-control{width:min(100%,220px);}
+ .dish-editor{
+  grid-template-columns:minmax(0,72px) minmax(0,1fr) 32px;
+  gap:5px;min-width:0;
+ }
+ .dish-editor input,.dish-editor select{min-width:0;max-width:100%;}
+ /* WebKit zooms the whole viewport while focusing form controls below 16px. */
+ input:not([type=checkbox]):not([type=radio]):not([type=file]),
+ select,textarea{font-size:16px;}
+ .dish-suggestion{min-height:36px;}
+}
+@media(max-width:350px){
+ .dish-editor{grid-template-columns:minmax(0,65px) minmax(0,1fr) 30px;gap:4px;}
+ .dialog-body{padding:10px;}
+}
