@@ -6,12 +6,14 @@ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 const model=readFileSync(new URL('../src/model.js',import.meta.url),'utf8');
 
-test('month calendar has no redundant view/history/master toolbar, with master editing accessible from generator',()=>{
+test('month calendar has no redundant view/history/master toolbar, with master editing accessible from settings',()=>{
  const calendar=app.slice(app.indexOf('function calendarScreen()'),app.indexOf('function dayContent('));
  assert.match(calendar,/screen calendar-screen/);
  assert.match(calendar,/month-grid/);
  assert.doesNotMatch(calendar,/view-history|view-month|calendar-toolbar|料理マスター|履歴一覧/);
- assert.match(app,/button\('料理マスター','master'/);
+ const generator=app.slice(app.indexOf('function generateScreen()'),app.indexOf('function photoScreen()'));
+ assert.doesNotMatch(generator,/料理マスター/);
+ assert.match(app,/button\('料理マスターを開く','master','full'\)/);
  assert.doesNotMatch(app,/view==='month'|view!=='month'|view-history/);
  assert.match(css,/\.calendar-screen \.calendar-layout\{flex:1/);
 });
