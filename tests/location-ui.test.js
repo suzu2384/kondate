@@ -80,3 +80,19 @@ test('place candidates synchronize selection into the actual calendar editor',()
  assert.match(app,/if\(editor&&\(el\.id==='record-location'\|\|el\.id==='place-search-active'\)\)/);
  assert.match(app,/function closePlaceSearchSheet\(\)/);
 });
+
+test('TomTom search is opt-in and falls back to Photon without changing the stored location',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const source=readFileSync(new URL('../src/tomtom-places.js',import.meta.url),'utf8');
+ assert.match(app,/await searchTomTomPlaces\(query,\{signal:controller\.signal\}\)/);
+ assert.match(app,/if\(!tomtomSucceeded\)\{\s*places=await searchPlaces\(query,/);
+ assert.match(app,/'save-tomtom-key':\(\)=>\{/);
+ assert.match(app,/'clear-tomtom-key':\(\)=>\{/);
+ assert.match(app,/id="tomtom-place-key" type="password"/);
+ assert.match(app,/この端末にだけ保存/);
+ assert.match(source,/kondate\.tomtom-api-key\.v1/);
+ const backup=readFileSync(new URL('../src/drive-backup.js',import.meta.url),'utf8');
+ assert.doesNotMatch(backup,/tomtom/i);
+ const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+ assert.match(sw,/\.\/src\/tomtom-places\.js/);
+});

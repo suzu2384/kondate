@@ -553,7 +553,7 @@ function drawRecord(){cancelPlaceLookup();const legacy=!editor.owned;modal(edito
  if(popup)$('#dialog-content').appendChild(popup);
  const sheet=document.createElement('div');
  sheet.id='place-search-sheet';sheet.className='place-search-sheet';sheet.hidden=true;
- sheet.innerHTML=`<div class="place-sheet-bar"><span class="place-sheet-search-icon" aria-hidden="true">⌕</span><input type="search" id="place-search-active" autocomplete="off" enterkeyhint="search" maxlength="500" value="${esc(editor.location||'')}" placeholder="店名・支店名・住所を入力" aria-label="場所を検索" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><button type="button" data-action="close-place-search" aria-label="場所の検索を閉じる">×</button></div><div class="place-sheet-results"></div><small class="place-sheet-attribution">© OpenStreetMap contributors · Photon</small>`;
+ sheet.innerHTML=`<div class="place-sheet-bar"><span class="place-sheet-search-icon" aria-hidden="true">⌕</span><input type="search" id="place-search-active" autocomplete="off" enterkeyhint="search" maxlength="500" value="${esc(editor.location||'')}" placeholder="店名・支店名・住所を入力" aria-label="場所を検索" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><button type="button" data-action="close-place-search" aria-label="場所の検索を閉じる">×</button></div><div class="place-sheet-results"></div><small class="place-sheet-attribution">候補提供：<a href="https://www.tomtom.com/" target="_blank" rel="noopener noreferrer">TomTom</a> / <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> · Photon</small>`;
  $('#dialog-content').appendChild(sheet);
 }
 async function saveRecord(){
