@@ -66,12 +66,18 @@ jobs:
               if (error.status !== 404) throw error;
               release = (await github.rest.repos.createRelease({
                 owner, repo, tag_name: tag, target_commitish: context.sha,
-                name: `献立ノート ${tag}`, draft: false, prerelease: false,
+                name: `KonDate ${tag}`, draft: false, prerelease: false,
                 body: [
                   `## 献立ノート ${tag}`,
                   '',
                   '### このバージョンの変更',
-                  ...(version === '1.3.60' ? [
+                  ...(version === '1.3.61' ? [
+                    '- アプリ名を KonDate に統一（ブラウザタイトル・ホーム画面・PWA設定）',
+                    '- 選択したオレンジ×セージグリーンのロゴをSVG化してヘッダーに表示',
+                    '- ホーム画面用アイコンとfaviconを新しいKonDateロゴに差し替え',
+                    '- カレンダー左上の選択アイコンを添付のcalendar-check.svgに変更',
+                    '- Service Workerのキャッシュ更新とブランド表示の回帰テストを追加',
+                  ] : version === '1.3.60' ? [
                     '- スマートフォンを含め、プリセットのアイコン選択を常に6列に統一',
                     '- 420px以下でも6列を維持し、ボタン間隔とアイコンサイズを調整',
                     '- プリセットアイコン45種類と黒い輪郭線は従来どおり維持',

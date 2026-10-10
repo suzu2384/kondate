@@ -744,3 +744,11 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .tabs button .nav-icon-generate{-webkit-mask-image:url('./icons/tabs/chef-hat.svg');mask-image:url('./icons/tabs/chef-hat.svg')}
 .tabs button .nav-icon-photo{-webkit-mask-image:url('./icons/tabs/utensils.svg');mask-image:url('./icons/tabs/utensils.svg')}
 .tabs button .nav-icon-settings{-webkit-mask-image:url('./icons/tabs/settings.svg');mask-image:url('./icons/tabs/settings.svg')}
+
+/* v1.3.61: KonDate wordmark and the supplied calendar-check SVG. */
+.brand .brand-logo{display:block;width:clamp(112px,12vw,146px);height:auto;max-height:41px;object-fit:contain;flex-shrink:0}
+.calendar-switch-symbol{display:block;width:22px;height:22px;flex:0 0 auto;background-color:currentColor;-webkit-mask:url('./icons/calendar-check.svg') center / contain no-repeat;mask:url('./icons/calendar-check.svg') center / contain no-repeat}
+@media(max-width:760px){
+ .brand .brand-logo{width:116px;height:auto;max-height:35px}
+ .calendar-switch-symbol{width:20px;height:20px}
+}
