@@ -659,7 +659,7 @@ async function sync({automatic=false}={}){
    notify(`カレンダーの${automatic?'自動更新':'同期'}に一部失敗しました（成功 ${batches.length}件／失敗 ${failed.length}件：${names}）。成功したカレンダーの予定は反映済みです。`);
   }else if(!automatic){
    notify(`${ids.length}件のカレンダーから${count}件の予定を取得しました。`);
-  }else if(currentNotice.startsWith('カレンダーの自動更新に失敗しました')||currentNotice.startsWith('カレンダーの同期に一部失敗しました')){
+  }else if(currentNotice.startsWith('カレンダーの自動更新に失敗しました')||currentNotice.startsWith('カレンダーの自動更新に一部失敗しました')||currentNotice.startsWith('カレンダーの同期に一部失敗しました')){
    notify('Googleカレンダーの自動更新が再開しました。');
   }
  }catch(error){
