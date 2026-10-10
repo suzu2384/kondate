@@ -28,8 +28,10 @@ test('one-field location typeahead is region-neutral and keeps candidates inline
  const dialog=app.slice(app.indexOf('function drawRecord(){'),app.indexOf('async function saveRecord()'));
  assert.doesNotMatch(dialog,/id="place-search-area"/);
  assert.doesNotMatch(dialog,/data-action="search-place"/);
- assert.match(dialog,/店名・支店名・住所の断片/);
- assert.match(dialog,/入力すると候補が自動表示/);
+ assert.match(dialog,/placeholder="店名・支店名・住所で検索"/);
+ assert.doesNotMatch(dialog,/入力すると候補が自動表示されます/);
+ assert.doesNotMatch(dialog,/地図データに未登録の店舗は候補に出ません/);
+ assert.match(dialog,/class="place-attribution"/);
  assert.match(dialog,/id="place-search-status"/);
  assert.doesNotMatch(dialog,/placeholder="津田沼"/);
  assert.match(app,/function queuePlaceLookup\(field,\{immediate=false\}=\{\}\)/);
@@ -56,7 +58,7 @@ test('typeahead filters cached Photon candidates before the network returns',()=
  assert.match(app,/onCandidates:batch=>\{/);
  assert.match(app,/rememberPlaceCandidates\(batch\)/);
  assert.match(app,/seed:\[\.\.\.placeCandidatePool\.values\(\)\]/);
- assert.match(app,/入力順に関係なくすべて含む候補/);
+ assert.match(app,/filterPlaceCandidates/);
 });
 
 test('mobile location search fixes the search field at visual viewport top with scrollable results beneath',()=>{
