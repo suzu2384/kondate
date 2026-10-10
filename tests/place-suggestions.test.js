@@ -27,7 +27,7 @@ test('online search encodes Japanese input, caps suggestions and is aborted by c
    const parsed=new URL(url);
    assert.equal(parsed.host,'photon.komoot.io');
    assert.equal(parsed.searchParams.get('q'),'レストラン');
-   assert.equal(parsed.searchParams.get('lang'),'default');
+   assert.equal(parsed.searchParams.get('lang'),null,'invalid pseudo-language must not be sent');
    assert.equal(opt.signal,controller.signal);
    return {ok:true,json:async()=>response};
   }
@@ -90,4 +90,15 @@ test('single-field "business area" searches nearby without a preset location',as
  assert.equal(calls[1].searchParams.get('q'),'吉野家');
  assert.equal(calls[1].searchParams.get('location_bias_scale'),'0.8');
  assert.match(results[0].value,/駅前通り/);
+});
+
+test('branch suffix in the same input resolves the locality rather than searching for a place ending in 店',async()=>{
+ const calls=[];
+ const found=await searchPlaces('吉野家 津田沼店',{fetcher:async url=>{
+  const params=new URL(url).searchParams;calls.push(params.get('q'));
+  if(calls.length===1)return {ok:true,json:async()=>({features:[{geometry:{coordinates:[140.0,35.7]}}]})};
+  return {ok:true,json:async()=>({features:[{properties:{name:'吉野家 津田沼店',city:'習志野市'}}]})};
+ }});
+ assert.deepEqual(calls,['津田沼','吉野家']);
+ assert.match(found[0].name,/津田沼店/);
 });

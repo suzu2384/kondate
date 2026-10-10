@@ -29,6 +29,7 @@ test('record editor no longer offers a planned calendar event type',()=>{
 test('place input uses limited online search, attribution, native free-text and tap-to-select',()=>{
  assert.match(app,/id="record-location"/);
  assert.match(app,/id="place-suggestions"/);
+ assert.match(app,/id="place-popup"/);
  assert.match(app,/searchPlaces\(query,/);
  assert.match(app,/pickPlaceSuggestion\(locationChoice\)/);
  assert.match(app,/field\.value=name;editor\.location=name/);

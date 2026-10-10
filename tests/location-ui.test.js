@@ -32,6 +32,18 @@ test('one-field location typeahead is region-neutral and keeps candidates inline
  assert.doesNotMatch(dialog,/placeholder="津田沼"/);
  assert.match(app,/function queuePlaceLookup\(field,\{immediate=false\}=\{\}\)/);
  assert.match(app,/const delay=Math\.max\(immediate\?0:650,1000-/);
- assert.match(css,/\.place-field \.place-suggestions\{position:static/);
+ assert.match(css,/#dialog-content #place-popup\{\s*position:fixed/);
+ assert.match(css,/#dialog-content #place-suggestions\{[\s\S]*?touch-action:pan-y/);
  assert.match(css,/\.place-field \.place-suggestion small\{[^}]*white-space:normal/);
+});
+
+test('place suggestions are portaled outside the scrolling form and selected only on click',()=>{
+ const dialog=app.slice(app.indexOf('function drawRecord(){'),app.indexOf('async function saveRecord()'));
+ const gestures=app.slice(app.indexOf("document.addEventListener('pointerdown',e=>"),app.indexOf("document.addEventListener('pointermove',e=>"));
+ assert.match(dialog,/id="place-popup"/);
+ assert.match(dialog,/\$\('#dialog-content'\)\.appendChild\(popup\)/);
+ assert.match(app,/function positionPlaceSuggestions\(\)/);
+ assert.match(app,/globalThis\.visualViewport\?\.addEventListener\('resize',positionPlaceSuggestions\)/);
+ assert.doesNotMatch(gestures,/pickPlaceSuggestion\(/);
+ assert.match(app,/'pick-location':pickPlaceSuggestion/);
 });

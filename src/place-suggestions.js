@@ -34,6 +34,9 @@ export async function searchPlaces(term,{area='',fetcher=(...args)=>globalThis.f
  if(!online||Array.from(full).length<2)return [];
  // "shop area" is supported in the same field; there is no default region.
  const {name:q,area:region}=area?{name:full,area:clean(area)}:splitPlaceQuery(full);
+ // A suffix such as "津田沼店" names a branch, not a geographical district.
+ // Resolve the underlying place name while searching for the original shop.
+ const regionLookup=region.replace(/(?:支店|本店|店)$/u,'').trim()||region;
  const request=async url=>{
   const result=await fetcher(url.toString(),{signal,headers:{Accept:'application/json'}});
   if(!result.ok)throw Error('地名候補の取得に失敗しました');
@@ -42,9 +45,8 @@ export async function searchPlaces(term,{area='',fetcher=(...args)=>globalThis.f
  let focus=null;
  if(region){
   const geo=new URL(ENDPOINT);
-  geo.searchParams.set('q',region.slice(0,120));
+  geo.searchParams.set('q',regionLookup.slice(0,120));
   geo.searchParams.set('limit','1');
-  geo.searchParams.set('lang','default');
   const result=await request(geo);
   const coordinates=result?.features?.[0]?.geometry?.coordinates;
   if(Array.isArray(coordinates)&&coordinates.length>=2&&
@@ -52,8 +54,7 @@ export async function searchPlaces(term,{area='',fetcher=(...args)=>globalThis.f
    focus={lon:coordinates[0],lat:coordinates[1]};
  }
  const url=new URL(ENDPOINT);
- url.searchParams.set('q',(focus?q:[q,region].filter(Boolean).join(' ')).slice(0,120));
- url.searchParams.set('lang','default');
+ url.searchParams.set('q',(focus?q:[q,regionLookup].filter(Boolean).join(' ')).slice(0,120));
  url.searchParams.set('limit','20');
  url.searchParams.set('dedupe','0');
  if(focus){
