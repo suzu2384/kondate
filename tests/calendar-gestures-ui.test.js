@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
+import {runInNewContext} from 'node:vm';
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 test('calendar opens an already selected date on one tap without forcing touch focus',()=>{
@@ -62,4 +63,94 @@ test('year-month picker is an accessible twelve-month dialog with arbitrary year
  assert.doesNotMatch(html,/● 調理実績|◇ 献立案|• 既存の献立/);
  assert.match(css,/@media\(min-width:761px\)\{\s*\.calendar-screen \.month-grid \.day/);
  assert.match(css,/\.calendar-screen \.month-grid \.event-chip\.general-event\.has-icon\{font-size:13px/);
+});
+
+test('swipe release animates all the way to the destination before changing the month',()=>{
+ const start=app.indexOf('function settleCalendarSwipe(offset){');
+ const end=app.indexOf('// Reconcile the durable local desired state',start);
+ assert.ok(start>=0&&end>start);
+ let animation,frames,options,renders=0;
+ const track={style:{transition:'none',transform:'translate3d(calc(-100% + -80px),0,0)'},
+  animate(keyframes,settings){
+   frames=keyframes;options=settings;
+   animation={handlers:{},cancelled:false,
+    addEventListener(type,handler){this.handlers[type]=handler;},
+    cancel(){this.cancelled=true;}
+   };
+   return animation;
+  }};
+ const context={
+  $:()=>track,calendarSwipeToken:0,calendarSwipeTimer:null,
+  calendarSwipeAnimation:null,calendarSwipeSettling:false,
+  month:new Date(2026,9,1,12),moveMonth:(d,offset)=>new Date(d.getFullYear(),d.getMonth()+offset,1,12),
+  render:()=>{renders++;},matchMedia:()=>({matches:false}),
+  getComputedStyle:()=>({transform:'matrix(1, 0, 0, 1, -440, 0)'}),
+  setTimeout:()=>1,clearTimeout:()=>{},
+  shiftCalendarMonth:()=>{throw new Error('must not change month immediately');}
+ };
+ const settle=runInNewContext(app.slice(start,end)+';settleCalendarSwipe',context);
+ settle(1);
+ assert.equal(context.month.getMonth(),9);
+ assert.equal(renders,0);
+ assert.equal(frames[0].transform,'matrix(1, 0, 0, 1, -440, 0)');
+ assert.equal(frames[1].transform,'translate3d(-200%,0,0)');
+ assert.equal(options.fill,'forwards');
+ assert.equal(options.duration,300);
+ assert.equal(typeof animation.handlers.finish,'function');
+ animation.handlers.finish();
+ assert.equal(context.month.getMonth(),10);
+ assert.equal(renders,1);
+ assert.equal(animation.cancelled,true);
+});
+test('sub-threshold swipes slide back rather than changing the displayed month',()=>{
+ let animation,renders=0;
+ const track={style:{},animate(){
+  animation={addEventListener(type,callback){this.finish=callback;},cancel(){}};
+  return animation;
+ }};
+ const context={
+  $:()=>track,calendarSwipeToken:0,calendarSwipeTimer:null,
+  calendarSwipeAnimation:null,calendarSwipeSettling:false,
+  month:new Date(2026,9,1,12),moveMonth:()=>{throw new Error('month must not change');},
+  render:()=>{renders++;},matchMedia:()=>({matches:false}),
+  getComputedStyle:()=>({transform:'matrix(1, 0, 0, 1, -375, 0)'}),
+  setTimeout:()=>1,clearTimeout:()=>{}
+ };
+ const start=app.indexOf('function settleCalendarSwipe(offset){');
+ const end=app.indexOf('// Reconcile the durable local desired state',start);
+ const settle=runInNewContext(app.slice(start,end)+';settleCalendarSwipe',context);
+ settle(0);
+ assert.equal(renders,0);
+ animation.finish();
+ assert.equal(renders,0);
+ assert.equal(context.month.getMonth(),9);
+ assert.equal(track.style.transform,'translate3d(-100%,0,0)');
+});
+test('non-Web-Animations browsers defer the CSS transition until a layout frame',()=>{
+ let frames=0,renders=0,onTransition;
+ const track={style:{},offsetWidth:375,
+  addEventListener(type,fn){if(type==='transitionend')onTransition=fn;}
+ };
+ const context={
+  $:()=>track,calendarSwipeToken:0,calendarSwipeTimer:null,
+  calendarSwipeAnimation:null,calendarSwipeSettling:false,
+  month:new Date(2026,9,1,12),moveMonth:(d,o)=>new Date(d.getFullYear(),d.getMonth()+o,1,12),
+  render:()=>{renders++;},matchMedia:()=>({matches:false}),
+  getComputedStyle:()=>({transform:'matrix(1, 0, 0, 1, -450, 0)'}),
+  requestAnimationFrame:fn=>{frames++;context.frame=fn;},
+  setTimeout:()=>1,clearTimeout:()=>{}
+ };
+ const start=app.indexOf('function settleCalendarSwipe(offset){');
+ const end=app.indexOf('// Reconcile the durable local desired state',start);
+ const settle=runInNewContext(app.slice(start,end)+';settleCalendarSwipe',context);
+ settle(-1);
+ assert.equal(renders,0);
+ assert.equal(frames,1);
+ assert.equal(track.style.transition,'none');
+ context.frame();
+ assert.match(track.style.transition,/^transform 300ms /);
+ assert.equal(track.style.transform,'translate3d(0%,0,0)');
+ onTransition({target:track,propertyName:'transform'});
+ assert.equal(context.month.getMonth(),8);
+ assert.equal(renders,1);
 });
