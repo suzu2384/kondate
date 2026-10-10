@@ -12,7 +12,14 @@ await writeFile('dist/src/config.js',`/** Public OAuth client ID injected at bui
 // This is build-time only: no extra module fetch is required in browsers.
 const entries=await Promise.all(ICON_CHOICES.map(async name=>{
  const svg=await readFile(`icons/presets/${name}.svg`,'utf8');
- const paths=[...svg.matchAll(/<path\b[^>]*\bd="([^"]+)"/g)].map(match=>match[1]);
+ const paths=[...svg.matchAll(/<path\b([^>]*)>/g)].map(([,attributes])=>{
+  const d=/\bd="([^"]+)"/.exec(attributes)?.[1];
+  if(!d)throw Error(`SVGのパスデータがありません: ${name}`);
+  // The supplied icons sometimes need evenodd winding for their cutouts.
+  // Retain it when embedding the artwork, so holes in faces/objects stay open.
+  const fillRule=/\bfill-rule="(evenodd|nonzero)"/.exec(attributes)?.[1];
+  return fillRule==='evenodd'?{d,fillRule}:d;
+ });
  if(!paths.length||(svg.match(/<path\b/g)||[]).length!==paths.length)
   throw Error(`SVGのパスを読み取れません: ${name}`);
  return [name,paths];

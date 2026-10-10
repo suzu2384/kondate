@@ -181,7 +181,7 @@ function iconMarkup(name,color='',extraClass=''){
  const paths=PRESET_ICON_PATHS[icon]||[];
  const cls=`preset-svg-icon ${extraClass}`.trim();
  if(!paths.length)return `<span class="${cls} icon-mask-fallback" aria-hidden="true" style="--preset-svg:url('./icons/presets/${icon}.svg');color:${tint}"></span>`;
- return `<svg class="${cls}" aria-hidden="true" focusable="false" viewBox="0 0 24 24" style="color:${tint}">${paths.map(d=>`<path d="${esc(d)}"/>`).join('')}</svg>`;
+ return `<svg class="${cls}" aria-hidden="true" focusable="false" viewBox="0 0 24 24" style="color:${tint}">${paths.map(path=>`<path d="${esc(typeof path==='string'?path:path.d)}"${typeof path!=='string'&&path.fillRule==='evenodd'?' fill-rule="evenodd"':''}/>`).join('')}</svg>`;
 }
 function renderPresetBar(){
  const bar=$('#quick-preset-bar');

@@ -8,14 +8,14 @@ const old={id:'old',keyword:'可燃ごみ',icon:'🗑️'};
 const a={id:'aaa',keyword:'ごみ回収',memo:'A地区',icon:'🗑️',calendarId:'calendar'};
 const b={id:'bbb',keyword:'ごみ回収',memo:'B地区',icon:'♻️',calendarId:'calendar'};
 const e=rule=>({...presetEventPayload(date,rule),id:rule.id,etag:'etag'});
-import {ICON_CHOICES,normalizeIcon,normalizeIconColor} from '../src/calendar-display.js';
-test('thirty user-provided MingCute Solid SVGs are included, old assets removed',()=>{
- assert.equal(ICON_CHOICES.length,30);
- assert.equal(new Set(ICON_CHOICES).size,30);
+import {ICON_CHOICES,normalizeIcon,normalizeIconColor,isSupportedIcon} from '../src/calendar-display.js';
+test('45 MingCute Filled preset SVGs are available without losing prior icons',()=>{
+ assert.equal(ICON_CHOICES.length,45);
+ assert.equal(new Set(ICON_CHOICES).size,45);
  for(const icon of ICON_CHOICES){
   const svg=readFileSync(new URL('../icons/presets/'+icon+'.svg',import.meta.url),'utf8');
   assert.match(svg,/viewBox="0 0 24 24"/);
-  assert.match(svg,/<path fill="#000000" d="/);
+  assert.match(svg,/<path fill="#000000"(?: fill-rule="evenodd")? d="/);
  }
  for(const oldIcon of ["pin","trash","recycle","school","hospital","cake","briefcase-business","sport-shoe","shopping-cart","party-popper","car","tram-front","plane","pill"]){
   assert.equal(existsSync(new URL('../icons/presets/'+oldIcon+'.svg',import.meta.url)),false);
@@ -172,7 +172,8 @@ test('preset icon outline is an actual SVG path stroke, not multiple drop shadow
  const build=readFileSync(new URL('../scripts/build.js',import.meta.url),'utf8');
  assert.ok(app.includes('const PRESET_ICON_PATHS = /* EMBED_PRESET_ICON_PATHS */ {};'));
  assert.ok(app.includes('<svg class="${cls}"'));
- assert.ok(app.includes('<path d="${esc(d)}"/>'));
+ assert.ok(app.includes('fillRule===\'evenodd\''));
+ assert.ok(app.includes('fill-rule="evenodd"'));
  assert.match(css,/\.preset-svg-icon path\{fill:currentColor;stroke:var\(--preset-icon-edge\)/);
  assert.ok(css.includes('stroke-width:1.6'));
  assert.ok(css.includes('paint-order:stroke fill'));
@@ -209,5 +210,43 @@ test('white preset icon has the same transparent background as other colors',()=
  assert.doesNotMatch(css,/:has\([^}]*is-white/);
  for(const selector of ['.quick-preset', '.icon-picker-trigger', '.icon-tile', '.preset-row-icon']){
   assert.ok(css.includes(selector),`Missing ${selector}`);
+ }
+});
+
+test('all 15 supplied preset icons preserve their geometry, ordering and evenodd cutouts',()=>{
+ const expected=["recycle_fill","delete_2_fill","emoji_fill","folder_fill","birthday_2_fill","teacup_fill","camera_2_fill","film_fill","flower_4_fill","cat_fill","dog_fill","capsule_fill","run_fill","sleep_fill","lock_fill"];
+ assert.equal(expected.length,15);
+ const oldChoices=["home_2_fill","user_2_fill","briefcase_fill","shopping_cart_2_fill","car_fill","fork_knife_fill","t_shirt_fill","fitness_fill","music_fill","celebrate_fill","heart_fill","star_fill","sparkles_fill","sun_fill","moon_fill","snow_fill","drop_fill","leaf_3_fill","flash_fill","alarm_2_fill","flag_3_fill","tag_fill","currency_cny_fill","thumb_up_2_fill","cross_fill","triangle_fill","square_fill","diamond_fill","clubs_fill","spade_fill"];
+ for(const name of oldChoices)assert.ok(ICON_CHOICES.includes(name),name);
+ for(const name of expected){
+  assert.ok(ICON_CHOICES.includes(name),name);
+  assert.equal(normalizeIcon(name),name);
+  assert.equal(isSupportedIcon(name),true);
+  const source=readFileSync(new URL('../icons/presets/'+name+'.svg',import.meta.url),'utf8');
+  assert.match(source,/viewBox="0 0 24 24"/);
+  assert.match(source,/<path fill="#000000"/);
+  assert.equal((source.match(/<path\b/g)||[]).length,1,name);
+ }
+ const nearby=(a,b)=>Math.abs(ICON_CHOICES.indexOf(a)-ICON_CHOICES.indexOf(b))<=3;
+ for(const [a,b] of [['folder_fill','home_2_fill'],['teacup_fill','fork_knife_fill'],
+  ['run_fill','fitness_fill'],['camera_2_fill','film_fill'],
+  ['birthday_2_fill','celebrate_fill'],['cat_fill','dog_fill'],
+  ['recycle_fill','delete_2_fill']])assert.ok(nearby(a,b),a+' / '+b);
+});
+test('production vector paths keep evenodd fill rule and black hairline outlines',()=>{
+ const source=readFileSync(new URL('../scripts/build.js',import.meta.url),'utf8');
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
+ assert.match(source,/fill-rule="\(evenodd\|nonzero\)"/);
+ assert.match(source,/fillRule==='evenodd'\?\{d,fillRule\}:d/);
+ assert.match(app,/path\.fillRule==='evenodd'/);
+ assert.match(css,/\.preset-svg-icon path\{fill:currentColor;stroke:var\(--preset-icon-edge\)/);
+ assert.match(css,/stroke-width:1\.6/);
+ const built=spawnSync(process.execPath,['scripts/build.js'],{encoding:'utf8'});
+ assert.equal(built.status,0,built.stderr);
+ const dist=readFileSync(new URL('../dist/src/app.js',import.meta.url),'utf8');
+ for(const name of ['recycle_fill','cat_fill','emoji_fill','capsule_fill','teacup_fill']){
+  const match=dist.match(new RegExp('"'+name+'":\\[\\{"d":'));
+  assert.ok(match,name+' must embed its evenodd path');
  }
 });
