@@ -427,8 +427,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
    remains visible. Shadows would blur the contour and are intentionally absent. */
 .preset-svg-icon{display:inline-block;flex:0 0 auto;width:1em;height:1em;
  vertical-align:middle;overflow:visible;
- --preset-icon-edge:color-mix(in srgb,var(--text) 86%,transparent)}
-.preset-svg-icon.is-white{--preset-icon-edge:#15212be6}
+ --preset-icon-edge:#000}
 .preset-svg-icon path{fill:currentColor;stroke:var(--preset-icon-edge);
  stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;
  paint-order:stroke fill}

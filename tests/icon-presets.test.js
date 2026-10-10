@@ -98,7 +98,8 @@ test('toolbar, handlers, and clipping CSS are wired',()=>{
  assert.ok(css.includes('mask:var(--preset-svg) center / contain no-repeat'));
  assert.ok(css.includes('stroke-width:1.6'));
  assert.ok(css.includes('paint-order:stroke fill'));
- assert.match(css,/\.preset-svg-icon\.is-white\{--preset-icon-edge:/);
+ assert.match(css,/\.preset-svg-icon\{[^}]*--preset-icon-edge:#000\}/);
+ assert.doesNotMatch(css,/\.preset-svg-icon\.is-white\{--preset-icon-edge:/);
  assert.match(css,/\.dialog-body \.icon-tile-grid\{display:grid/);
  assert.match(app,/id="preset-edit-calendar"/);
  assert.match(css,/\.month-grid \.event-chip \.calendar-event-note\{[^}]*text-overflow:clip/);
@@ -175,6 +176,9 @@ test('preset icon outline is an actual SVG path stroke, not multiple drop shadow
  assert.match(css,/\.preset-svg-icon path\{fill:currentColor;stroke:var\(--preset-icon-edge\)/);
  assert.ok(css.includes('stroke-width:1.6'));
  assert.ok(css.includes('paint-order:stroke fill'));
+ assert.match(css,/--preset-icon-edge:#000/);
+ assert.doesNotMatch(css,/--preset-icon-edge:color-mix/);
+ assert.doesNotMatch(css,/\.preset-svg-icon\.is-white\{--preset-icon-edge:/);
  const cssFromSvg=css.slice(css.indexOf('/* v1.3.54: draw'),css.indexOf('.quick-preset .preset-svg-icon'));
  assert.doesNotMatch(cssFromSvg,/drop-shadow/);
  assert.ok(build.includes('icons/presets/${name}.svg'));
