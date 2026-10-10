@@ -16,6 +16,7 @@ import {dateTapAction,horizontalMonthSwipe,moveMonth} from './calendar-gestures.
 import {driveSettingsDigest,decideDriveSync} from './drive-sync.js';
 import {dishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {searchPlaces,filterPlaceCandidates,LOCATION_ATTRIBUTION} from './place-suggestions.js';
+import {getTomTomKey,setTomTomKey,searchTomTomPlaces} from './tomtom-places.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
 import {AIService} from './ai.js';
 import {catalog} from './catalog.js';
@@ -350,7 +351,13 @@ function openCalendarCreation(ruleId){
   <p class="hint">Googleカレンダーに新規作成して、編集中のプリセットの登録先に選びます。プリセット自体の登録は「決定」で行います。</p>`,
   button('戻る','return-preset-editor')+button('作成して選択','confirm-create-calendar','primary',`data-rule-id="${esc(ruleId)}"`));
 }
-function settingsScreen(){return `<section class="screen"><div class="settings-grid scroll"><section class="settings-card card"><h2>Googleカレンダー</h2><p>Googleでログインし、分類ごとのカレンダーを設定してください。</p>${!GOOGLE_CLIENT_ID?'<p class="hint">Googleログインの初期設定が完了していません。開発者による設定が必要です。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">この端末で接続を保持（有効期限内）</label></div><p class="hint">オンにすると短期のGoogle認証情報を端末のブラウザに保存し、アプリを閉じても期限内は認証画面を出さずに接続します。共有端末ではオフを推奨します。</p>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<label class="field"><span>カレンダーの自動更新間隔</span><select id="calendar-refresh-minutes">${CALENDAR_REFRESH_MINUTES.map(minutes=>`<option value="${minutes}" ${state.calendarRefreshMinutes===minutes?'selected':''}>${minutes===0?'自動更新しない':minutes+'分ごと'}</option>`).join('')}</select><small>画面の表示中、Googleに接続しているときだけ自動取得します。画面に戻ったときや通信復帰時も、更新間隔を過ぎていれば再取得します。入力途中の内容は変更しません。</small></label><label class="field"><span>履歴の取得開始日</span><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div><small>この日以降の履歴を料理マスターに利用します。取得対象は日本時間の日付基準です。</small></label>${button('履歴を再取得','sync','full',busy||!api.connected||!hasSyncedCalendars()?'disabled':'')}<p class="hint" style="margin-top:12px">接続を保持する場合、短期アクセストークンをブラウザに保存します。Googleカレンダーの内容は保存しません。認証の期限切れ時は、共通ステータスバーから再接続できます。</p></section><section class="settings-card card"><h2>他の端末へ設定を引き継ぐ</h2><p>Googleドライブのアプリ専用領域に設定をバックアップします。同じGoogleアカウントで復元してください。</p><div class="toolbar">${button('Driveにバックアップ','drive-save','mini primary')}${button('Driveから復元','drive-load','mini')}</div><p class="hint">分類・カレンダーの割り当て・生成ルール・配色・表示設定・手動登録した料理マスター・献立生成の下書きを共有します。調理実績やGoogleの認証情報は含みません。</p><div class="check-row"><input id="drive-auto" type="checkbox" ${drive.autoEnabled?'checked':''}><label for="drive-auto">Driveの設定を自動同期する（保存・読み込み）</label></div><div class="drive-sync-tools"><span id="drive-sync-state" class="hint" role="status"></span>${button('今すぐ同期','drive-sync-now','mini',drive.autoEnabled?'':'disabled')}</div><p class="hint">この端末で有効にすると、設定変更をDriveへ自動保存し、アプリ起動時・復帰時に他端末の変更を自動取得します。各端末で個別に有効化してください。初回はDriveに既存のバックアップがあればそちらを取り込みます。</p><p class="hint">同時変更で食い違った場合は自動上書きせず、手動で保存・復元を選べます。</p><p class="hint">認証は短時間だけ有効です。期限切れ後はステータスバーから再接続してください。バックグラウンドでは同期しません。手動保存・復元も引き続き利用できます。</p></section><section class="settings-card card"><h2>配色テーマ</h2><p>色と明るさを、それぞれ選べます。</p><div class="theme-options">${Object.entries(colors).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label><h3 style="margin-top:30px">候補と料理マスター</h3><div class="check-row"><input id="seed-enabled" type="checkbox" ${state.seedEnabled?'checked':''}><label for="seed-enabled">初期候補の料理を使う</label></div><p>初期候補は実績ではありません。過去の履歴はカレンダーから自動でまとめます。</p>${button('料理マスターを開く','master','full')}</section><section class="settings-card card"><h2>献立生成ルール</h2>${rulesFields()}</section><section class="settings-card card"><h2>料理の分類</h2><p>分類名を変えても、これまでの料理との対応は維持します。</p>${state.categories.map(c=>`<div class="category-row"><input aria-label="${esc(c.name)}の分類名" data-category-name="${c.id}" value="${esc(c.name)}" maxlength="20">${button('削除','remove-category','mini danger',`data-category="${c.id}" ${c.id==='main'?'disabled':''}`)}</div>`).join('')}${button('＋ 分類を追加','add-category','full')}<h2 style="margin-top:28px">AI拡張</h2><span class="tag neutral">${ai.available?'接続済み':'未設定'}</span><p style="margin-top:12px">献立選定と写真解析の接続基盤を用意しています。キーの保存方針が決まるまでは入力・保存しません。通常の献立管理はAIなしで利用できます。</p><h3>この端末のデータ</h3><p>分類・カレンダーの選択・下書き・表示設定は端末に保存します。認証期限が切れても、分類の設定は保持されます。実績の正本はGoogleカレンダーです。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"><p class="hint" style="margin-top:12px">書き出しには料理履歴を含みません。確定した料理の情報はGoogleカレンダーが正本です。</p></section>${additionalCalendarSettings()}</div></section>`;}
+function settingsScreen(){return `<section class="screen"><div class="settings-grid scroll"><section class="settings-card card"><h2>Googleカレンダー</h2><p>Googleでログインし、分類ごとのカレンダーを設定してください。</p>${!GOOGLE_CLIENT_ID?'<p class="hint">Googleログインの初期設定が完了していません。開発者による設定が必要です。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">この端末で接続を保持（有効期限内）</label></div><p class="hint">オンにすると短期のGoogle認証情報を端末のブラウザに保存し、アプリを閉じても期限内は認証画面を出さずに接続します。共有端末ではオフを推奨します。</p>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<label class="field"><span>カレンダーの自動更新間隔</span><select id="calendar-refresh-minutes">${CALENDAR_REFRESH_MINUTES.map(minutes=>`<option value="${minutes}" ${state.calendarRefreshMinutes===minutes?'selected':''}>${minutes===0?'自動更新しない':minutes+'分ごと'}</option>`).join('')}</select><small>画面の表示中、Googleに接続しているときだけ自動取得します。画面に戻ったときや通信復帰時も、更新間隔を過ぎていれば再取得します。入力途中の内容は変更しません。</small></label><label class="field"><span>履歴の取得開始日</span><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div><small>この日以降の履歴を料理マスターに利用します。取得対象は日本時間の日付基準です。</small></label>${button('履歴を再取得','sync','full',busy||!api.connected||!hasSyncedCalendars()?'disabled':'')}<p class="hint" style="margin-top:12px">接続を保持する場合、短期アクセストークンをブラウザに保存します。Googleカレンダーの内容は保存しません。認証の期限切れ時は、共通ステータスバーから再接続できます。</p></section><section class="settings-card card"><h2>他の端末へ設定を引き継ぐ</h2><p>Googleドライブのアプリ専用領域に設定をバックアップします。同じGoogleアカウントで復元してください。</p><div class="toolbar">${button('Driveにバックアップ','drive-save','mini primary')}${button('Driveから復元','drive-load','mini')}</div><p class="hint">分類・カレンダーの割り当て・生成ルール・配色・表示設定・手動登録した料理マスター・献立生成の下書きを共有します。調理実績やGoogleの認証情報は含みません。</p><div class="check-row"><input id="drive-auto" type="checkbox" ${drive.autoEnabled?'checked':''}><label for="drive-auto">Driveの設定を自動同期する（保存・読み込み）</label></div><div class="drive-sync-tools"><span id="drive-sync-state" class="hint" role="status"></span>${button('今すぐ同期','drive-sync-now','mini',drive.autoEnabled?'':'disabled')}</div><p class="hint">この端末で有効にすると、設定変更をDriveへ自動保存し、アプリ起動時・復帰時に他端末の変更を自動取得します。各端末で個別に有効化してください。初回はDriveに既存のバックアップがあればそちらを取り込みます。</p><p class="hint">同時変更で食い違った場合は自動上書きせず、手動で保存・復元を選べます。</p><p class="hint">認証は短時間だけ有効です。期限切れ後はステータスバーから再接続してください。バックグラウンドでは同期しません。手動保存・復元も引き続き利用できます。</p></section><section class="settings-card card"><h2>配色テーマ</h2><p>色と明るさを、それぞれ選べます。</p><div class="theme-options">${Object.entries(colors).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label><h3 style="margin-top:30px">候補と料理マスター</h3><div class="check-row"><input id="seed-enabled" type="checkbox" ${state.seedEnabled?'checked':''}><label for="seed-enabled">初期候補の料理を使う</label></div><p>初期候補は実績ではありません。過去の履歴はカレンダーから自動でまとめます。</p>${button('料理マスターを開く','master','full')}</section><section class="settings-card card"><h2>献立生成ルール</h2>${rulesFields()}</section><section class="settings-card card"><h2>料理の分類</h2><p>分類名を変えても、これまでの料理との対応は維持します。</p>${state.categories.map(c=>`<div class="category-row"><input aria-label="${esc(c.name)}の分類名" data-category-name="${c.id}" value="${esc(c.name)}" maxlength="20">${button('削除','remove-category','mini danger',`data-category="${c.id}" ${c.id==='main'?'disabled':''}`)}</div>`).join('')}${button('＋ 分類を追加','add-category','full')}<h2 style="margin-top:28px">AI拡張</h2><span class="tag neutral">${ai.available?'接続済み':'未設定'}</span><p style="margin-top:12px">献立選定と写真解析の接続基盤を用意しています。キーの保存方針が決まるまでは入力・保存しません。通常の献立管理はAIなしで利用できます。</p><h3>この端末のデータ</h3><p>分類・カレンダーの選択・下書き・表示設定は端末に保存します。認証期限が切れても、分類の設定は保持されます。実績の正本はGoogleカレンダーです。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"><p class="hint" style="margin-top:12px">書き出しには料理履歴を含みません。確定した料理の情報はGoogleカレンダーが正本です。</p></section><section class="settings-card card"><h2>場所の検索（無料）</h2>
+<p>店舗名・支店名・住所のサジェストには、支払い方法の登録が不要なTomTom Places Searchを利用できます。月10,000回の無料検索枠があります。</p>
+<p class="hint">利用するには <a href="https://my.tomtom.com/" target="_blank" rel="noopener noreferrer">TomTomの無料アカウント</a>でAPIキーを発行してください。キーはこの端末にだけ保存し、GitHubやGoogle Driveのバックアップには含めません。TomTom側で利用サイトを <code>https://suzu2384.github.io</code> に制限してください。</p>
+<label class="field"><span>TomTom Places APIキー（${getTomTomKey()?'設定済み':'未設定' }）</span><input id="tomtom-place-key" type="password" placeholder="${getTomTomKey()?'変更する場合だけ入力':'APIキーを入力'}" autocomplete="off" spellcheck="false"></label>
+<div class="toolbar">${button('APIキーを保存','save-tomtom-key','mini primary')}${button('APIキーを削除','clear-tomtom-key','mini danger',getTomTomKey()?'':'disabled')}</div>
+<p class="hint">未設定時や通信できない場合は従来のPhoton検索に戻ります。無料枠を超えた場合は検索が制限されます。候補を選ばず直接入力して保存することもできます。</p></section>${additionalCalendarSettings()}</div></section>`;}
+
 function modal(title,body,foot=''){ $('#dialog-content').innerHTML=`<div class="dialog-head"><h2>${title}</h2>${button('×','close-dialog','icon-button','aria-label="閉じる"')}</div><div class="dialog-body">${body}<p class="form-error" id="dialog-error" role="alert"></p></div>${foot?`<div class="dialog-foot">${foot}</div>`:''}`;if(!$('#dialog').open)$('#dialog').showModal();}
 function closeModal(){cancelPlaceLookup();$('#dialog').close();editor=null;presetEditDraft=null;presetEditOriginalId=null;}
 function categoryOptions(selectedId){return state.categories.map(c=>`<option value="${esc(c.id)}" ${c.id===selectedId?'selected':''}>${esc(c.name)}</option>`).join('');}
@@ -485,21 +492,33 @@ function queuePlaceLookup(field,{immediate=false}={}){
   const controller=new AbortController();placeRequestAbort=controller;
   lastPlaceRequest=Date.now();
   try{
-   const places=await searchPlaces(query,{
-    signal:controller.signal,online:!!navigator.onLine,
-    seed:[...placeCandidatePool.values()],
-    onCandidates:batch=>{
-     if(id!==placeRequestId||!field.isConnected)return;
-     rememberPlaceCandidates(batch);
-     const interim=filterPlaceCandidates([...placeCandidatePool.values()],query);
-     if(interim.length)showPlaceChoices(field,interim);
+   let places=[],tomtomSucceeded=false,tomtomError='';
+   if(getTomTomKey()){
+    try{
+     places=await searchTomTomPlaces(query,{signal:controller.signal});
+     tomtomSucceeded=places.length>0;
+    }catch(error){
+     if(error?.name==='AbortError')throw error;
+     tomtomError=error.message;
     }
-   });
+   }
+   if(!tomtomSucceeded){
+    places=await searchPlaces(query,{
+     signal:controller.signal,online:!!navigator.onLine,
+     seed:[...placeCandidatePool.values()],
+     onCandidates:batch=>{
+      if(id!==placeRequestId||!field.isConnected)return;
+      rememberPlaceCandidates(batch);
+      const interim=filterPlaceCandidates([...placeCandidatePool.values()],query);
+      if(interim.length)showPlaceChoices(field,interim);
+     }
+    });
+   }
    if(id!==placeRequestId||!field.isConnected||field.value.trim()!==query)return;
    if(placeCache.size>=25)placeCache.delete(placeCache.keys().next().value);
    placeCache.set(query,places);showPlaceChoices(field,places);
-   updatePlaceSearchMessage(places.length?'店舗名・住所にすべてのキーワードが一致する候補です。':
-    '一致する候補がありません。キーワードを減らすか、場所をそのまま保存できます。');
+   updatePlaceSearchMessage(places.length?(tomtomSucceeded?'TomTomの店舗候補です。':'店舗名・住所にすべてのキーワードが一致する候補です。'):
+    (tomtomError?'TomTomを利用できず、予備検索にも候補がありません。':'一致する候補がありません。')+' 入力した場所はそのまま保存できます。');
   }catch(error){
    if(id===placeRequestId&&error?.name!=='AbortError')
     updatePlaceSearchMessage('候補を取得できませんでした。入力した場所はそのまま保存できます。');
@@ -887,6 +906,16 @@ async function selectCalendarDate(date){
 }
 const actions={
  'flush-presets':()=>flushPendingPresets(),
+ 'save-tomtom-key':()=>{
+  const key=$('#tomtom-place-key')?.value.trim();
+  if(!key)throw Error('TomTomのAPIキーを入力してください。');
+  setTomTomKey(key);placeCache.clear();placeCandidatePool.clear();
+  notify('TomTomのAPIキーをこの端末に保存しました。');render();
+ },
+ 'clear-tomtom-key':()=>{
+  setTomTomKey('');placeCache.clear();placeCandidatePool.clear();
+  notify('TomTomのAPIキーをこの端末から削除しました。');render();
+ },
  'confirm-create-calendar':async b=>{
   if(calendarCreationBusy)return;
   const rule=presetEditDraft;
