@@ -151,7 +151,6 @@ function updateConnection(){
  $('#connection').setAttribute('aria-label',$('#connection').title);
  $('#connection').disabled=busy||preparing;
  $('#connection').classList.toggle('online',connected);
- $('#sync').disabled=busy||!connected||!hasSyncedCalendars();
 }
 let renderedViewTab='',renderedCalendarMonth='';
 function render(){
@@ -283,7 +282,7 @@ function generateScreen(){
   <label><input aria-label="生成日数" type="number" id="days" min="1" max="31" value="${state.rules.days}">日分</label>
   <select aria-label="選定モード" id="generate-mode"><option value="rules">ルールベース</option value="ai" ${ai.available?'':'disabled'}>AI${ai.available?'':'（未設定）'}</option></select>
   ${button('生成','generate','primary mini')}
-  ${button('ルール調整','rules','text-button mini')}${button('料理マスター','master','text-button mini')}
+  ${button('ルール調整','rules','text-button mini')}
  </div>
  ${issues.length?`<div class="issues"><strong>条件に合う候補が足りない場合があります</strong><ul>${issues.map(s=>`<li>${esc(s.replace(/：([a-z0-9-]+)の/g,(_,c)=>'：'+categoryName(c)+'の'))}</li>`).join('')}</ul><p>料理を追加するか、直近の除外日数・1日あたりの品数を減らして再生成できます。重複許可は設定から明示的に変更してください。</p>${button('条件を変更','rules','mini')} ${button('料理を追加','add-master','mini')}</div>`:''}
  <div class="plan-grid compact-plan-grid scroll">
@@ -1353,7 +1352,6 @@ document.addEventListener('touchcancel',()=>{
 },{passive:true});
 // The login action directly starts the OAuth popup from the first enabled tap.
 $('#connection').addEventListener('click',()=>run(api.connected?'settings':'connect'));
-$('#sync').addEventListener('click',()=>run('sync'));
 $('#dialog').addEventListener('cancel',()=>{editor=null;presetEditDraft=null;presetEditOriginalId=null;});
 document.addEventListener('input',e=>{const el=e.target;
  if(el.id==='preset-edit-color'){updatePresetEditorIconPreview();return;}

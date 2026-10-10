@@ -154,3 +154,18 @@ test('non-Web-Animations browsers defer the CSS transition until a layout frame'
  assert.equal(context.month.getMonth(),8);
  assert.equal(renders,1);
 });
+
+test('tab captions are concise and header sync plus generator master buttons are hidden',()=>{
+ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ assert.match(html,/data-tab="calendar"[^<]*><span[^>]*><\/span>カレンダー<\/button>/);
+ assert.match(html,/data-tab="generate"[^<]*><span[^>]*><\/span>献立<\/button>/);
+ assert.match(html,/data-tab="photo"[^<]*><span[^>]*><\/span>記録<\/button>/);
+ assert.match(html,/data-tab="settings"[^<]*><span[^>]*><\/span>設定<\/button>/);
+ assert.doesNotMatch(html,/id="sync"|献立生成<\/button>|実績登録<\/button>/);
+ assert.doesNotMatch(app,/\$\('#sync'\)/);
+ const generator=app.slice(app.indexOf('function generateScreen()'),app.indexOf('function photoScreen()'));
+ assert.doesNotMatch(generator,/料理マスター|data-action="master"/);
+ assert.match(app,/button\('料理マスターを開く','master','full'\)/);
+ assert.match(app,/function autoRefreshCalendar\(\)/);
+ assert.match(app,/'refresh-calendars':async/);
+});
