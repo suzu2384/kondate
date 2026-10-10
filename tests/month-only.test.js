@@ -31,7 +31,8 @@ test('place input uses limited online search, attribution, native free-text and 
  assert.match(app,/id="place-suggestions"/);
  assert.match(app,/id="place-popup"/);
  assert.match(app,/searchPlaces\(query,/);
- assert.match(app,/pickPlaceSuggestion\(locationChoice\)/);
+ assert.match(app,/'pick-location':pickPlaceSuggestion/);
+ assert.doesNotMatch(app,/pickPlaceSuggestion\(locationChoice\)/);
  assert.match(app,/field\.value=name;editor\.location=name/);
  assert.match(app,/Array\.from\(query\)\.length<2/);
  assert.doesNotMatch(app,/data-action="search-place"/);
