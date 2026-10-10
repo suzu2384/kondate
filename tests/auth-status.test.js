@@ -4,10 +4,13 @@ import {readFileSync} from 'node:fs';
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 test('authentication warning takes priority over ordinary status messages',()=>{
- assert.match(app,/const message=warning\?LOGIN_WARNING:driveWarning\?/);
+ assert.match(app,/const message=warning&&driveWarning\?/);
  assert.match(app,/classList\.toggle\('auth-required',warning\|\|driveWarning\)/);
- assert.match(app,/LOGIN_WARNING='⚠ Googleの再認証が必要です/);
- assert.match(app,/api\.reauthenticationRequired&&!api\.connected\)return actions\.connect\(\)/);
+ assert.match(app,/カレンダーとDriveの再認証が必要です/);
+ assert.match(app,/カレンダーの再認証が必要です/);
+ assert.match(app,/Driveの再認証が必要です/);
+ assert.match(app,/expiredGoogleServices\(api,drive\)/);
+ assert.match(app,/if\(expired\.calendar\|\|expired\.drive\)return reauthenticateExpiredGoogle\(\)/);
 });
 test('persistent connection is an opt-in setting with a prominent status alert',()=>{
  assert.match(app,/id="keep-connected"/);

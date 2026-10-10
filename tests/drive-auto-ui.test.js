@@ -22,7 +22,8 @@ test('cloud updates are never automatically overwritten if local edits are pendi
 });
 test('Drive status notices stay a single line without changing the page height',()=>{
  assert.match(app,/driveWarning/);
- assert.match(app,/Driveの自動同期は停止中/);
+ assert.match(app,/Driveの再認証が必要です/);
+ assert.match(app,/カレンダーとDriveの再認証が必要です/);
  assert.match(css,/#notice\.status-message\{/);
  assert.match(css,/white-space:nowrap;text-align:left/);
  assert.match(css,/text-overflow:ellipsis/);
