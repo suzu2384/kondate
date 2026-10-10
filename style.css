@@ -715,3 +715,28 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  border-top:1px solid var(--line)
 }
 #dialog-content #place-search-sheet #place-popup .place-popup-attribution{display:none}
+
+/* Center the year/month independently of the unequal side controls. */
+.month-heading{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;column-gap:3px}
+.month-heading .calendar-switch-button{grid-column:1;grid-row:1;justify-self:start}
+.month-heading .month-picker-trigger{grid-column:2;grid-row:1;justify-self:center;white-space:nowrap}
+.month-heading .toolbar{grid-column:3;grid-row:1;justify-self:end;flex-wrap:nowrap;gap:3px}
+.month-heading .toolbar button,.month-heading .calendar-switch-button{
+ display:inline-flex;align-items:center;justify-content:center;
+ height:34px;min-height:34px;box-sizing:border-box;line-height:1;padding:4px 8px
+}
+.month-heading .calendar-switch-button{min-width:34px;font-size:21px}
+/* Three full-size month panels: translate the strip itself, not individual days. */
+.month-grid-viewport{position:relative;flex:1 1 auto;min-height:0;min-width:0;overflow:hidden;touch-action:pan-y;overscroll-behavior-x:contain}
+.month-grid-track{display:flex;width:100%;height:100%;min-height:0;transform:translate3d(-100%,0,0);will-change:transform}
+.month-grid-track>.month-grid{flex:0 0 100%;width:100%;height:100%;min-height:0;overflow:hidden}
+.month-grid-neighbor{pointer-events:none}
+.extra-calendar-list{display:flex;flex-direction:column;gap:2px;margin:12px 0}
+.extra-calendar-list .check-row{margin:0;padding:9px 3px;min-height:44px}
+.extra-calendar-list .check-row span{overflow-wrap:anywhere}
+@media(max-width:760px){
+ .month-heading .toolbar{gap:2px}
+ .month-heading .toolbar button,.month-heading .calendar-switch-button{height:32px;min-height:32px;padding:3px 6px}
+ .month-heading .calendar-switch-button{min-width:32px;font-size:19px}
+}
+@media(prefers-reduced-motion:reduce){.month-grid-track{will-change:auto}}

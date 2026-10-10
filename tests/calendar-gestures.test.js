@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {dateTapAction,horizontalMonthSwipe,moveMonth} from '../src/calendar-gestures.js';
+import {dateTapAction,horizontalMonthSwipe,monthSnapOffset,moveMonth} from '../src/calendar-gestures.js';
 
 test('a highlighted date opens its details immediately on a single tap',()=>{
  const today='2026-10-09';
@@ -36,4 +36,13 @@ test('month navigation advances across year boundaries without date overflow',()
  const fromEndOfMonth=moveMonth(new Date(2026,0,31,12),1);
  assert.equal(fromEndOfMonth.getMonth(),1);
  assert.equal(fromEndOfMonth.getDate(),1);
+});
+
+test('month snap respects drag length, direction, and viewport width',()=>{
+ assert.equal(monthSnapOffset(30,360),0);
+ assert.equal(monthSnapOffset(-90,360),1);
+ assert.equal(monthSnapOffset(90,360),-1);
+ assert.equal(monthSnapOffset(-110,800),0);
+ assert.equal(monthSnapOffset(-120,800),1);
+ assert.equal(monthSnapOffset(0,0),0);
 });

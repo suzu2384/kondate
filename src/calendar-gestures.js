@@ -14,6 +14,12 @@ export function horizontalMonthSwipe(start,end){
  if(Math.abs(dx)<55||Math.abs(dx)<=Math.abs(dy)*1.4)return 0;
  return dx<0?1:-1;
 }
+// A proportional distance threshold, bounded for both narrow phones and wide tablets.
+export function monthSnapOffset(dx,width){
+ if(!Number.isFinite(dx)||!Number.isFinite(width)||width<=0)return 0;
+ const threshold=Math.min(120,Math.max(55,width*0.22));
+ return Math.abs(dx)>=threshold?(dx<0?1:-1):0;
+}
 export function moveMonth(date,offset){
  return new Date(date.getFullYear(),date.getMonth()+offset,1,12);
 }

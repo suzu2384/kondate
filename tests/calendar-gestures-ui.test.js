@@ -14,13 +14,29 @@ test('calendar opens an already selected date on one tap without forcing touch f
  assert.match(app,/aria-pressed="\$\{date===selected\}"/);
  assert.doesNotMatch(app,/lastTappedCalendarDate/);
 });
-test('swipe navigation is confined to the calendar grid, horizontal only and cancels tap',()=>{
- assert.match(app,/\.month-grid'\)/);
- assert.match(app,/horizontalMonthSwipe\(start,/);
- assert.match(app,/ignoreDateClickUntil=Date\.now\(\)\+350/);
+test('month strip tracks the finger and snaps or returns on release',()=>{
+ assert.match(app,/\.month-grid-current/);
+ assert.match(app,/\.month-grid-viewport/);
+ assert.match(app,/monthSnapOffset\(touch\.clientX-start\.x,start\.width\)/);
+ assert.match(app,/track\.style\.transform=/);
+ assert.match(app,/settleCalendarSwipe\(offset\)/);
+ assert.match(app,/ignoreDateClickUntil=Date\.now\(\)\+450/);
  assert.match(app,/if\(e\.cancelable\)e\.preventDefault\(\)/);
  assert.match(app,/document\.addEventListener\('touchcancel'/);
  assert.match(css,/\.calendar-card \.month-grid\{touch-action:pan-y/);
+ assert.match(css,/\.month-grid-track\{display:flex/);
+});
+test('month title is centered, month controls share a height, and extras use a dialog',()=>{
+ const heading=app.slice(app.indexOf('function calendarScreen()'),app.indexOf('function patchCalendarCells()'));
+ assert.match(heading,/data-action="open-month-picker"/);
+ assert.match(heading,/open-extra-calendars/);
+ assert.match(app,/function openExtraCalendarPicker\(\)/);
+ assert.match(app,/data-extra-calendar/);
+ assert.match(css,/\.month-heading\{display:grid;grid-template-columns:minmax\(0,1fr\) auto minmax\(0,1fr\)/);
+ assert.match(css,/\.month-heading \.toolbar button,\.month-heading \.calendar-switch-button/);
+ const settings=app.slice(app.indexOf('function additionalCalendarSettings()'),app.indexOf('function capturePresetEditorFields()'));
+ assert.doesNotMatch(settings,/その他のカレンダー表示|data-extra-calendar/);
+ assert.match(settings,/アイコンと予定プリセット/);
 });
 test('calendar month navigation, including arrows, uses rollover-safe function',()=>{
  assert.match(app,/'prev-month':\(\)=>shiftCalendarMonth\(-1\)/);
