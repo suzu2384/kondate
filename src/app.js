@@ -15,7 +15,7 @@ import {expiredGoogleServices,renewExpiredGoogleServices} from './google-reauth.
 import {dateTapAction,horizontalMonthSwipe,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync} from './drive-sync.js';
 import {dishSuggestions,selectRecordDish} from './dish-suggestions.js';
-import {searchPlaces,LOCATION_ATTRIBUTION} from './place-suggestions.js';
+import {searchPlaces,filterPlaceCandidates,LOCATION_ATTRIBUTION} from './place-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
 import {AIService} from './ai.js';
 import {catalog} from './catalog.js';
@@ -366,7 +366,15 @@ function dishRows(dishes){
 }
 // Debounced suggestions prevent firing a public geocoding request per keystroke.
 let placeRequestTimer=null,placeRequestAbort=null,placeRequestId=0,lastPlaceRequest=0;
-const placeCache=new Map();
+const placeCache=new Map(),placeCandidatePool=new Map();
+function rememberPlaceCandidates(batch){
+ for(const place of batch){
+  const key=place.value+'|'+place.detail;
+  if(placeCandidatePool.has(key))placeCandidatePool.delete(key);
+  placeCandidatePool.set(key,place);
+ }
+ while(placeCandidatePool.size>300)placeCandidatePool.delete(placeCandidatePool.keys().next().value);
+}
 function cancelPlaceLookup(){
  if(placeRequestTimer!==null)clearTimeout(placeRequestTimer);
  placeRequestTimer=null;placeRequestAbort?.abort();placeRequestAbort=null;placeRequestId++;
@@ -420,10 +428,12 @@ function queuePlaceLookup(field,{immediate=false}={}){
   updatePlaceSearchMessage('オフラインのため候補を取得できません。入力した場所はそのまま保存できます。');
   return;
  }
+ const seeded=filterPlaceCandidates([...placeCandidatePool.values()],query);
+ if(seeded.length)showPlaceChoices(field,seeded);
  const cached=placeCache.get(query);
  if(cached){
   showPlaceChoices(field,cached);
-  updatePlaceSearchMessage(cached.length?'店舗名と住所を確認して選択してください。':'候補が見つかりません。地域名を加えるか、そのまま保存できます。');
+  updatePlaceSearchMessage(cached.length?'店舗名・住所にすべてのキーワードが一致する候補です。':'候補が見つかりません。入力を短くするか、そのまま保存できます。');
   return;
  }
  const id=placeRequestId;
@@ -435,12 +445,21 @@ function queuePlaceLookup(field,{immediate=false}={}){
   const controller=new AbortController();placeRequestAbort=controller;
   lastPlaceRequest=Date.now();
   try{
-   const places=await searchPlaces(query,{signal:controller.signal,online:!!navigator.onLine});
+   const places=await searchPlaces(query,{
+    signal:controller.signal,online:!!navigator.onLine,
+    seed:[...placeCandidatePool.values()],
+    onCandidates:batch=>{
+     if(id!==placeRequestId||!field.isConnected)return;
+     rememberPlaceCandidates(batch);
+     const interim=filterPlaceCandidates([...placeCandidatePool.values()],query);
+     if(interim.length)showPlaceChoices(field,interim);
+    }
+   });
    if(id!==placeRequestId||!field.isConnected||field.value.trim()!==query)return;
    if(placeCache.size>=25)placeCache.delete(placeCache.keys().next().value);
    placeCache.set(query,places);showPlaceChoices(field,places);
-   updatePlaceSearchMessage(places.length?'店舗名と住所を確認して選択してください。':
-    '候補が見つかりません。店名の後ろに地域や駅名を追加するか、そのまま保存できます。');
+   updatePlaceSearchMessage(places.length?'店舗名・住所にすべてのキーワードが一致する候補です。':
+    '一致する候補がありません。キーワードを減らすか、場所をそのまま保存できます。');
   }catch(error){
    if(id===placeRequestId&&error?.name!=='AbortError')
     updatePlaceSearchMessage('候補を取得できませんでした。入力した場所はそのまま保存できます。');
@@ -488,7 +507,7 @@ function openRecord(record=null,{date=today(),dishes=null}={}){
  editor=record?structuredClone(record):{id:uid(),date,status:'actual',location:'',dishes:dishes?structuredClone(dishes):[{name:'',category:'main'}],owned:true,new:true,scope:scopeKey()};
  editor.scope??=scopeKey();editor.location??=editor.raw?.location||'';editor.status='actual';drawRecord();
 }
-function drawRecord(){cancelPlaceLookup();const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><span class="dialog-date-control"><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></span></label><div class="field place-field"><label for="record-location" class="place-input-label">場所（任意・外食の場合に入力）</label><input id="record-location" type="text" value="${esc(editor.location||'')}" placeholder="店名・施設名（地域名も入力可）" maxlength="500" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><small>入力すると候補が自動で表示されます。店舗を絞るには「店名 地域名」のようにスペースで区切って入力。候補を選ばず、そのまま保存することもできます。</small><div id="place-popup" class="place-popup" hidden><p id="place-search-status" class="place-search-status" role="status" aria-live="polite"></p><div id="place-suggestions" class="place-suggestions" role="listbox" aria-label="場所の候補"></div></div><small class="place-attribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> / <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a>。地図データに未登録の店舗は候補に出ません。</small></div><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);
+function drawRecord(){cancelPlaceLookup();const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><span class="dialog-date-control"><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></span></label><div class="field place-field"><label for="record-location" class="place-input-label">場所（任意・外食の場合に入力）</label><input id="record-location" type="text" value="${esc(editor.location||'')}" placeholder="店名・支店名・住所で検索" maxlength="500" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><small>入力すると候補が自動表示されます。店名・支店名・住所の断片をスペースで区切ると、入力順に関係なくすべて含む候補に絞れます。候補を選ばず自由入力で保存することもできます。</small><div id="place-popup" class="place-popup" hidden><p id="place-search-status" class="place-search-status" role="status" aria-live="polite"></p><div id="place-suggestions" class="place-suggestions" role="listbox" aria-label="場所の候補"></div></div><small class="place-attribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> / <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a>。地図データに未登録の店舗は候補に出ません。</small></div><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);
  const popup=$('#place-popup');
  if(popup)$('#dialog-content').appendChild(popup);
 }

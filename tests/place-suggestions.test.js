@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {formatPlace,placesFromPhoton,searchPlaces,splitPlaceQuery,LOCATION_ATTRIBUTION} from '../src/place-suggestions.js';
+import {formatPlace,placesFromPhoton,searchPlaces,splitPlaceQuery,placeKeywords,filterPlaceCandidates,matchesPlaceKeywords,LOCATION_ATTRIBUTION} from '../src/place-suggestions.js';
 
 const response={features:[
  {properties:{name:'食堂みどり',street:'本町通り',city:'習志野市',state:'千葉県'}},
@@ -21,12 +21,12 @@ test('Photon suggestions deduplicate and include a readable place label',()=>{
 test('online search encodes Japanese input, caps suggestions and is aborted by caller',async()=>{
  let calls=0;
  const controller=new AbortController();
- const suggestions=await searchPlaces('レストラン',{
+ const suggestions=await searchPlaces('食堂',{
   signal:controller.signal,fetcher:async(url,opt)=>{
    calls++;
    const parsed=new URL(url);
    assert.equal(parsed.host,'photon.komoot.io');
-   assert.equal(parsed.searchParams.get('q'),'レストラン');
+   assert.equal(parsed.searchParams.get('q'),'食堂');
    assert.equal(parsed.searchParams.get('lang'),null,'invalid pseudo-language must not be sent');
    assert.equal(opt.signal,controller.signal);
    return {ok:true,json:async()=>response};
@@ -68,7 +68,7 @@ test('unknown optional region is included in fallback search without assuming us
   const u=new URL(url);calls.push(u.searchParams.get('q'));
   return {ok:true,json:async()=>({features:[]})};
  }});
- assert.deepEqual(calls,['指定地域','吉野家 指定地域']);
+ assert.deepEqual(calls,['指定地域','吉野家']);
 });
 
 test('single-field query splits optional location suffix, including full-width whitespace',()=>{
@@ -81,24 +81,95 @@ test('single-field "business area" searches nearby without a preset location',as
  const calls=[];
  const results=await searchPlaces('吉野家　津田沼',{fetcher:async url=>{
   const u=new URL(url);calls.push(u);
-  return {ok:true,json:async()=>calls.length===1?
-   {features:[{geometry:{coordinates:[140.01,35.69]}}]}:
-   {features:[{properties:{name:'吉野家',city:'習志野市',street:'駅前通り'}}]}};
+  const q=u.searchParams.get('q');
+  return {ok:true,json:async()=>q==='津田沼'?
+   {features:[{geometry:{coordinates:[140.01,35.69]},properties:{name:'津田沼駅',osm_key:'railway',osm_value:'station'}}]}:
+   q==='吉野家'?
+   {features:[{properties:{name:'吉野家',city:'津田沼市',street:'駅前通り'}}]}:
+   {features:[]}};
  }});
- assert.equal(calls.length,2);
- assert.equal(calls[0].searchParams.get('q'),'津田沼');
- assert.equal(calls[1].searchParams.get('q'),'吉野家');
- assert.equal(calls[1].searchParams.get('location_bias_scale'),'0.8');
+ assert.deepEqual(calls.map(x=>x.searchParams.get('q')),['吉野家 津田沼','津田沼','吉野家']);
+ assert.equal(calls[2].searchParams.get('location_bias_scale'),'0.2');
  assert.match(results[0].value,/駅前通り/);
 });
 
 test('branch suffix in the same input resolves the locality rather than searching for a place ending in 店',async()=>{
  const calls=[];
  const found=await searchPlaces('吉野家 津田沼店',{fetcher:async url=>{
-  const params=new URL(url).searchParams;calls.push(params.get('q'));
-  if(calls.length===1)return {ok:true,json:async()=>({features:[{geometry:{coordinates:[140.0,35.7]}}]})};
-  return {ok:true,json:async()=>({features:[{properties:{name:'吉野家 津田沼店',city:'習志野市'}}]})};
+  const params=new URL(url).searchParams,q=params.get('q');calls.push(q);
+  return {ok:true,json:async()=>q==='津田沼'?
+   {features:[{properties:{name:'津田沼',osm_key:'place',osm_value:'city'},geometry:{coordinates:[140,35.7]}}]}:
+   q==='吉野家'?
+   {features:[{properties:{name:'吉野家 津田沼店',city:'習志野市'}}]}:
+   {features:[]}};
  }});
- assert.deepEqual(calls,['津田沼','吉野家']);
+ assert.deepEqual(calls,['吉野家 津田沼店','津田沼','吉野家']);
  assert.match(found[0].name,/津田沼店/);
+});
+
+test('AND matches arbitrary store-name, branch-name and address fragments in any order',()=>{
+ const entries=placesFromPhoton({features:[
+  {properties:{name:'吉野家 船橋本町店',state:'千葉県',city:'船橋市',district:'本町',street:'駅前通り'}},
+  {properties:{name:'吉野家 船橋北口店',state:'千葉県',city:'船橋市',district:'北口',street:'駅前通り'}},
+  {properties:{name:'吉野家 本町店',city:'千代田区',district:'本町'}},
+  {properties:{name:'牛丼屋',state:'千葉県',city:'船橋市',district:'本町'}}
+ ]});
+ for(const query of ['船橋 本町 吉野家','吉野家 船橋 本町','本町 吉野家 船橋','吉野家 本町 船橋']){
+  assert.deepEqual(filterPlaceCandidates(entries,query).map(x=>x.name),['吉野家 船橋本町店'],query);
+ }
+ assert.deepEqual(filterPlaceCandidates(entries,'吉野家 駅前').map(x=>x.name),
+   ['吉野家 船橋本町店','吉野家 船橋北口店']);
+ assert.equal(matchesPlaceKeywords(entries[0],'千葉県船橋市'),true,'joined address fields match contiguous fragments');
+ assert.equal(matchesPlaceKeywords(entries[0],'津田沼 吉野家'),false);
+ assert.equal(matchesPlaceKeywords(entries[0],'吉野家 本町店'),true);
+ assert.deepEqual(placeKeywords(' 吉野家　船橋   本町 '),['吉野家','船橋','本町']);
+});
+test('autocomplete keeps cached candidates and filters them immediately as terms are added',async()=>{
+ const candidates=placesFromPhoton({features:[
+  {properties:{name:'吉野家 船橋本町店',city:'船橋市',district:'本町'}},
+  {properties:{name:'吉野家 新宿店',city:'新宿区'}},
+ ]});
+ const sources=[];
+ const result=await searchPlaces('船橋 吉野家 本町',{
+  seed:candidates,
+  fetcher:async url=>{
+   sources.push(new URL(url).searchParams.get('q'));
+   return {ok:true,json:async()=>({features:[]})};
+  }
+ });
+ assert.deepEqual(result.map(x=>x.name),['吉野家 船橋本町店']);
+ assert.equal(sources[0],'船橋 吉野家 本町');
+});
+test('reversed locality and business keywords resolve a focus without assuming input order',async()=>{
+ const recorded=[];
+ const shop={properties:{name:'吉野家 津田沼駅前店',city:'習志野市',street:'津田沼駅前通り',district:'津田沼'},
+  geometry:{coordinates:[140.04,35.69]}};
+ for(const input of ['吉野家 津田','津田 吉野家']){
+  const calls=[];
+  const matches=await searchPlaces(input,{fetcher:async url=>{
+   const args=new URL(url).searchParams,q=args.get('q');calls.push(q);
+   if(q==='津田')return {ok:true,json:async()=>({features:[{properties:{name:'津田沼駅',osm_key:'railway',osm_value:'station'},geometry:{coordinates:[140.04,35.69]}}]})};
+   if(q==='吉野家'&&args.has('lon'))return {ok:true,json:async()=>({features:[shop]})};
+   if(q==='吉野家')return {ok:true,json:async()=>({features:[{properties:{name:'吉野家',osm_key:'shop',osm_value:'yes'},geometry:{coordinates:[139.1,35.1]}}]})};
+   return {ok:true,json:async()=>({features:[]})};
+  }});
+  recorded.push(calls);
+  assert.deepEqual(matches.map(p=>p.name),['吉野家 津田沼駅前店'],input);
+ }
+ assert.equal(recorded[0].at(-1),'吉野家');
+ assert.equal(recorded[1].at(-1),'吉野家');
+});
+test('city, district and business triple search expands nearby candidate retrieval',async()=>{
+ const calls=[];
+ const results=await searchPlaces('船橋 本町 吉野家',{fetcher:async url=>{
+  const params=new URL(url).searchParams,q=params.get('q');calls.push(q);
+  if(q==='本町')return {ok:true,json:async()=>({features:[{properties:{name:'本町',osm_key:'place',osm_value:'suburb'},geometry:{coordinates:[139.99,35.69]}}]})};
+  if(q==='吉野家')return {ok:true,json:async()=>({features:[
+   {properties:{name:'吉野家 船橋本町店',city:'船橋市',district:'本町'}},
+   {properties:{name:'吉野家 市川店',city:'市川市',district:'本町'}}
+  ]})};
+  return {ok:true,json:async()=>({features:[]})};
+ }});
+ assert.deepEqual(results.map(x=>x.name),['吉野家 船橋本町店']);
+ assert.ok(calls.includes('吉野家'));
 });

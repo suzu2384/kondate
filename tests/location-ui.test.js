@@ -26,8 +26,8 @@ test('one-field location typeahead is region-neutral and keeps candidates inline
  const dialog=app.slice(app.indexOf('function drawRecord(){'),app.indexOf('async function saveRecord()'));
  assert.doesNotMatch(dialog,/id="place-search-area"/);
  assert.doesNotMatch(dialog,/data-action="search-place"/);
- assert.match(dialog,/「店名 地域名」/);
- assert.match(dialog,/入力すると候補が自動で表示/);
+ assert.match(dialog,/店名・支店名・住所の断片/);
+ assert.match(dialog,/入力すると候補が自動表示/);
  assert.match(dialog,/id="place-search-status"/);
  assert.doesNotMatch(dialog,/placeholder="津田沼"/);
  assert.match(app,/function queuePlaceLookup\(field,\{immediate=false\}=\{\}\)/);
@@ -46,4 +46,13 @@ test('place suggestions are portaled outside the scrolling form and selected onl
  assert.match(app,/globalThis\.visualViewport\?\.addEventListener\('resize',positionPlaceSuggestions\)/);
  assert.doesNotMatch(gestures,/pickPlaceSuggestion\(/);
  assert.match(app,/'pick-location':pickPlaceSuggestion/);
+});
+
+test('typeahead filters cached Photon candidates before the network returns',()=>{
+ assert.match(app,/placeCandidatePool=new Map\(\)/);
+ assert.match(app,/const seeded=filterPlaceCandidates\(\[\.\.\.placeCandidatePool\.values\(\)\],query\)/);
+ assert.match(app,/onCandidates:batch=>\{/);
+ assert.match(app,/rememberPlaceCandidates\(batch\)/);
+ assert.match(app,/seed:\[\.\.\.placeCandidatePool\.values\(\)\]/);
+ assert.match(app,/入力順に関係なくすべて含む候補/);
 });
