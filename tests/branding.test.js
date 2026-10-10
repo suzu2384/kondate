@@ -11,8 +11,8 @@ test('KonDate title, header wordmark and installed app name match',()=>{
  assert.equal(manifest.short_name,'KonDate');
  assert.ok(manifest.icons.every(icon=>icon.src.endsWith('?v=1.3.63')));
  assert.match(manifest.description,/献立.*予定/);
- assert.match(html,/rel="apple-touch-icon" href="\.\/icons\/apple-touch-icon\.png\?v=1\.3\.62"/);
- assert.match(html,/rel="icon" href="\.\/icons\/icon\.svg\?v=1\.3\.62"/);
+ assert.match(html,/rel="apple-touch-icon" href="\.\/icons\/apple-touch-icon\.png\?v=1\.3\.63"/);
+ assert.match(html,/rel="icon" href="\.\/icons\/icon\.svg\?v=1\.3\.63"/);
 });
 test('header and home logo vectors are valid and retain the selected two colors',()=>{
  const header=read('icons/kondate-logo.svg'),icon=read('icons/icon.svg');
