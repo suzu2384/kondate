@@ -4,6 +4,8 @@ const ROOT='https://www.googleapis.com/calendar/v3';
 const SESSION_KEY='kondate.google-calendar-session.v1';
 const KEEP_KEY='kondate.google-calendar-keep-connected.v1';
 const PERSIST_KEY='kondate.google-calendar-token.v1';
+// Non-secret marker: remembers an earlier authorized session even after expired tokens are purged.
+const CONNECTION_MARKER='kondate.google-calendar-authorized-client.v1';
 export const SCOPES='https://www.googleapis.com/auth/calendar.calendarlist.readonly https://www.googleapis.com/auth/calendar.events';
 // This scope is requested only when the user explicitly creates a calendar.
 export const CREATE_CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.app.created';
@@ -41,6 +43,14 @@ export class CalendarClient {
   }
  }
  forgetPersistentToken(){try{globalThis.localStorage?.removeItem(PERSIST_KEY);}catch{}}
+ rememberPreviousConnection(){
+  if(!this.clientId)return;
+  try{globalThis.localStorage?.setItem(CONNECTION_MARKER,this.clientId);}catch{}
+ }
+ forgetPreviousConnection(){try{globalThis.localStorage?.removeItem(CONNECTION_MARKER);}catch{}}
+ wasPreviouslyConnected(clientId){
+  try{return globalThis.localStorage?.getItem(CONNECTION_MARKER)===clientId;}catch{return false;}
+ }
  rememberSession(){
   if(!this.connected)return;
   const record=JSON.stringify(this.tokenRecord());
@@ -49,16 +59,18 @@ export class CalendarClient {
    try{globalThis.localStorage?.setItem(PERSIST_KEY,record);}catch{}
   }else this.forgetPersistentToken();
   this.needsReauth=false;
+  this.rememberPreviousConnection();
  }
  forgetSession(){
   try{globalThis.sessionStorage?.removeItem(SESSION_KEY);}catch{}
   this.forgetPersistentToken();
  }
  clearToken(requiresLogin=false){
+  if(requiresLogin)this.rememberPreviousConnection();
   this.token=null;this.expires=0;this.needsReauth=requiresLogin;this.forgetSession();
  }
  // A deliberate sign-out opts out of auto-login on this device.
- disconnect(){this.clearToken();this.creationToken='';this.creationExpires=0;this.setKeepConnected(false);}
+ disconnect(){this.clearToken();this.creationToken='';this.creationExpires=0;this.setKeepConnected(false);this.forgetPreviousConnection();}
  restoreSession(clientId){
   if(!clientId)return false;
   const parseValid=raw=>{
@@ -83,7 +95,9 @@ export class CalendarClient {
    }else this.forgetPersistentToken();
   }
   if(!selected){
-   this.needsReauth=Boolean(sessionRaw||persistentRaw);
+   // Older browser sessions may be dropped or expired tokens already removed.
+   // This stores no credential; it only preserves the need to sign back in.
+   this.needsReauth=Boolean(sessionRaw||persistentRaw||this.wasPreviouslyConnected(clientId)||this.keepConnected);
    return false;
   }
   this.clientId=clientId;this.token=selected.token;this.expires=selected.expires;

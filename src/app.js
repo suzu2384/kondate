@@ -552,7 +552,7 @@ let imported=null,driveImported=null,driveImportedRaw=null;
 function driveBackupTime(value){const date=new Date(value||'');return Number.isFinite(date.getTime())?date.toLocaleString('ja-JP'):'保存日時不明';}
 function setDriveSyncStatus(message,successful=false){
  driveSyncStatus=String(message||'');
- if(success){
+ if(successful){
   driveLastSuccessAt=Date.now();
   setDriveMeta(DRIVE_LAST_SUCCESS,String(driveLastSuccessAt));
  }

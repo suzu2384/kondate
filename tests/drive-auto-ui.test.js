@@ -59,3 +59,19 @@ test('Drive downloads never overwrite local checkboxes modified during network r
  assert.ok(guard>0&&guard<download&&guard<upload,'must detect a stale local snapshot before any cloud write or download');
  assert.match(reconcile,/followUp=true;\s*setDriveSyncStatus\('通信中の変更を検知/);
 });
+
+test('Drive sync status timestamps successful saves instead of throwing ReferenceError',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const source=app.slice(app.indexOf('function setDriveSyncStatus('),app.indexOf('function driveBackupSummary(',app.indexOf('function setDriveSyncStatus(')));
+ assert.match(source,/if\(successful\)\{/);
+ assert.doesNotMatch(source,/if\(success\)\{/);
+ const log=[];
+ const f=new Function('Date','setDriveMeta','showStatus','DRIVE_LAST_SUCCESS','stateObject',
+  `let driveSyncStatus='',driveLastSuccessAt=0;\n${source}\nreturn {setDriveSyncStatus,get:()=>({driveSyncStatus,driveLastSuccessAt})}`);
+ const clock={now:()=>123456789},fn=f(clock,(k,v)=>log.push([k,v]),()=>log.push(['render']),"last-success",{});
+ fn.setDriveSyncStatus('進行中');
+ assert.equal(fn.get().driveLastSuccessAt,0);
+ fn.setDriveSyncStatus('送信済み',true);
+ assert.deepEqual(fn.get(),{driveSyncStatus:'送信済み',driveLastSuccessAt:123456789});
+ assert.deepEqual(log.slice(-2),[['last-success','123456789'],['render']]);
+});

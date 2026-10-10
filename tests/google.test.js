@@ -232,3 +232,50 @@ test('creation-token expiry never disconnects the normal calendar session',async
  assert.equal(c.token,'fake-test-token');
  assert.equal(c.creationToken,'');
 });
+
+test('Calendar shows reauthentication on a later app launch after expired tokens were removed',()=>{
+ const localOriginal=globalThis.localStorage,sessionOriginal=globalThis.sessionStorage;
+ const local=new Map(),session=new Map();
+ const storage=map=>({
+  getItem:key=>map.get(key)??null,
+  setItem:(key,value)=>map.set(key,String(value)),
+  removeItem:key=>map.delete(key)
+ });
+ globalThis.localStorage=storage(local);
+ globalThis.sessionStorage=storage(session);
+ const clientId='active-test.apps.googleusercontent.com';
+ try{
+  const calendar=new CalendarClient();
+  calendar.clientId=clientId;calendar.token='valid';calendar.expires=Date.now()+120000;
+  calendar.rememberSession();
+  assert.equal(local.get('kondate.google-calendar-authorized-client.v1'),clientId);
+  assert.equal(local.has('kondate.google-calendar-token.v1'),false,'no persistent access token without opt-in');
+  calendar.clearToken(true);
+  assert.equal(calendar.connected,false);
+  assert.equal(local.get('kondate.google-calendar-authorized-client.v1'),clientId);
+  assert.equal(session.size,0);
+  const launched=new CalendarClient();
+  assert.equal(launched.restoreSession(clientId),false);
+  assert.equal(launched.reauthenticationRequired,true);
+  assert.equal(launched.connected,false);
+  assert.equal(launched.token,null);
+  launched.disconnect();
+  assert.equal(local.has('kondate.google-calendar-authorized-client.v1'),false);
+  const loggedOut=new CalendarClient();
+  assert.equal(loggedOut.restoreSession(clientId),false);
+  assert.equal(loggedOut.reauthenticationRequired,false,'explicit logout hides reauthentication warnings');
+ }finally{
+  if(localOriginal===undefined)delete globalThis.localStorage;else globalThis.localStorage=localOriginal;
+  if(sessionOriginal===undefined)delete globalThis.sessionStorage;else globalThis.sessionStorage=sessionOriginal;
+ }
+});
+test('expired existing keep-connected setting still requires authentication after its stored token was deleted',()=>{
+ const orig=globalThis.localStorage;
+ const map=new Map([['kondate.google-calendar-keep-connected.v1','1']]);
+ globalThis.localStorage={getItem:k=>map.get(k)??null,removeItem:k=>map.delete(k),setItem:(k,v)=>map.set(k,String(v))};
+ try{
+  const calendar=new CalendarClient();
+  assert.equal(calendar.restoreSession('test.apps.googleusercontent.com'),false);
+  assert.equal(calendar.reauthenticationRequired,true);
+ }finally{if(orig===undefined)delete globalThis.localStorage;else globalThis.localStorage=orig;}
+});
