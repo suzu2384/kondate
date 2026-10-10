@@ -21,8 +21,10 @@ export function formatPlace(feature){
  const detail=[p.state,city,district,street,p.postcode].map(clean).filter(x=>x&&x!==name);
  const value=[name,city&&city!==name?city:'',district&&district!==name&&district!==city?district:'',street&&street!==name?street:'']
   .filter(Boolean).join(' ');
+ const address=[p.country,p.state,p.county,p.city,p.district,p.suburb,p.locality,p.street,p.housenumber,p.postcode]
+  .map(clean).filter(Boolean).join('');
  return {name,detail:[...new Set(detail)].join('・'),value,
-  searchText:normalize(fields(p).join(' '))};
+  searchText:normalize(fields(p).join(' '))+' '+normalize(address)};
 }
 export function placesFromPhoton(response,limit=60){
  const seen=new Set(),results=[];
@@ -86,7 +88,7 @@ const branchPart=s=>s.replace(/(?:支店|本店|店)$/u,'').trim()||s;
 export async function searchPlaces(term,{
  area='',fetcher=(...args)=>globalThis.fetch(...args),signal,online=true,seed=[],onCandidates
 }={}){
- const full=clean(term),terms=placeKeywords(full);
+ const full=clean(term).normalize('NFKC').replace(/\s+/gu,' '),terms=placeKeywords(full);
  if(!online||Array.from(full).length<2)return filterPlaceCandidates(seed,full);
  const collected=[...seed];
  const query=async (q,{focus=null,limit=60}={})=>{
