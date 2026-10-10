@@ -708,3 +708,11 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 @media(min-width:761px){
  #dialog-content #place-search-sheet{display:none}
 }
+
+/* Show data attribution only alongside search results, not below the form. */
+#dialog-content #place-popup .place-popup-attribution{
+ display:block;flex:0 0 auto;margin:3px 0 0;padding:5px 6px 2px;
+ color:var(--muted);font-size:10px;line-height:1.45;text-align:center;
+ border-top:1px solid var(--line)
+}
+#dialog-content #place-search-sheet #place-popup .place-popup-attribution{display:none}
