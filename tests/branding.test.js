@@ -9,7 +9,7 @@ test('KonDate title, header wordmark and installed app name match',()=>{
  assert.match(html,/class="brand-logo" src="\.\/icons\/kondate-logo\.svg" alt="KonDate"/);
  assert.equal(manifest.name,'KonDate');
  assert.equal(manifest.short_name,'KonDate');
- assert.ok(manifest.icons.every(icon=>icon.src.endsWith('?v=1.3.62')));
+ assert.ok(manifest.icons.every(icon=>icon.src.endsWith('?v=1.3.63')));
  assert.match(manifest.description,/献立.*予定/);
  assert.match(html,/rel="apple-touch-icon" href="\.\/icons\/apple-touch-icon\.png\?v=1\.3\.62"/);
  assert.match(html,/rel="icon" href="\.\/icons\/icon\.svg\?v=1\.3\.62"/);
@@ -47,5 +47,5 @@ test('calendar selector uses user-provided SVG with no numbered filename suffix'
 test('SVG home icon content is shifted toward the optical center',()=>{
  const svg=read('icons/icon.svg'),cache=read('sw.js');
  assert.match(svg,/transform="translate\(-5\.25 -24\.25\)"/);
- assert.match(cache,/kondate-shell-v1-3-62/);
+ assert.match(cache,/kondate-shell-v1-3-63/);
 });
