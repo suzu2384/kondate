@@ -71,6 +71,9 @@ function showStatus(){
  notice.textContent=message;
  notice.title=warning||driveWarning?'期限切れのGoogleサービスを再認証':message;
  notice.setAttribute('aria-label',warning&&driveWarning?'カレンダーとDriveを一度に再認証します。':warning?'カレンダーを再認証します。':driveWarning?'Driveを再認証します。':message);
+ const idle=$('#status-idle');
+ idle.hidden=!!message||presetQueue.size>0;
+ idle.textContent=busy?'同期中…':api.connected?'待機中':'Google未接続';
  $('#status-bar').classList.toggle('has-message',!!message);
  $('#status-bar').classList.toggle('auth-required',warning||driveWarning);
  const status=$('#drive-sync-state');

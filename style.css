@@ -151,7 +151,7 @@ dialog::backdrop{background:#0008}
 }
 
 /* v1.3.10: a fixed-height global status bar never changes the content layout. */
-.app{grid-template-rows:54px minmax(0,1fr) 30px 58px;}
+.app{grid-template-rows:54px minmax(0,1fr) 22px 58px;}
 .app-header{grid-row:1;}
 #main{grid-row:2;min-width:0;}
 #status-bar{grid-row:3;}
@@ -161,6 +161,8 @@ dialog::backdrop{background:#0008}
  gap:8px;padding:0 10px;border-top:1px solid var(--line);
  background:var(--surface);color:var(--muted);overflow:hidden;
 }
+.status-idle{min-width:0;font-size:10px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.status-idle[hidden]{display:none}
 .status-legend{display:flex;align-items:center;gap:14px;min-width:0;
  font-size:11px;white-space:nowrap;overflow:hidden;}
 .status-legend .actual{color:var(--accent);}
@@ -187,7 +189,7 @@ dialog::backdrop{background:#0008}
  max-width:24px;margin:0;padding:0;
 }
 @media(max-width:760px){
- .app{grid-template-rows:49px minmax(0,1fr) 32px calc(54px + env(safe-area-inset-bottom));}
+ .app{grid-template-rows:49px minmax(0,1fr) 24px calc(54px + env(safe-area-inset-bottom));}
  .status-bar{padding:0 8px;}
  .status-legend{gap:9px;font-size:10px;}
  #notice.status-message{font-size:11px;}
@@ -387,7 +389,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 
 /* v1.3.28: one-row preset toolbar between the calendar and status strip. */
-.app.has-quick-presets{grid-template-rows:54px minmax(0,1fr) 40px 30px 58px}
+.app.has-quick-presets{grid-template-rows:54px minmax(0,1fr) 40px 22px 58px}
 .app.has-quick-presets .app-header{grid-row:1}
 .app.has-quick-presets #main{grid-row:2}
 #quick-preset-bar{grid-row:3;min-width:0;display:flex;align-items:center;gap:5px;padding:2px 8px;
@@ -414,7 +416,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  white-space:nowrap;text-overflow:clip;font-size:inherit}
 .general-event-detail .general-event-memo{display:block;margin-top:5px;white-space:pre-wrap;overflow-wrap:anywhere;font-weight:400}
 @media(max-width:760px){
- .app.has-quick-presets{grid-template-rows:49px minmax(0,1fr) 38px 32px calc(54px + env(safe-area-inset-bottom))}
+ .app.has-quick-presets{grid-template-rows:49px minmax(0,1fr) 38px 24px calc(54px + env(safe-area-inset-bottom))}
  .quick-preset{height:33px;min-height:33px;min-width:36px;font-size:18px}
  .month-grid .event-chip.general-event.has-icon{font-size:9px;gap:2px}
 }
@@ -474,16 +476,16 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 
 /* v1.3.31 — nonblocking queued preset edits. The save button uses the existing status row. */
 #preset-pending{display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;
- height:26px;min-height:26px;min-width:0;padding:2px 9px;max-width:58%;
+ height:20px;min-height:20px;min-width:0;padding:0 7px;max-width:58%;
  border:1px solid var(--accent);color:var(--accent);background:var(--tint);
- font-size:11px;font-weight:700;line-height:1;white-space:nowrap;border-radius:7px}
+ font-size:10px;font-weight:700;line-height:1;white-space:nowrap;border-radius:6px}
 #preset-pending[hidden]{display:none}
 #preset-pending:disabled{opacity:.75}
 .status-bar:has(#preset-pending:not([hidden])) .status-legend{display:none}
 .status-bar:has(#preset-pending:not([hidden])) #notice.status-message{flex:1;max-width:100%;font-size:10px}
 .month-grid .event-chip.general-event.is-pending{border-bottom:1px dashed var(--accent)}
 @media(max-width:760px){
- #preset-pending{font-size:10px;height:25px;min-height:25px;padding:2px 6px;max-width:52%}
+ #preset-pending{font-size:10px;height:21px;min-height:21px;padding:0 6px;max-width:52%}
 }
 
 /* v1.3.32 — default white icon contrast, unlimited day chips, centered icon/label. */
@@ -564,18 +566,8 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .calendar-screen .day-panel .dish-line{font-size:14px}
  .calendar-screen .day-panel .general-event-detail{font-size:14px}
 }
-/* The unused legend is gone; give the empty status strip back to the calendar. */
-#status-bar:has(#notice[hidden]):has(#preset-pending[hidden]){display:none}
-.app:not(.has-quick-presets):has(#notice[hidden]):has(#preset-pending[hidden]){
- grid-template-rows:54px minmax(0,1fr) 0px 58px}
-.app.has-quick-presets:has(#notice[hidden]):has(#preset-pending[hidden]){
- grid-template-rows:54px minmax(0,1fr) 40px 0px 58px}
-@media(max-width:760px){
- .app:not(.has-quick-presets):has(#notice[hidden]):has(#preset-pending[hidden]){
-  grid-template-rows:49px minmax(0,1fr) 0px calc(54px + env(safe-area-inset-bottom))}
- .app.has-quick-presets:has(#notice[hidden]):has(#preset-pending[hidden]){
-  grid-template-rows:49px minmax(0,1fr) 38px 0px calc(54px + env(safe-area-inset-bottom))}
-}
+/* Keep a slim, fixed status row even when no message is pending, so the
+   calendar and navigation never jump when a notification appears. */
 /* Explicit month jump: native number input and twelve fixed month choices. */
 .month-picker-trigger{display:inline-flex;align-items:center;gap:6px;padding:2px 6px;
  min-height:32px;border:0;background:transparent;border-radius:6px;
