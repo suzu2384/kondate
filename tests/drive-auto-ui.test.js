@@ -16,7 +16,8 @@ test('auto sync is opt-in on each device, uploads local changes and downloads re
  assert.match(app,/document\.addEventListener\('visibilitychange'/);
 });
 test('cloud updates are never automatically overwritten if local edits are pending',()=>{
- assert.match(app,/if\(decision==='conflict'\)\{\s*notify\('⚠ Driveの設定が競合しています/);
+ assert.match(app,/if\(decision==='conflict'\)\{\s*setDriveSyncStatus\('競合：/);
+ assert.match(app,/notify\('⚠ Driveの設定が競合しています/);
  assert.match(app,/const decision=decideDriveSync\(/);
  assert.match(app,/await markDriveSynced\(nextRevision,localSnapshot\)/);
 });
