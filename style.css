@@ -583,11 +583,11 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 /* Place search: inline results stay in the modal's scroll flow, no clipping overlay. */
 .dialog-body .place-field{min-width:0;max-width:100%}
 .place-field .place-input-label{display:block;font-size:12px;margin-bottom:7px;font-weight:600}
-.place-field .place-area-label{display:block;margin:9px 0 5px;font-size:12px;font-weight:600}
+
 .place-field>input{width:100%;min-width:0}
-.place-search-row{display:flex;align-items:stretch;gap:8px;min-width:0}
-.place-search-row>input{flex:1;min-width:0;width:0}
-.place-search-row>button{flex:0 0 auto;min-width:95px;white-space:nowrap}
+
+
+
 .place-field>small{display:block;margin-top:7px;line-height:1.55}
 .place-search-status{font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.5}
 .place-search-status:empty{display:none}
@@ -605,5 +605,5 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 @media(max-width:760px){
  .place-field .place-suggestion strong{font-size:14px}
  .place-field .place-suggestion small{font-size:12px}
- .place-search-row>button{min-width:98px;padding:7px}
+ 
 }

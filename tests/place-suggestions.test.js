@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {formatPlace,placesFromPhoton,searchPlaces,LOCATION_ATTRIBUTION} from '../src/place-suggestions.js';
+import {formatPlace,placesFromPhoton,searchPlaces,splitPlaceQuery,LOCATION_ATTRIBUTION} from '../src/place-suggestions.js';
 
 const response={features:[
  {properties:{name:'食堂みどり',street:'本町通り',city:'習志野市',state:'千葉県'}},
@@ -21,12 +21,12 @@ test('Photon suggestions deduplicate and include a readable place label',()=>{
 test('online search encodes Japanese input, caps suggestions and is aborted by caller',async()=>{
  let calls=0;
  const controller=new AbortController();
- const suggestions=await searchPlaces('津田沼 レストラン',{
+ const suggestions=await searchPlaces('レストラン',{
   signal:controller.signal,fetcher:async(url,opt)=>{
    calls++;
    const parsed=new URL(url);
    assert.equal(parsed.host,'photon.komoot.io');
-   assert.equal(parsed.searchParams.get('q'),'津田沼 レストラン');
+   assert.equal(parsed.searchParams.get('q'),'レストラン');
    assert.equal(parsed.searchParams.get('lang'),'default');
    assert.equal(opt.signal,controller.signal);
    return {ok:true,json:async()=>response};
@@ -69,4 +69,25 @@ test('unknown optional region is included in fallback search without assuming us
   return {ok:true,json:async()=>({features:[]})};
  }});
  assert.deepEqual(calls,['指定地域','吉野家 指定地域']);
+});
+
+test('single-field query splits optional location suffix, including full-width whitespace',()=>{
+ assert.deepEqual(splitPlaceQuery('吉野家　津田沼'),{name:'吉野家',area:'津田沼'});
+ assert.deepEqual(splitPlaceQuery('  吉野家  津田沼駅  '),{name:'吉野家',area:'津田沼駅'});
+ assert.deepEqual(splitPlaceQuery('吉野家'),{name:'吉野家',area:''});
+ assert.deepEqual(splitPlaceQuery('スターバックス コーヒー 東京駅'),{name:'スターバックス コーヒー',area:'東京駅'});
+});
+test('single-field "business area" searches nearby without a preset location',async()=>{
+ const calls=[];
+ const results=await searchPlaces('吉野家　津田沼',{fetcher:async url=>{
+  const u=new URL(url);calls.push(u);
+  return {ok:true,json:async()=>calls.length===1?
+   {features:[{geometry:{coordinates:[140.01,35.69]}}]}:
+   {features:[{properties:{name:'吉野家',city:'習志野市',street:'駅前通り'}}]}};
+ }});
+ assert.equal(calls.length,2);
+ assert.equal(calls[0].searchParams.get('q'),'津田沼');
+ assert.equal(calls[1].searchParams.get('q'),'吉野家');
+ assert.equal(calls[1].searchParams.get('location_bias_scale'),'0.8');
+ assert.match(results[0].value,/駅前通り/);
 });

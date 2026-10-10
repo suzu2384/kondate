@@ -11,7 +11,7 @@ test('record registration and editing show an optional Google Calendar location 
  assert.match(draw,/editor\.location\?\?=editor\.raw\?\.location/);
 });
 test('location changes persist in editor without blur and are included on save',()=>{
- assert.match(app,/if\(editor&&el\.id==='record-location'\)\{editor\.location=el\.value;cancelPlaceLookup\(\);hidePlaceSuggestions\(\);\}/);
+ assert.match(app,/if\(editor&&el\.id==='record-location'\)\{editor\.location=el\.value;queuePlaceLookup\(el\);\}/);
  assert.match(app,/if\(el\.id==='record-location'\)editor\.location=el\.value/);
  assert.match(app,/current\.location=String\(current\.location\|\|''\)\.trim\(\)/);
  assert.match(app,/外食・場所：\$\{esc\(r\.location\)\}/);
@@ -21,16 +21,17 @@ test('browser app remains valid JavaScript',()=>{
  assert.equal(result.status,0,result.stderr);
 });
 
-test('location search is explicit, location-neutral and lays candidates out inline',()=>{
+test('one-field location typeahead is region-neutral and keeps candidates inline',()=>{
  const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
  const dialog=app.slice(app.indexOf('function drawRecord(){'),app.indexOf('async function saveRecord()'));
- assert.match(dialog,/id="place-search-area"/);
- assert.match(dialog,/placeholder="地域・駅名を入力"/);
- assert.match(dialog,/data-action="search-place"/);
+ assert.doesNotMatch(dialog,/id="place-search-area"/);
+ assert.doesNotMatch(dialog,/data-action="search-place"/);
+ assert.match(dialog,/「店名 地域名」/);
+ assert.match(dialog,/入力すると候補が自動で表示/);
  assert.match(dialog,/id="place-search-status"/);
  assert.doesNotMatch(dialog,/placeholder="津田沼"/);
- assert.match(app,/async function runPlaceSearch\(\)/);
- assert.doesNotMatch(app,/queuePlaceLookup/);
+ assert.match(app,/function queuePlaceLookup\(field,\{immediate=false\}=\{\}\)/);
+ assert.match(app,/const delay=Math\.max\(immediate\?0:650,1000-/);
  assert.match(css,/\.place-field \.place-suggestions\{position:static/);
  assert.match(css,/\.place-field \.place-suggestion small\{[^}]*white-space:normal/);
 });

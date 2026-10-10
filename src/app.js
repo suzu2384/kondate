@@ -364,52 +364,63 @@ function dishRows(dishes){
   ${button('×','editor-remove','danger',`data-index="${i}" aria-label="${i+1}品目を削除"`)}
  </div>`).join('');
 }
-let placeRequestAbort=null,placeRequestId=0,placeSearchArea='';
+// Debounced suggestions prevent firing a public geocoding request per keystroke.
+let placeRequestTimer=null,placeRequestAbort=null,placeRequestId=0,lastPlaceRequest=0;
+const placeCache=new Map();
 function cancelPlaceLookup(){
- placeRequestAbort?.abort();placeRequestAbort=null;placeRequestId++;
+ if(placeRequestTimer!==null)clearTimeout(placeRequestTimer);
+ placeRequestTimer=null;placeRequestAbort?.abort();placeRequestAbort=null;placeRequestId++;
 }
 function hidePlaceSuggestions(){
- const list=document.querySelector('#place-suggestions');
+ const list=$('#place-suggestions');
  if(list){list.hidden=true;list.innerHTML='';}
- document.querySelector('#record-location')?.setAttribute('aria-expanded','false');
+ $('#record-location')?.setAttribute('aria-expanded','false');
 }
 function showPlaceChoices(field,places){
- const list=document.querySelector('#place-suggestions');
- if(!field?.isConnected||!list||field!==document.querySelector('#record-location'))return;
- list.innerHTML=places.map(place=>
-  '<button type="button" class="place-suggestion" role="option" data-action="pick-location" data-value="'+esc(place.value)+'"><strong>'+esc(place.name)+'</strong><small>'+esc(place.detail||'住所の登録なし')+'</small></button>'
- ).join('');
+ const list=$('#place-suggestions');
+ if(!field?.isConnected||!list||field!==$('#record-location'))return;
+ list.innerHTML=places.map(place=>'<button type="button" class="place-suggestion" role="option" data-action="pick-location" data-value="'+esc(place.value)+'"><strong>'+esc(place.name)+'</strong><small>'+esc(place.detail||'住所の登録なし')+'</small></button>').join('');
  list.hidden=places.length===0;
  field.setAttribute('aria-expanded',String(places.length>0));
 }
 function updatePlaceSearchMessage(message){
  const target=$('#place-search-status');if(target)target.textContent=message;
 }
-async function runPlaceSearch(){
- const field=$('#record-location');
- if(!field||!editor)return;
- const query=String(field.value||'').trim(),area=String($('#place-search-area')?.value||'').trim();
- if(Array.from(query).length<2){updatePlaceSearchMessage('店名や施設名を2文字以上入力してください。');return;}
- if(!navigator.onLine){updatePlaceSearchMessage('オフラインです。場所は手入力のまま保存できます。');return;}
+function queuePlaceLookup(field,{immediate=false}={}){
  cancelPlaceLookup();hidePlaceSuggestions();
- placeSearchArea=area;
- const id=placeRequestId,controller=new AbortController();placeRequestAbort=controller;
- const btn=$('[data-action="search-place"]');if(btn)btn.disabled=true;
- updatePlaceSearchMessage('場所を検索しています…');
- try{
-  const results=await searchPlaces(query,{area,signal:controller.signal,online:!!navigator.onLine});
-  if(id!==placeRequestId||!field.isConnected)return;
-  showPlaceChoices(field,results);
-  updatePlaceSearchMessage(results.length?
-   `候補 ${results.length}件。店舗名と住所を確認して選択してください。`:
-   '候補が見つかりませんでした。地域名や支店名を変えて検索するか、店名をそのまま保存できます。');
- }catch(error){
-  if(id===placeRequestId&&error?.name!=='AbortError')
-   updatePlaceSearchMessage('検索サービスに接続できません。店名は手入力のまま保存できます。');
- }finally{
-  if(placeRequestAbort===controller)placeRequestAbort=null;
-  if(id===placeRequestId&&btn?.isConnected)btn.disabled=false;
+ if(!field?.isConnected||!editor)return;
+ const query=String(field.value||'').trim();
+ if(Array.from(query).length<2){updatePlaceSearchMessage('');return;}
+ if(!navigator.onLine){
+  updatePlaceSearchMessage('オフラインのため候補を取得できません。入力した場所はそのまま保存できます。');
+  return;
  }
+ const cached=placeCache.get(query);
+ if(cached){
+  showPlaceChoices(field,cached);
+  updatePlaceSearchMessage(cached.length?'店舗名と住所を確認して選択してください。':'候補が見つかりません。地域名を加えるか、そのまま保存できます。');
+  return;
+ }
+ const id=placeRequestId;
+ const delay=Math.max(immediate?0:650,1000-(Date.now()-lastPlaceRequest));
+ updatePlaceSearchMessage('候補を検索しています…');
+ placeRequestTimer=setTimeout(async()=>{
+  placeRequestTimer=null;
+  if(id!==placeRequestId||!field.isConnected)return;
+  const controller=new AbortController();placeRequestAbort=controller;
+  lastPlaceRequest=Date.now();
+  try{
+   const places=await searchPlaces(query,{signal:controller.signal,online:!!navigator.onLine});
+   if(id!==placeRequestId||!field.isConnected||field.value.trim()!==query)return;
+   if(placeCache.size>=25)placeCache.delete(placeCache.keys().next().value);
+   placeCache.set(query,places);showPlaceChoices(field,places);
+   updatePlaceSearchMessage(places.length?'店舗名と住所を確認して選択してください。':
+    '候補が見つかりません。店名の後ろに地域や駅名を追加するか、そのまま保存できます。');
+  }catch(error){
+   if(id===placeRequestId&&error?.name!=='AbortError')
+    updatePlaceSearchMessage('候補を取得できませんでした。入力した場所はそのまま保存できます。');
+  }finally{if(placeRequestAbort===controller)placeRequestAbort=null;}
+ },delay);
 }
 function pickPlaceSuggestion(button){
  const field=$('#record-location');
@@ -418,9 +429,7 @@ function pickPlaceSuggestion(button){
  if(!name)return;
  cancelPlaceLookup();
  field.value=name;editor.location=name;
- hidePlaceSuggestions();
- updatePlaceSearchMessage('選択した場所を入力しました。必要なら手動で修正できます。');
- field.blur();
+ hidePlaceSuggestions();updatePlaceSearchMessage('');field.blur();
 }
 function hideDishSuggestions(){
  for(const list of document.querySelectorAll('.dish-suggestions'))list.hidden=true;
@@ -452,9 +461,9 @@ function pickRecordDishSuggestion(button){
 }
 function openRecord(record=null,{date=today(),dishes=null}={}){
  editor=record?structuredClone(record):{id:uid(),date,status:'actual',location:'',dishes:dishes?structuredClone(dishes):[{name:'',category:'main'}],owned:true,new:true,scope:scopeKey()};
- editor.scope??=scopeKey();editor.location??=editor.raw?.location||'';editor.status='actual';placeSearchArea='';drawRecord();
+ editor.scope??=scopeKey();editor.location??=editor.raw?.location||'';editor.status='actual';drawRecord();
 }
-function drawRecord(){cancelPlaceLookup();const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><span class="dialog-date-control"><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></span></label><div class="field place-field"><label for="record-location" class="place-input-label">場所（任意・外食の場合に入力）</label><input id="record-location" type="text" value="${esc(editor.location||'')}" placeholder="店名・施設名" maxlength="500" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><label for="place-search-area" class="place-area-label">検索する地域・駅名（任意）</label><div class="place-search-row"><input id="place-search-area" type="text" value="${esc(placeSearchArea)}" placeholder="地域・駅名を入力" maxlength="120" autocomplete="off"><button type="button" class="mini" data-action="search-place">候補を検索</button></div><small>使い方：店名を入力し、必要なら地域や駅名も指定して「候補を検索」を押してください。候補を選ぶと店舗名と地域情報を入力できます。候補がなくても自由入力で保存できます。</small><p id="place-search-status" class="place-search-status" role="status" aria-live="polite"></p><div id="place-suggestions" class="place-suggestions" role="listbox" aria-label="場所の候補" hidden></div><small class="place-attribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> / <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a>。外部の地図データに店舗が登録されていない場合は候補に出ません。</small></div><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);}
+function drawRecord(){cancelPlaceLookup();const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><span class="dialog-date-control"><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></span></label><div class="field place-field"><label for="record-location" class="place-input-label">場所（任意・外食の場合に入力）</label><input id="record-location" type="text" value="${esc(editor.location||'')}" placeholder="店名・施設名（地域名も入力可）" maxlength="500" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><small>入力すると候補が自動で表示されます。店舗を絞るには「店名 地域名」のようにスペースで区切って入力。候補を選ばず、そのまま保存することもできます。</small><p id="place-search-status" class="place-search-status" role="status" aria-live="polite"></p><div id="place-suggestions" class="place-suggestions" role="listbox" aria-label="場所の候補" hidden></div><small class="place-attribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> / <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a>。地図データに未登録の店舗は候補に出ません。</small></div><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);}
 async function saveRecord(){
  const current=structuredClone(editor);
  current.dishes=validateDishes(current.dishes);
@@ -826,7 +835,7 @@ const actions={
  'new-record':b=>openRecord(null,{date:b.dataset.date||today()}),record:b=>openRecord(records().find(r=>r.id===b.dataset.id&&r.calendarId===(b.dataset.calendar||primaryCalendarId()))),
  'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
  'suggest-record-dish':pickRecordDishSuggestion,'pick-location':pickPlaceSuggestion,
- 'search-place':()=>runPlaceSearch(),
+ 
  'save-record':saveRecord,
  'delete-record':()=>{modal('この実績を削除しますか？',`<p>${esc(editor.date)}：${esc(editor.dishes.map(d=>d.name).join('、'))}</p><p>Googleカレンダーからこの予定を直接削除します。この操作は取り消せません。</p>`,button('戻る','return-editor')+button('削除する','confirm-delete','danger'));},'return-editor':drawRecord,
  'confirm-delete':async()=>{if(editor.scope!==scopeKeyFor(editor.calendarId||primaryCalendarId()))throw Error('元のカレンダーに戻って操作してください。');busy=true;updateConnection();try{const id=editor.calendarId||primaryCalendarId();await api.remove(id,editor);dataFor(id).events=dataFor(id).events.filter(e=>e.id!==editor.id);closeModal();render();notify('実績を削除しました。');}finally{busy=false;updateConnection();}},
@@ -1130,8 +1139,7 @@ $('#dialog').addEventListener('cancel',()=>{editor=null;presetEditDraft=null;pre
 document.addEventListener('input',e=>{const el=e.target;
  if(el.id==='preset-edit-color'){updatePresetEditorIconPreview();return;}
  if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;showDishSuggestions(el);}
- if(editor&&el.id==='record-location'){editor.location=el.value;cancelPlaceLookup();hidePlaceSuggestions();}
- if(editor&&el.id==='place-search-area'){placeSearchArea=el.value;cancelPlaceLookup();hidePlaceSuggestions();}
+ if(editor&&el.id==='record-location'){editor.location=el.value;queuePlaceLookup(el);}
  if(el.id==='master-search'){const pos=el.selectionStart;masterQuery=el.value;masterModal();$('#master-search').focus();$('#master-search').setSelectionRange(pos,pos);}
 });
 document.addEventListener('focusin',e=>{
@@ -1140,11 +1148,11 @@ document.addEventListener('focusin',e=>{
   for(const list of document.querySelectorAll('.dish-suggestions'))if(list!==field.closest('.dish-input-group')?.querySelector('.dish-suggestions'))list.hidden=true;
   showDishSuggestions(field);
  }else if(!e.target.closest?.('.dish-suggestions'))hideDishSuggestions();
- // Place choices are inline; keep them open until a new search or selection.
+ if(e.target.id==='record-location'&&placeCache.has(e.target.value.trim()))queuePlaceLookup(e.target);
 });
 document.addEventListener('keydown',e=>{
- if(e.target.id==='record-location'||e.target.id==='place-search-area'){
-  if(e.key==='Enter'){e.preventDefault();runPlaceSearch();}
+ if(e.target.id==='record-location'){
+  if(e.key==='Enter'){e.preventDefault();queuePlaceLookup(e.target,{immediate:true});}
   else if(e.key==='ArrowDown'){
    const first=document.querySelector('#place-suggestions .place-suggestion');
    if(first){e.preventDefault();first.focus();}
