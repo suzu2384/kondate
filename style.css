@@ -522,3 +522,17 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .icon-preset-row button{padding:4px 7px;font-size:11px}
  .icon-preset-row .preset-row-icon{flex-basis:29px;width:29px;height:29px}
 }
+
+/* v1.3.39: accessible long-press preset drag with floating preview. */
+.icon-preset-row{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.icon-preset-row .preset-drag-handle{display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 28px;width:28px;min-width:28px;min-height:34px;height:34px;
+ padding:0;border:0;background:transparent;color:var(--muted);
+ font-size:22px;line-height:1;cursor:grab;touch-action:none}
+.icon-preset-row .preset-drag-handle:active{cursor:grabbing}
+.icon-preset-row.drag-placeholder{opacity:.3;outline:2px dashed var(--accent);outline-offset:-2px}
+.preset-drag-ghost{position:fixed;z-index:500;pointer-events:none;touch-action:none;
+ margin:0;background:var(--surface);border:2px solid var(--accent);
+ border-radius:9px;box-shadow:0 10px 24px #0003;opacity:.96}
+.preset-drag-ghost .preset-drag-handle{pointer-events:none}
+@media(max-width:420px){.icon-preset-row .preset-drag-handle{flex-basis:23px;width:23px;min-width:23px}}

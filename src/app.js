@@ -9,6 +9,7 @@ import {eventDay,matchIcon,ICON_CHOICES,normalizeIcon,normalizeIconColor,isSuppo
 import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEvent,presetEventPayload} from './icon-presets.js';
 import {PresetWriteQueue,PRESET_FLUSH_INTERVAL_MS} from './preset-queue.js';
 import {beginPresetEdit,commitPresetEdit} from './preset-editor.js';
+import {sortCalendarExtras,reorderPresetRules,movePresetRule} from './preset-order.js';
 import {DriveSettingsClient} from './drive.js';
 import {expiredGoogleServices,renewExpiredGoogleServices} from './google-reauth.js';
 import {dateTapAction,horizontalMonthSwipe,moveMonth} from './calendar-gestures.js';
@@ -99,7 +100,7 @@ function records(){return assignedIds().flatMap(calendarId=>{
 function master(){const enabled=new Set(state.categories.map(c=>c.id));return buildMaster(records(),data().aliases,data().metadata,[...(state.seedEnabled?catalog.filter(d=>enabled.has(d.category)):[]),...data().manual.filter(d=>enabled.has(d.category))]);}
 function extraEvents(){
  const assigned=new Set(assignedIds()),explicit=new Set(state.extraCalendarIds);
- return [...new Set([...explicit,...presetCalendarIds(state.iconRules)])].flatMap(calendarId=>
+ return sortCalendarExtras([...new Set([...explicit,...presetCalendarIds(state.iconRules)])].flatMap(calendarId=>
   presetQueue.project(calendarId,dataFor(calendarId).events).filter(event=>assigned.has(calendarId)?
    isPresetEvent(event,calendarId,state.iconRules):
    explicit.has(calendarId)||isPresetEvent(event,calendarId,state.iconRules)
@@ -107,9 +108,9 @@ function extraEvents(){
    const date=eventDay(event,state.timeZone);
    if(!date)return null;
    const title=event.summary||'無題の予定';
-   return {calendarId,date,title,memo:String(event.description||''),icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules),pending:!!event._presetPending};
+   return {calendarId,date,title,memo:String(event.description||''),icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules),pending:!!event._presetPending,presetId:event.extendedProperties?.private?.kondatePresetId||''};
   }).filter(Boolean)
- );
+ ),state.iconRules);
 }
 
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
@@ -257,14 +258,15 @@ function additionalCalendarSettings(){
  const remaining=unavailable.map(id=>`<label class="check-row"><input type="checkbox" data-extra-calendar="${esc(id)}" checked><span>保存済みのカレンダー（要再接続）</span></label>`).join('');
  const rules=state.iconRules.map(rule=>{
   const title=String(rule.keyword||''),memo=String(rule.memo||'').replace(/\r?\n/g,' ');
-  return `<div class="icon-preset-row" aria-label="${esc([title,memo].filter(Boolean).join('／'))}">
+  return `<div class="icon-preset-row" data-preset-id="${esc(rule.id)}" role="listitem" aria-label="${esc([title,memo].filter(Boolean).join('／'))}">
+   <button type="button" class="preset-drag-handle" data-reorder-handle="${esc(rule.id)}" aria-label="${esc(title)}の順番を変更" title="長押しして移動。上下矢印キーでも移動可能">≡</button>
    <span class="preset-row-icon">${iconMarkup(rule.icon,rule.color)}</span>
    <span class="preset-row-memo ${memo?'':'no-memo'}" title="${esc(memo||'メモなし')}">${esc(memo||'メモなし')}</span>
    ${button('編集','edit-icon-rule','mini',`data-rule-id="${esc(rule.id)}" aria-label="${esc(title)}のプリセットを編集"`)}
    ${button('削除','remove-icon-rule','mini danger',`data-rule-id="${esc(rule.id)}" aria-label="${esc(title)}のプリセットを削除"`)}
   </div>`;
  }).join('');
- return `<section class="settings-card card"><h2>その他のカレンダー表示</h2><p>選んだカレンダーの予定を献立とは別に表示します。料理履歴には含まれず、予定を編集・削除しません。</p>${candidates||'<p class="hint">Googleでログインするとカレンダーが選べます。</p>'}${remaining}<h3>アイコンと予定プリセット</h3><p>アイコン・メモを一覧で確認できます。編集からタイトル・メモ・アイコン・登録先を変更します。</p><div class="icon-preset-list">${rules||'<p class="hint">プリセットはまだありません。</p>'}</div>${button('＋ プリセットを追加','add-icon-rule','mini')}<p class="hint">同じタイトルでもメモの異なるプリセットを作れます。アイコンを選んで日付をタップすると予定を追加／削除します。</p></section>`;
+ return `<section class="settings-card card"><h2>その他のカレンダー表示</h2><p>選んだカレンダーの予定を献立とは別に表示します。料理履歴には含まれず、予定を編集・削除しません。</p>${candidates||'<p class="hint">Googleでログインするとカレンダーが選べます。</p>'}${remaining}<h3>アイコンと予定プリセット</h3><p>先頭の≡または行を長押しして上下にドラッグすると並べ替えられます。カレンダーでは料理名を先頭、その後をこの順番で表示します。</p><div class="icon-preset-list" role="list" aria-label="プリセットの表示順">${rules||'<p class="hint">プリセットはまだありません。</p>'}</div>${button('＋ プリセットを追加','add-icon-rule','mini')}<p class="hint">同じタイトルでもメモの異なるプリセットを作れます。アイコンを選んで日付をタップすると予定を追加／削除します。</p></section>`;
 }
 function capturePresetEditorFields(){
  if(!presetEditDraft)return;
@@ -897,9 +899,91 @@ const actions={
  'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.iconRules=normalizePresetRules(state.iconRules);state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
 };
 async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))return;await actions[action]?.(b);}catch(error){if($('#dialog').open&&$('#dialog-error'))$('#dialog-error').textContent=error.message;else notify(error.message);updateConnection();}}
+
+const PRESET_DRAG_HOLD_MS=320;
+let presetDrag=null,suppressPresetClickUntil=0;
+function finishPresetDrag(save=true){
+ const drag=presetDrag;
+ if(!drag)return;
+ presetDrag=null;
+ clearTimeout(drag.timer);clearInterval(drag.autoscroll);
+ drag.ghost?.remove();
+ drag.row.classList.remove('drag-placeholder');
+ if(!drag.active)return;
+ suppressPresetClickUntil=Date.now()+450;
+ const ids=[...drag.list.querySelectorAll('.icon-preset-row[data-preset-id]')].map(el=>el.dataset.presetId);
+ if(save){
+  try{
+   const ordered=reorderPresetRules(state.iconRules,ids);
+   if(ordered.some((r,i)=>r.id!==state.iconRules[i].id)){
+    state.iconRules=ordered;
+    persist();
+   }
+  }catch(error){notify(error.message);}
+ }
+ if(tab==='settings')render();
+}
+function dragPresetToPoint(x,y){
+ const drag=presetDrag;
+ if(!drag)return;
+ drag.lastX=x;drag.lastY=y;
+ if(!drag.active){
+  if(Math.hypot(x-drag.startX,y-drag.startY)>10)finishPresetDrag(false);
+  return;
+ }
+ drag.ghost.style.transform=`translate3d(0,${y-drag.startY}px,0)`;
+ const over=document.elementFromPoint(x,y)?.closest('.icon-preset-row[data-preset-id]');
+ if(over&&over!==drag.row&&over.parentElement===drag.list){
+  const rect=over.getBoundingClientRect();
+  if(y<rect.top+rect.height/2)over.before(drag.row);
+  else over.after(drag.row);
+ }
+}
+function activatePresetDrag(){
+ const drag=presetDrag;
+ if(!drag||!drag.row.isConnected||tab!=='settings'||$('#dialog').open)return;
+ drag.active=true;
+ const box=drag.row.getBoundingClientRect(),ghost=drag.row.cloneNode(true);
+ ghost.classList.add('preset-drag-ghost');
+ ghost.removeAttribute('role');ghost.removeAttribute('data-preset-id');
+ ghost.setAttribute('aria-hidden','true');
+ ghost.style.left=box.left+'px';ghost.style.top=box.top+'px';
+ ghost.style.width=box.width+'px';ghost.style.height=box.height+'px';
+ ghost.querySelectorAll('button').forEach(b=>{b.tabIndex=-1;});
+ document.body.appendChild(ghost);
+ drag.ghost=ghost;
+ drag.row.classList.add('drag-placeholder');
+ window.getSelection()?.removeAllRanges();
+ drag.autoscroll=setInterval(()=>{
+  if(presetDrag!==drag||!drag.active)return;
+  const viewport=drag.list.closest('.settings-grid');
+  if(!viewport)return;
+  const rect=viewport.getBoundingClientRect(),y=drag.lastY;
+  const velocity=y<rect.top+38?-14:y>rect.bottom-38?14:0;
+  if(velocity){viewport.scrollTop+=velocity;dragPresetToPoint(drag.lastX,drag.lastY);}
+ },45);
+ dragPresetToPoint(drag.lastX,drag.lastY);
+}
+function beginPresetDrag(target,x,y,kind,touchId=null){
+ if(tab!=='settings'||$('#dialog').open)return;
+ const row=target.closest?.('.icon-preset-row[data-preset-id]');
+ if(!row||target.closest?.('button:not(.preset-drag-handle),input,select,textarea,a'))return;
+ finishPresetDrag(false);
+ presetDrag={row,list:row.parentElement,kind,touchId,startX:x,startY:y,lastX:x,lastY:y,active:false,ghost:null,timer:null,autoscroll:null};
+ presetDrag.timer=setTimeout(activatePresetDrag,PRESET_DRAG_HOLD_MS);
+}
+function movePresetByKeyboard(handle,direction){
+ const original=state.iconRules,updated=movePresetRule(original,handle.dataset.reorderHandle,direction);
+ if(updated===original)return;
+ state.iconRules=updated;
+ persist();render();
+ document.querySelector(`[data-reorder-handle="${handle.dataset.reorderHandle}"]`)?.focus({preventScroll:true});
+}
+
 // Capture pointer selection before iOS dismisses the keyboard and changes focus.
 // The regular click action remains a fallback for keyboard and assistive tech.
 document.addEventListener('pointerdown',e=>{
+ if(e.pointerType!=='touch'&&e.button===0)beginPresetDrag(e.target,e.clientX,e.clientY,'pointer');
  const locationChoice=e.target.closest?.('[data-action="pick-location"]');
  if(locationChoice){e.preventDefault();pickPlaceSuggestion(locationChoice);return;}
  const candidate=e.target.closest?.('[data-action="suggest-record-dish"]');
@@ -907,7 +991,39 @@ document.addEventListener('pointerdown',e=>{
  e.preventDefault();
  pickRecordDishSuggestion(candidate);
 },true);
+document.addEventListener('pointermove',e=>{
+ if(presetDrag?.kind==='pointer')dragPresetToPoint(e.clientX,e.clientY);
+});
+document.addEventListener('pointerup',()=>{if(presetDrag?.kind==='pointer')finishPresetDrag();});
+document.addEventListener('pointercancel',()=>{if(presetDrag?.kind==='pointer')finishPresetDrag(false);});
+document.addEventListener('touchstart',e=>{
+ if(e.touches.length!==1)return;
+ const touch=e.touches[0];
+ beginPresetDrag(e.target,touch.clientX,touch.clientY,'touch',touch.identifier);
+},{passive:true});
+document.addEventListener('touchmove',e=>{
+ const drag=presetDrag;
+ if(!drag||drag.kind!=='touch')return;
+ const touch=[...e.touches].find(t=>t.identifier===drag.touchId);
+ if(!touch)return;
+ dragPresetToPoint(touch.clientX,touch.clientY);
+ if(presetDrag?.active&&e.cancelable)e.preventDefault();
+},{passive:false});
+document.addEventListener('touchend',e=>{
+ if(presetDrag?.kind==='touch'&&[...e.changedTouches].some(t=>t.identifier===presetDrag.touchId))finishPresetDrag();
+},{passive:true});
+document.addEventListener('touchcancel',()=>{if(presetDrag?.kind==='touch')finishPresetDrag(false);},{passive:true});
+document.addEventListener('contextmenu',e=>{
+ if(e.target.closest?.('.icon-preset-row')&&presetDrag?.active)e.preventDefault();
+});
+document.addEventListener('keydown',e=>{
+ const handle=e.target.closest?.('[data-reorder-handle]');
+ if(!handle||!['ArrowUp','ArrowDown'].includes(e.key))return;
+ e.preventDefault();
+ movePresetByKeyboard(handle,e.key==='ArrowUp'?-1:1);
+});
 document.addEventListener('click',e=>{
+ if(Date.now()<suppressPresetClickUntil&&e.target.closest?.('.icon-preset-row')){e.preventDefault();return;}
  const tabButton=e.target.closest('[data-tab]');
  if(tabButton){tab=tabButton.dataset.tab;notify('');render();if(tab==='settings')prepareGoogleIdentity();return;}
  const b=e.target.closest('[data-action]');
