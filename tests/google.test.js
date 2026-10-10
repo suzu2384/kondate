@@ -279,3 +279,12 @@ test('expired existing keep-connected setting still requires authentication afte
   assert.equal(calendar.reauthenticationRequired,true);
  }finally{if(orig===undefined)delete globalThis.localStorage;else globalThis.localStorage=orig;}
 });
+
+test('Google Calendar GET requests bypass the browser HTTP cache',async()=>{
+ const calls=[];
+ const c=client(async(url,options)=>{calls.push({url,options});return response({items:[]});});
+ await c.events('other-calendar','2026-01-01','2027-01-01');
+ await c.calendars();
+ assert.equal(calls.length,2);
+ for(const {options} of calls){assert.equal(options.method,'GET');assert.equal(options.cache,'no-store');}
+});

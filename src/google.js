@@ -155,7 +155,7 @@ export class CalendarClient {
   let response;
   try{
    const signal=typeof AbortSignal.timeout==='function'?AbortSignal.timeout(25000):undefined;
-   response=await this.fetcher(ROOT+path,{method,headers,body:body?JSON.stringify(body):undefined,...(signal?{signal}:{})});
+   response=await this.fetcher(ROOT+path,{method,headers,body:body?JSON.stringify(body):undefined,...(method==='GET'?{cache:'no-store'}:{}),...(signal?{signal}:{})});
   }catch(error){
    const name=String(error?.name||'Error');
    const detail=String(error?.message||'詳細なし').slice(0,120);

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {CALENDAR_REFRESH_MINUTES,DEFAULT_CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefreshDue} from '../src/calendar-auto-refresh.js';
+import {CALENDAR_REFRESH_MINUTES,DEFAULT_CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefreshDue,calendarEventsChanged,fetchCalendarUpdates} from '../src/calendar-auto-refresh.js';
 
 const ready={minutes:5,lastSyncAt:1000,lastAttemptAt:1000,now:301001,connected:true,online:true,visible:true,busy:false,configured:true};
 test('selectable polling intervals, including off, and valid defaults',()=>{
@@ -38,6 +38,31 @@ test('UI, event handlers, Drive persistence and service worker are wired',()=>{
  assert.match(app,/visibilitychange/);
  assert.match(app,/setInterval\([^\n]*autoRefreshCalendar/);
  assert.match(app,/if\(!automatic\|\|changed\)render\(\)/);
+ assert.match(app,/fetchCalendarUpdates\(ids/);
+ assert.match(app,/\.\.\.state\.extraCalendarIds/);
+ assert.doesNotMatch(app,/automatic&&\(presetFlushing\|\|presetQueue\.size\)/);
+ assert.match(app,/calendarEventsChanged\(dataFor\(calendarId\)\.events,events\)/);
  assert.match(backup,/calendarRefreshMinutes/);
  assert.match(sw,/calendar-auto-refresh\.js/);
+});
+
+test('external edits repaint even when Google event ID and etag did not change',()=>{
+ const saved=[{id:'1',etag:'"same"',summary:'学校',start:{date:'2026-10-10'},description:'旧メモ'}];
+ assert.equal(calendarEventsChanged(saved,structuredClone(saved)),false);
+ assert.equal(calendarEventsChanged(saved,[{...saved[0],summary:'学校行事'}]),true);
+ assert.equal(calendarEventsChanged(saved,[{...saved[0],start:{date:'2026-10-11'}}]),true);
+ assert.equal(calendarEventsChanged(saved,[{...saved[0],description:'新メモ'}]),true);
+ assert.equal(calendarEventsChanged(saved,[]),true);
+});
+test('a broken extra calendar does not discard the other calendar changes',async()=>{
+ const called=[];
+ const outcome=await fetchCalendarUpdates(['meal','extra-failing','extra-ok'],async id=>{
+  called.push(id);
+  if(id==='extra-failing')throw Error('permission denied');
+  return [{id:id+'-1',summary:'スマホで変更した予定'}];
+ });
+ assert.deepEqual(called,['meal','extra-failing','extra-ok']);
+ assert.deepEqual(outcome.received.map(x=>x.calendarId),['meal','extra-ok']);
+ assert.deepEqual(outcome.failed.map(x=>x.calendarId),['extra-failing']);
+ assert.match(outcome.failed[0].error.message,/permission denied/);
 });

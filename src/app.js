@@ -2,7 +2,7 @@ import {today,localDate,addDays,uid,normalize,resolveName,defaultCategories,defa
 import {readState,saveState,storedState,calendarKey} from './storage.js';
 import {generate,reroll,validatePlan} from './generator.js';
 import {CalendarClient,calendarCreatePayload} from './google.js';
-import {CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefreshDue} from './calendar-auto-refresh.js';
+import {CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefreshDue,calendarEventsChanged,fetchCalendarUpdates} from './calendar-auto-refresh.js';
 import {GOOGLE_CLIENT_ID} from './config.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES,normalizeIcon,normalizeIconColor,isSupportedIcon} from './calendar-display.js';
@@ -621,12 +621,12 @@ function saveMaster(){const dish=validateDishes([{name:$('#master-name').value,c
 function editPlanDish(dayIndex,dishIndex=null){editingPlan={dayIndex,dishIndex};const d=state.draft[dayIndex].dishes[dishIndex]||{name:'',category:'main'};modal(dishIndex===null?'料理を追加':'料理を差し替える',`<label class="field"><span>料理名</span><input id="plan-name" value="${esc(d.name)}" list="plan-options" maxlength="100" placeholder="料理名を入力・候補から選択"></label><datalist id="plan-options">${master().map(d=>`<option value="${esc(d.name)}">${esc(categoryName(d.category))}</option>`).join('')}</datalist><label class="field"><span>分類</span><select id="plan-category">${categoryOptions(d.category)}</select></label><p class="hint">変更は下書きに反映されます。カレンダーには登録されません。</p>`,`${dishIndex!==null?button('この料理を削除','delete-plan-dish','danger'):''}${button('反映','save-plan-dish','primary')}`);}
 function checkDraft(){issues=validatePlan(state.draft,state.rules,master());persist();render();}
 async function sync({automatic=false}={}){
- if(automatic&&(presetFlushing||presetQueue.size))return;
+ if(automatic&&presetFlushing)return;
  if(!automatic&&presetQueue.size&&!presetFlushing)await flushPendingPresets();
  if(automatic&&!isCalendarRefreshDue({
   minutes:state.calendarRefreshMinutes,lastSyncAt:lastCalendarSync,lastAttemptAt:lastCalendarAttempt,
   now:Date.now(),connected:api.connected,online:navigator.onLine!==false,
-  visible:!document.hidden,busy:busy||driveAutoBusy,configured:calendarAutoReady&&hasSyncedCalendars()
+  visible:!document.hidden,busy,configured:calendarAutoReady&&hasSyncedCalendars()
  }))return;
  if(busy)return;
  if(!api.connected)throw Error('Googleへログインしてから同期してください。');
@@ -638,24 +638,28 @@ async function sync({automatic=false}={}){
  try{
   const year=Math.max(new Date().getFullYear()+2,month.getFullYear()+1);
   const ids=syncedCalendarIds();
-  const batches=await Promise.all(ids.map(async calendarId=>({
-   calendarId,events:await api.events(calendarId,state.from,`${year}-01-01`)
-  })));
-  const changed=batches.some(({calendarId,events})=>{
-   const previous=dataFor(calendarId).events;
-   return previous.length!==events.length||events.some((event,i)=>event.id!==previous[i]?.id||event.etag!==previous[i]?.etag);
-  });
+  const {received:batches,failed}=await fetchCalendarUpdates(ids,calendarId=>
+   api.events(calendarId,state.from,`${year}-01-01`)
+  );
+  if(!batches.length)throw new Error('対象のカレンダーを取得できませんでした。'+(failed[0]?.error?.message||''));
+  const changed=batches.some(({calendarId,events})=>
+   calendarEventsChanged(dataFor(calendarId).events,events)
+  );
   const completedAt=Date.now();
   for(const {calendarId,events} of batches){
    const bucket=dataFor(calendarId);
    bucket.events=events;bucket.lastSync=completedAt;
   }
-  lastCalendarSync=completedAt;
+  // Keep retrying failed calendars after the interval, even if other calendars succeeded.
+  if(!failed.length)lastCalendarSync=completedAt;
   if(!automatic||changed)render();
-  if(!automatic){
-   const count=batches.reduce((n,b)=>n+b.events.length,0);
+  const count=batches.reduce((n,b)=>n+b.events.length,0);
+  if(failed.length){
+   const names=failed.map(({calendarId})=>calendars.find(c=>c.id===calendarId)?.summary||calendarId).join('、');
+   notify(`カレンダーの${automatic?'自動更新':'同期'}に一部失敗しました（成功 ${batches.length}件／失敗 ${failed.length}件：${names}）。成功したカレンダーの予定は反映済みです。`);
+  }else if(!automatic){
    notify(`${ids.length}件のカレンダーから${count}件の予定を取得しました。`);
-  }else if(currentNotice.startsWith('カレンダーの自動更新に失敗しました')){
+  }else if(currentNotice.startsWith('カレンダーの自動更新に失敗しました')||currentNotice.startsWith('カレンダーの同期に一部失敗しました')){
    notify('Googleカレンダーの自動更新が再開しました。');
   }
  }catch(error){

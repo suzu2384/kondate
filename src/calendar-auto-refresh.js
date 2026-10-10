@@ -15,3 +15,30 @@ export function isCalendarRefreshDue({
  if(lastAttemptAt&&now-lastAttemptAt<retryDelay)return false;
  return true;
 }
+
+/**
+ * Google can return an unchanged or missing etag for some externally modified
+ * calendar events. Compare the actual event payload so cross-device edits to
+ * titles, dates, descriptions, and metadata still repaint the month grid.
+ */
+export function calendarEventsChanged(previous=[],incoming=[]){
+ if(previous.length!==incoming.length)return true;
+ return incoming.some((event,index)=>
+  JSON.stringify(event)!==JSON.stringify(previous[index])
+ );
+}
+
+/**
+ * Read each calendar independently. An inaccessible secondary calendar must
+ * not prevent the other selected calendars from updating.
+ */
+export async function fetchCalendarUpdates(ids,fetchEvents){
+ const outcomes=await Promise.allSettled(ids.map(id=>fetchEvents(id)));
+ const received=[],failed=[];
+ outcomes.forEach((result,index)=>{
+  const calendarId=ids[index];
+  if(result.status==='fulfilled')received.push({calendarId,events:result.value});
+  else failed.push({calendarId,error:result.reason});
+ });
+ return {received,failed};
+}
