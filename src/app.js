@@ -814,10 +814,37 @@ async function loadCalendarOptions(){
   throw error;
  }
 }
+function cancelCalendarSwipe(){
+ ++calendarSwipeToken;
+ if(calendarSwipeTimer!==null)clearTimeout(calendarSwipeTimer);
+ calendarSwipeTimer=null;calendarSwipeSettling=false;calendarTouchStart=null;
+}
 function shiftCalendarMonth(offset){
+ cancelCalendarSwipe();
  month=moveMonth(month,offset);
  render();
 }
+function settleCalendarSwipe(offset){
+ const track=$('#main .month-grid-track');
+ if(!track){if(offset)shiftCalendarMonth(offset);return;}
+ const token=++calendarSwipeToken;
+ calendarSwipeSettling=true;
+ const finish=()=>{
+  if(token!==calendarSwipeToken)return;
+  if(calendarSwipeTimer!==null)clearTimeout(calendarSwipeTimer);
+  calendarSwipeTimer=null;calendarSwipeSettling=false;
+  track.style.transition='';track.style.transform='';
+  if(offset)shiftCalendarMonth(offset);
+ };
+ if(matchMedia('(prefers-reduced-motion: reduce)').matches){finish();return;}
+ track.style.transition='transform 240ms cubic-bezier(.22,.75,.25,1)';
+ track.style.transform=`translate3d(${-100-offset*100}%,0,0)`;
+ track.addEventListener('transitionend',event=>{
+  if(event.target===track&&event.propertyName==='transform')finish();
+ },{once:true});
+ calendarSwipeTimer=setTimeout(finish,330);
+}
+
 // Reconcile the durable local desired state to Google every few seconds.
 // Sending a batch does not block the UI's calendar tap handler.
 async function flushPendingPresets(){
@@ -1238,26 +1265,53 @@ document.addEventListener('click',e=>{
  if(b.dataset.action==='date'&&Date.now()<ignoreDateClickUntil){e.preventDefault();return;}
  run(b.dataset.action,b);
 });
-// Swipe only inside the visible month grid, never on navigation buttons,
-// dialogs or page tabs. Vertical gestures remain available to the browser.
+// Track horizontal finger movement over adjacent month grids; keep vertical scrolling native.
 document.addEventListener('touchstart',e=>{
  calendarTouchStart=null;
- if(tab!=='calendar'||$('#dialog').open||e.touches.length!==1)return;
- if(!e.target.closest?.('.month-grid'))return;
- const touch=e.touches[0];
- calendarTouchStart={x:touch.clientX,y:touch.clientY,time:Date.now()};
+ if(calendarSwipeSettling||tab!=='calendar'||$('#dialog').open||e.touches.length!==1)return;
+ if(!e.target.closest?.('.month-grid-current'))return;
+ const viewport=e.target.closest('.month-grid-viewport');
+ const touch=e.touches[0],width=viewport?.getBoundingClientRect().width;
+ if(!width)return;
+ calendarTouchStart={identifier:touch.identifier,x:touch.clientX,y:touch.clientY,width,dragging:false};
 },{passive:true});
-document.addEventListener('touchend',e=>{
- const start=calendarTouchStart;calendarTouchStart=null;
- if(!start||tab!=='calendar'||$('#dialog').open||!e.changedTouches.length)return;
- const touch=e.changedTouches[0];
- const offset=horizontalMonthSwipe(start,{x:touch.clientX,y:touch.clientY,time:Date.now()});
- if(!offset)return;
+document.addEventListener('touchmove',e=>{
+ const start=calendarTouchStart;
+ if(!start||tab!=='calendar'||$('#dialog').open)return;
+ const touch=[...e.touches].find(t=>t.identifier===start.identifier);
+ if(!touch||e.touches.length!==1){
+  calendarTouchStart=null;if(start.dragging)settleCalendarSwipe(0);return;
+ }
+ const dx=touch.clientX-start.x,dy=touch.clientY-start.y;
+ if(!start.dragging){
+  if(Math.abs(dy)>12&&Math.abs(dy)>Math.abs(dx)){calendarTouchStart=null;return;}
+  if(Math.abs(dx)<10||Math.abs(dx)<=Math.abs(dy)*1.25)return;
+  start.dragging=true;
+ }
+ const track=$('#main .month-grid-track');
+ if(!track){calendarTouchStart=null;return;}
+ const limited=Math.max(-start.width,Math.min(start.width,dx));
+ track.style.transition='none';
+ track.style.transform=`translate3d(calc(-100% + ${limited}px),0,0)`;
+ ignoreDateClickUntil=Date.now()+450;
  if(e.cancelable)e.preventDefault();
- ignoreDateClickUntil=Date.now()+350;
- shiftCalendarMonth(offset);
 },{passive:false});
-document.addEventListener('touchcancel',()=>{calendarTouchStart=null;},{passive:true});
+document.addEventListener('touchend',e=>{
+ const start=calendarTouchStart;
+ if(!start||![...e.changedTouches].some(t=>t.identifier===start.identifier))return;
+ calendarTouchStart=null;
+ if(!start.dragging)return;
+ const touch=[...e.changedTouches].find(t=>t.identifier===start.identifier);
+ const offset=monthSnapOffset(touch.clientX-start.x,start.width);
+ if(e.cancelable)e.preventDefault();
+ ignoreDateClickUntil=Date.now()+450;
+ settleCalendarSwipe(offset);
+},{passive:false});
+document.addEventListener('touchcancel',()=>{
+ const active=calendarTouchStart?.dragging;
+ calendarTouchStart=null;
+ if(active)settleCalendarSwipe(0);
+},{passive:true});
 // The login action directly starts the OAuth popup from the first enabled tap.
 $('#connection').addEventListener('click',()=>run(api.connected?'settings':'connect'));
 $('#sync').addEventListener('click',()=>run('sync'));
