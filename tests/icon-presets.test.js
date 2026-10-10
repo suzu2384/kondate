@@ -95,9 +95,9 @@ test('toolbar, handlers, and clipping CSS are wired',()=>{
  assert.doesNotMatch(app.match(/function additionalCalendarSettings\(\)\{[\s\S]*?\n\}/)?.[0]||'',/icon-tile-grid/);
  assert.match(app,/class="icon-tile/);
  assert.match(app,/id="preset-edit-color"/);
- assert.match(css,/mask-image:var\(--preset-svg\)/);
- assert.match(css,/\.preset-svg-icon::before\{content:'';position:absolute;inset:0;display:block/);
- assert.match(css,/\.preset-svg-icon\{[\s\S]*?filter:drop-shadow\(/);
+ assert.ok(css.includes('mask:var(--preset-svg) center / contain no-repeat'));
+ assert.ok(css.includes('stroke-width:1.6'));
+ assert.ok(css.includes('paint-order:stroke fill'));
  assert.match(css,/\.preset-svg-icon\.is-white\{--preset-icon-edge:/);
  assert.match(css,/\.dialog-body \.icon-tile-grid\{display:grid/);
  assert.match(app,/id="preset-edit-calendar"/);
