@@ -420,7 +420,18 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 
 /* v1.3.29: uploaded SVG icons, tile selector, and per-preset color. */
-.preset-svg-icon{display:inline-block;flex:0 0 auto;width:1em;height:1em;vertical-align:middle;
+/* The outer span stays unmasked: masking it would clip off the edge shadows.
+   The masked pseudo-element is the coloured silhouette, and the parent filter
+   traces that silhouette rather than drawing a rectangle around the icon. */
+.preset-svg-icon{display:inline-block;position:relative;flex:0 0 auto;
+ width:1em;height:1em;vertical-align:middle;
+ --preset-icon-edge:color-mix(in srgb,var(--text) 72%,transparent);
+ filter:drop-shadow(.65px 0 0 var(--preset-icon-edge))
+        drop-shadow(-.65px 0 0 var(--preset-icon-edge))
+        drop-shadow(0 .65px 0 var(--preset-icon-edge))
+        drop-shadow(0 -.65px 0 var(--preset-icon-edge))}
+.preset-svg-icon.is-white{--preset-icon-edge:#15212bbd}
+.preset-svg-icon::before{content:'';position:absolute;inset:0;display:block;
  background-color:currentColor;
  -webkit-mask-image:var(--preset-svg);mask-image:var(--preset-svg);
  -webkit-mask-size:contain;mask-size:contain;

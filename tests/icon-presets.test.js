@@ -96,6 +96,9 @@ test('toolbar, handlers, and clipping CSS are wired',()=>{
  assert.match(app,/class="icon-tile/);
  assert.match(app,/id="preset-edit-color"/);
  assert.match(css,/mask-image:var\(--preset-svg\)/);
+ assert.match(css,/\.preset-svg-icon::before\{content:'';position:absolute;inset:0;display:block/);
+ assert.match(css,/\.preset-svg-icon\{[\s\S]*?filter:drop-shadow\(/);
+ assert.match(css,/\.preset-svg-icon\.is-white\{--preset-icon-edge:/);
  assert.match(css,/\.dialog-body \.icon-tile-grid\{display:grid/);
  assert.match(app,/id="preset-edit-calendar"/);
  assert.match(css,/\.month-grid \.event-chip \.calendar-event-note\{[^}]*text-overflow:clip/);
@@ -160,4 +163,19 @@ test('preset list is a single row and editor is transactional',()=>{
  assert.match(app,/rule\.calendarId=created\.id/);
  assert.match(css,/\.icon-preset-row\{display:flex;align-items:center/);
  assert.match(css,/\.preset-row-memo\{flex:1 1 0/);
+});
+
+test('preset icon outline follows the SVG silhouette in the calendar, toolbar and editor',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
+ const iconCss=css.slice(css.indexOf('/* The outer span stays unmasked:'),css.indexOf('.quick-preset .preset-svg-icon'));
+ const outline=iconCss.slice(iconCss.indexOf('.preset-svg-icon{'),iconCss.indexOf('.preset-svg-icon.is-white'));
+ assert.match(outline,/filter:drop-shadow\(/);
+ assert.equal((outline.match(/drop-shadow\(/g)||[]).length,4);
+ assert.doesNotMatch(outline,/mask-image:/); // no clipping of outline
+ assert.match(iconCss,/\.preset-svg-icon::before\{[^}]*-webkit-mask-image:var\(--preset-svg\);mask-image:var\(--preset-svg\)/);
+ assert.match(iconCss,/\.preset-svg-icon\.is-white\{--preset-icon-edge:/);
+ assert.match(app,/class="preset-svg-icon \$\{extraClass\}/);
+ for(const target of ['.quick-preset .preset-svg-icon','.icon-tile .preset-svg-icon','.icon-picker-trigger .preset-svg-icon','.calendar-event-icon .preset-svg-icon'])
+  assert.ok(css.includes(target),target);
 });
