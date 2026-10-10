@@ -39,3 +39,22 @@ test('local and remote content hashes resolve stale Drive revisions before decla
  assert.match(app,/if\(decision==='equal'\)/);
  assert.match(app,/setDriveMeta\(DRIVE_DIGEST,driveBaseDigest\)/);
 });
+
+test('Drive sync state is visible and manually refreshable on both devices',()=>{
+ assert.match(app,/id="drive-sync-state"/);
+ assert.match(app,/button\('今すぐ同期','drive-sync-now'/);
+ assert.match(app,/'drive-sync-now':async\(\)=>\{/);
+ assert.match(app,/setDriveSyncStatus\('Driveへ送信済み/);
+ assert.match(app,/setDriveSyncStatus\('Driveから受信済み/);
+ assert.match(app,/setDriveSyncStatus\('競合：/);
+ assert.match(app,/driveLastSuccessAt=Date\.now\(\)/);
+ assert.match(css,/\.drive-sync-tools\{display:flex/);
+});
+test('Drive downloads never overwrite local checkboxes modified during network requests',()=>{
+ const reconcile=app.slice(app.indexOf('async function autoDriveSync(){'),app.indexOf('// Sign in only to services with an expired session.'));
+ const guard=reconcile.indexOf('if(latestLocalDigest!==localDigest)');
+ const download=reconcile.indexOf("if(decision==='download')");
+ const upload=reconcile.indexOf('drive.saveChecked(localSnapshot,remoteRevision)');
+ assert.ok(guard>0&&guard<download&&guard<upload,'must detect a stale local snapshot before any cloud write or download');
+ assert.match(reconcile,/followUp=true;\s*setDriveSyncStatus\('通信中の変更を検知/);
+});

@@ -536,3 +536,9 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  border-radius:9px;box-shadow:0 10px 24px #0003;opacity:.96}
 .preset-drag-ghost .preset-drag-handle{pointer-events:none}
 @media(max-width:420px){.icon-preset-row .preset-drag-handle{flex-basis:23px;width:23px;min-width:23px}}
+
+/* v1.3.40 — compact diagnostics for Drive auto synchronization. */
+.drive-sync-tools{display:flex;align-items:center;gap:8px;margin:4px 0 8px;min-width:0}
+.drive-sync-tools #drive-sync-state{min-width:0;flex:1;line-height:1.45;overflow-wrap:anywhere}
+.drive-sync-tools button{flex:0 0 auto}
+@media(max-width:420px){.drive-sync-tools{flex-wrap:wrap}.drive-sync-tools #drive-sync-state{flex-basis:100%}}

@@ -70,3 +70,17 @@ test('invalid or oversized Drive backups are rejected before changing local pref
  ])assert.throws(()=>readDriveSnapshot(backup,local,()=>{}));
  assert.equal(local.theme.color,'green');
 });
+
+test('other calendar visibility and preset ordering round-trip through Drive settings',()=>{
+ const source=state();
+ source.extraCalendarIds=['calendar-a@example.com','calendar-b@example.com'];
+ source.iconRules=[{id:'1111111111',keyword:'予定B',memo:'',calendarId:'calendar-a@example.com',icon:'home_2_fill',color:'#ffffff'},
+  {id:'2222222222',keyword:'予定A',memo:'',calendarId:'calendar-b@example.com',icon:'car_fill',color:'#ffffff'}];
+ const snapshot=createDriveSnapshot(source);
+ assert.deepEqual(snapshot.settings.extraCalendarIds,source.extraCalendarIds);
+ assert.deepEqual(snapshot.settings.iconRules,source.iconRules);
+ const receiving=state();
+ restoreDriveSnapshot(receiving,readDriveSnapshot(snapshot,receiving,()=>{}));
+ assert.deepEqual(receiving.extraCalendarIds,source.extraCalendarIds);
+ assert.deepEqual(receiving.iconRules.map(r=>r.id),['1111111111','2222222222']);
+});
