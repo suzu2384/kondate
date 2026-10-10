@@ -740,3 +740,15 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .month-heading .calendar-switch-button{min-width:32px;font-size:19px}
 }
 @media(prefers-reduced-motion:reduce){.month-grid-track{will-change:auto}}
+
+/* v1.3.57: uploaded Lucide SVGs shown in the current light/dark theme color. */
+.tabs button .nav-icon{
+ display:block;flex:0 0 auto;width:24px;height:24px;background-color:currentColor;
+ -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+ -webkit-mask-position:center;mask-position:center;
+ -webkit-mask-size:contain;mask-size:contain;
+}
+.tabs button .nav-icon-calendar{-webkit-mask-image:url('./icons/tabs/calendar-days.svg');mask-image:url('./icons/tabs/calendar-days.svg')}
+.tabs button .nav-icon-generate{-webkit-mask-image:url('./icons/tabs/chef-hat.svg');mask-image:url('./icons/tabs/chef-hat.svg')}
+.tabs button .nav-icon-photo{-webkit-mask-image:url('./icons/tabs/utensils.svg');mask-image:url('./icons/tabs/utensils.svg')}
+.tabs button .nav-icon-settings{-webkit-mask-image:url('./icons/tabs/settings.svg');mask-image:url('./icons/tabs/settings.svg')}
