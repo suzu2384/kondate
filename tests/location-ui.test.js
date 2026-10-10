@@ -36,8 +36,8 @@ test('one-field location typeahead is region-neutral and keeps candidates inline
  assert.match(dialog,/class="place-sheet-attribution"/);
  const popup=dialog.slice(dialog.indexOf('id="place-popup"'),dialog.indexOf('</div></div><h3>料理'));
  assert.match(popup,/place-popup-attribution/);
- assert.match(popup,/openstreetmap.org\\/copyright/);
- assert.match(css,/#dialog-content #place-search-sheet #place-popup \\.place-popup-attribution\\{display:none\\}/);
+ assert.ok(popup.includes('openstreetmap.org/copyright'));
+ assert.ok(css.includes('#dialog-content #place-search-sheet #place-popup .place-popup-attribution{display:none}'));
  assert.match(dialog,/id="place-search-status"/);
  assert.doesNotMatch(dialog,/placeholder="津田沼"/);
  assert.match(app,/function queuePlaceLookup\(field,\{immediate=false\}=\{\}\)/);
