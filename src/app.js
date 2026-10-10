@@ -179,7 +179,7 @@ const PRESET_ICON_PATHS = /* EMBED_PRESET_ICON_PATHS */ {};
 function iconMarkup(name,color='',extraClass=''){
  const icon=normalizeIcon(name),tint=normalizeIconColor(color);
  const paths=PRESET_ICON_PATHS[icon]||[];
- const cls=`preset-svg-icon ${extraClass} ${tint.toLowerCase()==='#ffffff'?'is-white':''}`;
+ const cls=`preset-svg-icon ${extraClass}`.trim();
  if(!paths.length)return `<span class="${cls} icon-mask-fallback" aria-hidden="true" style="--preset-svg:url('./icons/presets/${icon}.svg');color:${tint}"></span>`;
  return `<svg class="${cls}" aria-hidden="true" focusable="false" viewBox="0 0 24 24" style="color:${tint}">${paths.map(d=>`<path d="${esc(d)}"/>`).join('')}</svg>`;
 }
@@ -341,7 +341,6 @@ function updatePresetEditorIconPreview(){
  const tint=normalizeIconColor(field.value);
  presetEditDraft.color=tint;
  icon.style.color=tint;
- icon.classList.toggle('is-white',tint.toLowerCase()==='#ffffff');
 }
 function openPresetEditor(ruleId=null){
  const original=ruleId?state.iconRules.find(rule=>rule.id===ruleId):null;

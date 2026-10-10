@@ -60,9 +60,9 @@ test('all calendar chips are rendered and clipped naturally, with centered icons
  assert.doesNotMatch(app,/chips\.slice\(0,2\)|chips\.length>2/);
  assert.match(css,/\.month-grid \.day \.event-chip\{flex:0 0 auto\}/);
  assert.match(css,/\.month-grid \.event-chip\.general-event\.has-icon\{align-items:center\}/);
- assert.match(css,/\.calendar-event-icon:has\(\.preset-svg-icon\.is-white\)/);
+ assert.doesNotMatch(css,/\.preset-svg-icon\.is-white|:has\([^)]*is-white/);
  assert.match(app,/beginPresetEdit\(original,uid\(\)\.slice\(0,10\)\)/);
- assert.match(app,/is-white/);
+ assert.doesNotMatch(app,/is-white/);
 });
 test('calendar preserves its nodes, inset focus, and pending opacity instead of dashed lines',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
@@ -129,7 +129,7 @@ test('editing an icon color updates its SVG preview immediately',()=>{
  const preview=app.slice(app.indexOf('function updatePresetEditorIconPreview(){'),app.indexOf('function openPresetEditor('));
  assert.match(preview,/presetEditDraft\.color=tint/);
  assert.match(preview,/icon\.style\.color=tint/);
- assert.match(preview,/icon\.classList\.toggle\('is-white'/);
+ assert.doesNotMatch(preview,/icon\.classList\.toggle/);
  assert.match(app,/if\(el\.id==='preset-edit-color'\)\{updatePresetEditorIconPreview\(\);return;\}/);
  assert.match(app,/if\(el\.id==='preset-edit-color'\)updatePresetEditorIconPreview\(\);/);
 });
@@ -196,4 +196,18 @@ test('production build embeds all vector paths without requiring extra HTTP impo
  const block=result.slice(result.indexOf('const PRESET_ICON_PATHS = {'),result.indexOf('function iconMarkup('));
  for(const name of ICON_CHOICES)assert.ok(block.includes(JSON.stringify(name)+':'),name);
  assert.ok(result.includes('<svg class="${cls}"'));
+});
+
+test('white preset icon has the same transparent background as other colors',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
+ // This is a vector outline, not a white-only background workaround.
+ assert.match(app,/const cls=`preset-svg-icon \$\{extraClass\}`\.trim\(\)/);
+ assert.match(css,/\.preset-svg-icon path\{fill:currentColor;stroke:var\(--preset-icon-edge\)/);
+ assert.match(css,/--preset-icon-edge:#000/);
+ assert.doesNotMatch(app,/is-white/);
+ assert.doesNotMatch(css,/:has\([^}]*is-white/);
+ for(const selector of ['.quick-preset', '.icon-picker-trigger', '.icon-tile', '.preset-row-icon']){
+  assert.ok(css.includes(selector),`Missing ${selector}`);
+ }
 });

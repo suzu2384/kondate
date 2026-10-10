@@ -484,25 +484,16 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  #preset-pending{font-size:10px;height:21px;min-height:21px;padding:0 6px;max-width:52%}
 }
 
-/* v1.3.32 — default white icon contrast, unlimited day chips, centered icon/label. */
+/* v1.3.58 — white SVGs use their black outline instead of a colored backing. */
+/* v1.3.32 — unlimited day chips, centered icon/label. */
 .month-grid .day .event-chip{flex:0 0 auto}
 .month-grid .event-chip.general-event.has-icon{align-items:center}
 .month-grid .event-chip .calendar-event-icon{display:inline-flex;align-items:center;justify-content:center;
  height:1.35em;line-height:1;vertical-align:middle}
 .month-grid .event-chip .calendar-event-icon .preset-svg-icon{display:block;width:1em;height:1em}
 .month-grid .event-chip .calendar-event-note{line-height:1.35;align-self:center}
-.calendar-event-icon:has(.preset-svg-icon.is-white){background:var(--accent);border-radius:3px;
- min-width:1.45em;height:1.45em;padding:1px}
-.quick-preset:has(.preset-svg-icon.is-white),
-.icon-picker-trigger:has(.preset-svg-icon.is-white),
-.icon-tile:has(.preset-svg-icon.is-white){background:var(--accent);border-color:var(--accent)}
-.quick-preset.active:has(.preset-svg-icon.is-white){border-color:var(--on-accent);
- outline:2px solid var(--accent);outline-offset:-1px}
-.icon-tile.selected:has(.preset-svg-icon.is-white){box-shadow:inset 0 0 0 2px var(--on-accent)}
-.icon-picker-trigger:has(.preset-svg-icon.is-white) span:last-child{color:var(--on-accent)}
 .general-event-detail-icon{display:inline-flex;align-items:center;justify-content:center;
  flex:0 0 auto;width:23px;height:23px;border-radius:4px}
-.general-event-detail-icon:has(.preset-svg-icon.is-white){background:var(--accent)}
 .general-event-detail-icon .preset-svg-icon{width:17px;height:17px}
 
 /* v1.3.33: keep focus inside a calendar cell and avoid double outlines on touch. */
@@ -516,7 +507,6 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  border:1px solid var(--line);border-radius:9px;background:var(--surface)}
 .icon-preset-row .preset-row-icon{display:inline-flex;align-items:center;justify-content:center;
  flex:0 0 32px;width:32px;height:32px;border-radius:6px;overflow:hidden}
-.icon-preset-row .preset-row-icon:has(.preset-svg-icon.is-white){background:var(--accent)}
 .icon-preset-row .preset-row-icon .preset-svg-icon{width:20px;height:20px;flex:0 0 auto}
 .icon-preset-row .preset-row-memo{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;
  text-overflow:clip;font-size:12px;line-height:1.4}
