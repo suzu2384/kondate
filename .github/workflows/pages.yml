@@ -355,32 +355,3 @@ jobs:
               }
             }
             core.notice(`Release available: ${release.html_url}`);
-
-  retract-v1347:
-    name: Withdraw unwanted v1.3.47
-    needs: deploy
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Delete withdrawn release and tag
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const {owner,repo}=context.repo;
-            const tag='v1.3.47';
-            try {
-              const release=(await github.rest.repos.getReleaseByTag({owner,repo,tag})).data;
-              await github.rest.repos.deleteRelease({owner,repo,release_id:release.id});
-              core.notice('Deleted withdrawn release '+tag);
-            } catch (error) {
-              if (error.status!==404) throw error;
-              core.notice('Release already absent: '+tag);
-            }
-            try {
-              await github.rest.git.deleteRef({owner,repo,ref:'tags/'+tag});
-              core.notice('Deleted withdrawn tag '+tag);
-            } catch (error) {
-              if (error.status!==404) throw error;
-              core.notice('Tag already absent: '+tag);
-            }
