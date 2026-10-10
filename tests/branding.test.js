@@ -47,5 +47,15 @@ test('calendar selector uses user-provided SVG with no numbered filename suffix'
 test('SVG home icon content is shifted toward the optical center',()=>{
  const svg=read('icons/icon.svg'),cache=read('sw.js');
  assert.match(svg,/transform="translate\(-5\.25 -24\.25\)"/);
- assert.match(cache,/kondate-shell-v1-3-63/);
+ assert.match(cache,/kondate-shell-v1-3-64/);
+});
+
+test('KonDate is used consistently in app-facing copy, documentation and release header',()=>{
+ const readme=read('README.md'),app=read('src/app.js'),workflow=read('.github/workflows/pages.yml');
+ assert.match(readme,/^# KonDate\b/);
+ assert.doesNotMatch(readme,/献立ノート/);
+ assert.match(app,/KonDateの設定ファイルではありません。/);
+ assert.doesNotMatch(app,/献立ノート/);
+ assert.match(workflow,/name: `KonDate \$\{tag\}`/);
+ assert.match(workflow,/`## KonDate \$\{tag\}`/);
 });
