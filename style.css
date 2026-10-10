@@ -466,8 +466,10 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .dialog-body .icon-tile{min-height:47px;height:47px;padding:8px}
 .dialog-body .icon-tile .preset-svg-icon{width:27px;height:27px}
 @media(max-width:420px){
- .dialog-body .icon-tile-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
- .dialog-body .icon-tile{height:46px;min-height:46px}
+ /* Keep all 45 preset icons in six columns even on narrow phones. */
+ .dialog-body .icon-tile-grid{grid-template-columns:repeat(6,minmax(0,1fr));gap:5px}
+ .dialog-body .icon-tile{height:42px;min-height:42px;padding:4px}
+ .dialog-body .icon-tile .preset-svg-icon{width:25px;height:25px}
 }
 
 /* v1.3.31 — nonblocking queued preset edits. The save button uses the existing status row. */

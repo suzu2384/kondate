@@ -250,3 +250,14 @@ test('production vector paths keep evenodd fill rule and black hairline outlines
   assert.ok(match,name+' must embed its evenodd path');
  }
 });
+
+test('preset icon chooser stays six columns on both wide and narrow screens',()=>{
+ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
+ const wide=css.match(/\.dialog-body \.icon-tile-grid\{display:grid;grid-template-columns:repeat\(6,minmax\(0,1fr\)\);/);
+ assert.ok(wide,'desktop must use six columns');
+ const narrow=css.match(/@media\(max-width:420px\)\{[\s\S]*?\.dialog-body \.icon-tile-grid\{grid-template-columns:repeat\(6,minmax\(0,1fr\)\);gap:5px\}/);
+ assert.ok(narrow,'small phones must also use six columns');
+ assert.doesNotMatch(css,/\.dialog-body \.icon-tile-grid\{grid-template-columns:repeat\(5,/);
+ assert.match(css,/\.dialog-body \.icon-tile\{height:42px;min-height:42px;padding:4px\}/);
+ assert.match(css,/\.dialog-body \.icon-tile \.preset-svg-icon\{width:25px;height:25px\}/);
+});
