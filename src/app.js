@@ -172,9 +172,15 @@ function render(){
  showStatus();
  if(previousScroll!=null){const list=$('#main .settings-grid');if(list)list.scrollTop=previousScroll;}
 }
+// The production build embeds the paths from the bundled MingCute SVG assets.
+// Using real SVG paths gives a precise hairline stroke, unlike a drop shadow.
+const PRESET_ICON_PATHS = /* EMBED_PRESET_ICON_PATHS */ {};
 function iconMarkup(name,color='',extraClass=''){
  const icon=normalizeIcon(name),tint=normalizeIconColor(color);
- return `<span class="preset-svg-icon ${extraClass} ${tint.toLowerCase()==='#ffffff'?'is-white':''}" aria-hidden="true" style="--preset-svg:url('./icons/presets/${icon}.svg');color:${tint}"></span>`;
+ const paths=PRESET_ICON_PATHS[icon]||[];
+ const cls=`preset-svg-icon ${extraClass} ${tint.toLowerCase()==='#ffffff'?'is-white':''}`;
+ if(!paths.length)return `<span class="${cls} icon-mask-fallback" aria-hidden="true" style="--preset-svg:url('./icons/presets/${icon}.svg');color:${tint}"></span>`;
+ return `<svg class="${cls}" aria-hidden="true" focusable="false" viewBox="0 0 24 24" style="color:${tint}">${paths.map(d=>`<path d="${esc(d)}"/>`).join('')}</svg>`;
 }
 function renderPresetBar(){
  const bar=$('#quick-preset-bar');

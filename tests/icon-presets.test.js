@@ -165,17 +165,31 @@ test('preset list is a single row and editor is transactional',()=>{
  assert.match(css,/\.preset-row-memo\{flex:1 1 0/);
 });
 
-test('preset icon outline follows the SVG silhouette in the calendar, toolbar and editor',()=>{
+test('preset icon outline is an actual SVG path stroke, not multiple drop shadows',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
- const iconCss=css.slice(css.indexOf('/* The outer span stays unmasked:'),css.indexOf('.quick-preset .preset-svg-icon'));
- const outline=iconCss.slice(iconCss.indexOf('.preset-svg-icon{'),iconCss.indexOf('.preset-svg-icon.is-white'));
- assert.match(outline,/filter:drop-shadow\(/);
- assert.equal((outline.match(/drop-shadow\(/g)||[]).length,4);
- assert.doesNotMatch(outline,/mask-image:/); // no clipping of outline
- assert.match(iconCss,/\.preset-svg-icon::before\{[^}]*-webkit-mask-image:var\(--preset-svg\);mask-image:var\(--preset-svg\)/);
- assert.match(iconCss,/\.preset-svg-icon\.is-white\{--preset-icon-edge:/);
- assert.match(app,/class="preset-svg-icon \$\{extraClass\}/);
+ const build=readFileSync(new URL('../scripts/build.js',import.meta.url),'utf8');
+ assert.ok(app.includes('const PRESET_ICON_PATHS = /* EMBED_PRESET_ICON_PATHS */ {};'));
+ assert.ok(app.includes('<svg class="${cls}"'));
+ assert.ok(app.includes('<path d="${esc(d)}"/>'));
+ assert.match(css,/\.preset-svg-icon path\{fill:currentColor;stroke:var\(--preset-icon-edge\)/);
+ assert.ok(css.includes('stroke-width:1.6'));
+ assert.ok(css.includes('paint-order:stroke fill'));
+ const cssFromSvg=css.slice(css.indexOf('/* v1.3.54: draw'),css.indexOf('.quick-preset .preset-svg-icon'));
+ assert.doesNotMatch(cssFromSvg,/drop-shadow/);
+ assert.ok(build.includes('icons/presets/${name}.svg'));
+ assert.ok(build.includes("source.replace(marker,"));
  for(const target of ['.quick-preset .preset-svg-icon','.icon-tile .preset-svg-icon','.icon-picker-trigger .preset-svg-icon','.calendar-event-icon .preset-svg-icon'])
   assert.ok(css.includes(target),target);
+});
+
+test('production build embeds all vector paths without requiring extra HTTP imports',()=>{
+ const build=spawnSync(process.execPath,['scripts/build.js'],{encoding:'utf8'});
+ assert.equal(build.status,0,build.stderr);
+ const result=readFileSync(new URL('../dist/src/app.js',import.meta.url),'utf8');
+ assert.doesNotMatch(result,/\/\* EMBED_PRESET_ICON_PATHS \*\//);
+ assert.ok(result.includes('const PRESET_ICON_PATHS = {'));
+ const block=result.slice(result.indexOf('const PRESET_ICON_PATHS = {'),result.indexOf('function iconMarkup('));
+ for(const name of ICON_CHOICES)assert.ok(block.includes(JSON.stringify(name)+':'),name);
+ assert.ok(result.includes('<svg class="${cls}"'));
 });

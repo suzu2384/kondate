@@ -422,23 +422,20 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 
 /* v1.3.29: uploaded SVG icons, tile selector, and per-preset color. */
-/* The outer span stays unmasked: masking it would clip off the edge shadows.
-   The masked pseudo-element is the coloured silhouette, and the parent filter
-   traces that silhouette rather than drawing a rectangle around the icon. */
-.preset-svg-icon{display:inline-block;position:relative;flex:0 0 auto;
- width:1em;height:1em;vertical-align:middle;
- --preset-icon-edge:color-mix(in srgb,var(--text) 72%,transparent);
- filter:drop-shadow(.65px 0 0 var(--preset-icon-edge))
-        drop-shadow(-.65px 0 0 var(--preset-icon-edge))
-        drop-shadow(0 .65px 0 var(--preset-icon-edge))
-        drop-shadow(0 -.65px 0 var(--preset-icon-edge))}
-.preset-svg-icon.is-white{--preset-icon-edge:#15212bbd}
-.preset-svg-icon::before{content:'';position:absolute;inset:0;display:block;
- background-color:currentColor;
- -webkit-mask-image:var(--preset-svg);mask-image:var(--preset-svg);
- -webkit-mask-size:contain;mask-size:contain;
- -webkit-mask-position:center;mask-position:center;
- -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat}
+/* v1.3.54: draw a true, crisp hairline around each vector path.
+   SVG paint-order puts the stroke behind the fill so only its outer half
+   remains visible. Shadows would blur the contour and are intentionally absent. */
+.preset-svg-icon{display:inline-block;flex:0 0 auto;width:1em;height:1em;
+ vertical-align:middle;overflow:visible;
+ --preset-icon-edge:color-mix(in srgb,var(--text) 86%,transparent)}
+.preset-svg-icon.is-white{--preset-icon-edge:#15212be6}
+.preset-svg-icon path{fill:currentColor;stroke:var(--preset-icon-edge);
+ stroke-width:1.6;stroke-linejoin:round;stroke-linecap:round;
+ paint-order:stroke fill}
+/* Preserve direct-source preview if the icon paths have not been injected. */
+.preset-svg-icon.icon-mask-fallback{background:currentColor;
+ -webkit-mask:var(--preset-svg) center / contain no-repeat;
+ mask:var(--preset-svg) center / contain no-repeat}
 .quick-preset .preset-svg-icon{width:21px;height:21px}
 .icon-tile-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(50px,1fr));
  gap:8px;margin:12px 0;align-items:stretch}
