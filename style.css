@@ -638,3 +638,73 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 #dialog-content #place-suggestions .place-suggestion small{
  white-space:normal;overflow-wrap:anywhere;line-height:1.45
 }
+
+/* v1.3.46: iPhone keyboard-safe place finder. The original editor stays intact
+   underneath, while the search input and its results share a visual viewport. */
+#dialog.place-search-open{
+ position:fixed;inset:0;width:100%;height:100dvh;max-height:none;max-width:none;
+ margin:0;padding:0;overflow:visible;border:0;background:var(--surface);
+}
+#dialog.place-search-open #dialog-content>.dialog-head,
+#dialog.place-search-open #dialog-content>.dialog-body,
+#dialog.place-search-open #dialog-content>.dialog-foot{visibility:hidden}
+#dialog-content #place-search-sheet{
+ position:fixed;z-index:3000;box-sizing:border-box;display:flex;flex-direction:column;
+ min-height:0;min-width:0;max-height:none;max-width:none;
+ padding:calc(10px + env(safe-area-inset-top, 0px)) 10px 8px;
+ overflow:hidden;background:var(--surface);color:var(--text);
+}
+#dialog-content #place-search-sheet[hidden]{display:none}
+#dialog-content #place-search-sheet .place-sheet-bar{
+ flex:0 0 auto;display:flex;align-items:center;gap:8px;min-width:0;
+ border:1px solid var(--line);border-radius:24px;background:var(--panel);
+ padding:4px 6px 4px 14px;min-height:50px;
+}
+#dialog-content #place-search-sheet .place-sheet-search-icon{
+ flex:0 0 auto;font-size:29px;line-height:1;color:var(--muted)
+}
+#dialog-content #place-search-active{
+ flex:1 1 auto;min-width:0;width:1px;min-height:40px;
+ padding:6px 0;border:0;border-radius:0;background:transparent;
+ font-size:17px;line-height:1.4;outline:none
+}
+#dialog-content #place-search-sheet .place-sheet-bar>button{
+ flex:0 0 40px;min-width:40px;height:40px;min-height:40px;padding:0;
+ border:0;border-radius:50%;background:var(--tint);font-size:24px
+}
+#dialog-content #place-search-sheet .place-sheet-results{
+ flex:1 1 auto;display:flex;flex-direction:column;min-height:0;overflow:hidden;margin-top:8px
+}
+#dialog-content #place-search-sheet #place-popup{
+ position:static!important;display:flex;flex-direction:column;flex:1 1 auto;
+ min-height:0;max-height:none!important;width:100%!important;height:auto;
+ margin:0;padding:0;border:0;border-radius:0;background:transparent;
+ box-shadow:none;overflow:hidden
+}
+#dialog-content #place-search-sheet #place-popup[hidden]{display:none!important}
+#dialog-content #place-search-sheet #place-suggestions{
+ flex:1 1 auto;overflow-y:auto;overflow-x:hidden;
+ min-height:0;max-height:none;overscroll-behavior-y:contain;touch-action:pan-y;
+ -webkit-overflow-scrolling:touch
+}
+#dialog-content #place-search-sheet #place-suggestions .place-suggestion{
+ display:flex;flex-direction:column;gap:5px;align-items:stretch;
+ width:100%;min-height:70px;padding:12px 18px 12px 49px;
+ border:0;border-bottom:1px solid var(--line);border-radius:0;
+ position:relative;flex:0 0 auto;touch-action:pan-y
+}
+#dialog-content #place-search-sheet #place-suggestions .place-suggestion::before{
+ content:' ';width:12px;height:12px;position:absolute;left:18px;top:21px;
+ border:2px solid var(--muted);border-radius:50%;
+}
+#dialog-content #place-search-sheet #place-suggestions .place-suggestion::after{
+ content:' ';position:absolute;left:24px;top:32px;height:10px;width:2px;
+ background:var(--muted);transform:rotate(36deg);
+}
+#dialog-content #place-search-sheet .place-sheet-attribution{
+ flex:0 0 auto;margin-top:4px;font-size:10px;text-align:center;
+ color:var(--muted);line-height:1.35
+}
+@media(min-width:761px){
+ #dialog-content #place-search-sheet{display:none}
+}

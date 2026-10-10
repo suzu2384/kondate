@@ -56,3 +56,25 @@ test('typeahead filters cached Photon candidates before the network returns',()=
  assert.match(app,/seed:\[\.\.\.placeCandidatePool\.values\(\)\]/);
  assert.match(app,/入力順に関係なくすべて含む候補/);
 });
+
+test('mobile location search fixes the search field at visual viewport top with scrollable results beneath',()=>{
+ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
+ assert.match(app,/function openPlaceSearchSheet\(\)/);
+ assert.match(app,/function closePlaceSearchSheet\(\)/);
+ assert.match(app,/sheet\.querySelector\('\.place-sheet-results'\)\.appendChild\(popup\)/);
+ assert.match(app,/sheet\.style\.top=Math\.round\(viewport\?\.offsetTop\?\?0\)/);
+ assert.match(app,/sheet\.style\.height=Math\.round\(viewport\?\.height\?\?innerHeight\)/);
+ assert.match(app,/input\.focus\(\{preventScroll:true\}\)/);
+ assert.match(app,/if\(matchMedia\('\(max-width:760px\)'\)\.matches\)\{openPlaceSearchSheet\(\);return;\}/);
+ assert.match(css,/#dialog-content #place-search-sheet\{[\s\S]*?position:fixed/);
+ assert.match(css,/#dialog-content #place-search-sheet #place-suggestions\{[\s\S]*?overflow-y:auto/);
+ assert.match(css,/#dialog-content #place-search-sheet #place-popup\{\s*position:static!important/);
+ assert.match(css,/#dialog-content #place-search-sheet\[hidden\]\{display:none\}/);
+ assert.doesNotMatch(app,/const placeBelow=/);
+});
+test('place candidates synchronize selection into the actual calendar editor',()=>{
+ assert.match(app,/field\.value=name;if\(original\)original\.value=name;editor\.location=name/);
+ assert.match(app,/'close-place-search':\(\)=>closePlaceSearchSheet\(\)/);
+ assert.match(app,/if\(editor&&\(el\.id==='record-location'\|\|el\.id==='place-search-active'\)\)/);
+ assert.match(app,/function closePlaceSearchSheet\(\)/);
+});

@@ -352,7 +352,7 @@ function openCalendarCreation(ruleId){
 }
 function settingsScreen(){return `<section class="screen"><div class="settings-grid scroll"><section class="settings-card card"><h2>Googleカレンダー</h2><p>Googleでログインし、分類ごとのカレンダーを設定してください。</p>${!GOOGLE_CLIENT_ID?'<p class="hint">Googleログインの初期設定が完了していません。開発者による設定が必要です。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">この端末で接続を保持（有効期限内）</label></div><p class="hint">オンにすると短期のGoogle認証情報を端末のブラウザに保存し、アプリを閉じても期限内は認証画面を出さずに接続します。共有端末ではオフを推奨します。</p>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<label class="field"><span>カレンダーの自動更新間隔</span><select id="calendar-refresh-minutes">${CALENDAR_REFRESH_MINUTES.map(minutes=>`<option value="${minutes}" ${state.calendarRefreshMinutes===minutes?'selected':''}>${minutes===0?'自動更新しない':minutes+'分ごと'}</option>`).join('')}</select><small>画面の表示中、Googleに接続しているときだけ自動取得します。画面に戻ったときや通信復帰時も、更新間隔を過ぎていれば再取得します。入力途中の内容は変更しません。</small></label><label class="field"><span>履歴の取得開始日</span><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div><small>この日以降の履歴を料理マスターに利用します。取得対象は日本時間の日付基準です。</small></label>${button('履歴を再取得','sync','full',busy||!api.connected||!hasSyncedCalendars()?'disabled':'')}<p class="hint" style="margin-top:12px">接続を保持する場合、短期アクセストークンをブラウザに保存します。Googleカレンダーの内容は保存しません。認証の期限切れ時は、共通ステータスバーから再接続できます。</p></section><section class="settings-card card"><h2>他の端末へ設定を引き継ぐ</h2><p>Googleドライブのアプリ専用領域に設定をバックアップします。同じGoogleアカウントで復元してください。</p><div class="toolbar">${button('Driveにバックアップ','drive-save','mini primary')}${button('Driveから復元','drive-load','mini')}</div><p class="hint">分類・カレンダーの割り当て・生成ルール・配色・表示設定・手動登録した料理マスター・献立生成の下書きを共有します。調理実績やGoogleの認証情報は含みません。</p><div class="check-row"><input id="drive-auto" type="checkbox" ${drive.autoEnabled?'checked':''}><label for="drive-auto">Driveの設定を自動同期する（保存・読み込み）</label></div><div class="drive-sync-tools"><span id="drive-sync-state" class="hint" role="status"></span>${button('今すぐ同期','drive-sync-now','mini',drive.autoEnabled?'':'disabled')}</div><p class="hint">この端末で有効にすると、設定変更をDriveへ自動保存し、アプリ起動時・復帰時に他端末の変更を自動取得します。各端末で個別に有効化してください。初回はDriveに既存のバックアップがあればそちらを取り込みます。</p><p class="hint">同時変更で食い違った場合は自動上書きせず、手動で保存・復元を選べます。</p><p class="hint">認証は短時間だけ有効です。期限切れ後はステータスバーから再接続してください。バックグラウンドでは同期しません。手動保存・復元も引き続き利用できます。</p></section><section class="settings-card card"><h2>配色テーマ</h2><p>色と明るさを、それぞれ選べます。</p><div class="theme-options">${Object.entries(colors).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label><h3 style="margin-top:30px">候補と料理マスター</h3><div class="check-row"><input id="seed-enabled" type="checkbox" ${state.seedEnabled?'checked':''}><label for="seed-enabled">初期候補の料理を使う</label></div><p>初期候補は実績ではありません。過去の履歴はカレンダーから自動でまとめます。</p>${button('料理マスターを開く','master','full')}</section><section class="settings-card card"><h2>献立生成ルール</h2>${rulesFields()}</section><section class="settings-card card"><h2>料理の分類</h2><p>分類名を変えても、これまでの料理との対応は維持します。</p>${state.categories.map(c=>`<div class="category-row"><input aria-label="${esc(c.name)}の分類名" data-category-name="${c.id}" value="${esc(c.name)}" maxlength="20">${button('削除','remove-category','mini danger',`data-category="${c.id}" ${c.id==='main'?'disabled':''}`)}</div>`).join('')}${button('＋ 分類を追加','add-category','full')}<h2 style="margin-top:28px">AI拡張</h2><span class="tag neutral">${ai.available?'接続済み':'未設定'}</span><p style="margin-top:12px">献立選定と写真解析の接続基盤を用意しています。キーの保存方針が決まるまでは入力・保存しません。通常の献立管理はAIなしで利用できます。</p><h3>この端末のデータ</h3><p>分類・カレンダーの選択・下書き・表示設定は端末に保存します。認証期限が切れても、分類の設定は保持されます。実績の正本はGoogleカレンダーです。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"><p class="hint" style="margin-top:12px">書き出しには料理履歴を含みません。確定した料理の情報はGoogleカレンダーが正本です。</p></section>${additionalCalendarSettings()}</div></section>`;}
 function modal(title,body,foot=''){ $('#dialog-content').innerHTML=`<div class="dialog-head"><h2>${title}</h2>${button('×','close-dialog','icon-button','aria-label="閉じる"')}</div><div class="dialog-body">${body}<p class="form-error" id="dialog-error" role="alert"></p></div>${foot?`<div class="dialog-foot">${foot}</div>`:''}`;if(!$('#dialog').open)$('#dialog').showModal();}
-function closeModal(){$('#dialog').close();editor=null;presetEditDraft=null;presetEditOriginalId=null;}
+function closeModal(){cancelPlaceLookup();$('#dialog').close();editor=null;presetEditDraft=null;presetEditOriginalId=null;}
 function categoryOptions(selectedId){return state.categories.map(c=>`<option value="${esc(c.id)}" ${c.id===selectedId?'selected':''}>${esc(c.name)}</option>`).join('');}
 function dishRows(dishes){
  return dishes.map((d,i)=>`<div class="dish-editor">
@@ -385,27 +385,67 @@ function hidePlaceSuggestions(){
  if(popup)popup.hidden=true;
  const status=$('#place-search-status');if(status)status.textContent='';
  $('#record-location')?.setAttribute('aria-expanded','false');
+ $('#place-search-active')?.setAttribute('aria-expanded','false');
+}
+function activePlaceInput(){
+ return $('#place-search-sheet:not([hidden]) #place-search-active')||$('#record-location');
 }
 function positionPlaceSuggestions(){
+ const sheet=$('#place-search-sheet');
+ if(sheet&&!sheet.hidden){
+  // When iOS opens the keyboard the visual viewport changes independently
+  // of the layout viewport. Keep the input visible at its top, not above it.
+  const viewport=globalThis.visualViewport;
+  sheet.style.top=Math.round(viewport?.offsetTop??0)+'px';
+  sheet.style.left=Math.round(viewport?.offsetLeft??0)+'px';
+  sheet.style.width=Math.round(viewport?.width??innerWidth)+'px';
+  sheet.style.height=Math.round(viewport?.height??innerHeight)+'px';
+  return;
+ }
  const popup=$('#place-popup'),field=$('#record-location'),dialog=$('#dialog');
  if(!popup||popup.hidden||!field?.isConnected||!dialog?.open)return;
  const input=field.getBoundingClientRect(),frame=dialog.getBoundingClientRect();
- const visual=globalThis.visualViewport;
- const visibleTop=Math.max(frame.top+8,visual?.offsetTop??0);
- const visibleBottom=Math.min(frame.bottom-8,(visual?.offsetTop??0)+(visual?.height??innerHeight));
- const below=Math.max(0,visibleBottom-input.bottom-5);
- const above=Math.max(0,input.top-visibleTop-5);
- const placeBelow=below>=135||below>=above;
- const room=Math.max(50,Math.min(310,placeBelow?below:above));
+ const visible=globalThis.visualViewport;
+ const bottom=Math.min(frame.bottom-8,(visible?.offsetTop??0)+(visible?.height??innerHeight));
+ const room=Math.max(50,Math.min(310,bottom-input.bottom-5));
  const width=Math.max(80,Math.min(input.width,frame.width-16));
  popup.style.left=Math.max(frame.left+8,Math.min(input.left,frame.right-width-8))+'px';
  popup.style.width=width+'px';
  popup.style.maxHeight=room+'px';
- popup.style.top=(placeBelow?input.bottom+3:Math.max(visibleTop,input.top-room-3))+'px';
+ popup.style.top=input.bottom+3+'px';
+}
+function openPlaceSearchSheet(){
+ const sheet=$('#place-search-sheet'),field=$('#record-location');
+ if(!sheet||!field||!editor||!sheet.hidden)return;
+ const input=$('#place-search-active'),popup=$('#place-popup');
+ if(!input||!popup)return;
+ input.value=field.value;
+ sheet.querySelector('.place-sheet-results').appendChild(popup);
+ sheet.hidden=false;
+ $('#dialog').classList.add('place-search-open');
+ hidePlaceSuggestions();
+ positionPlaceSuggestions();
+ input.focus({preventScroll:true});
+ if(input.value.trim().length>=2)queuePlaceLookup(input);
+}
+function closePlaceSearchSheet(){
+ const sheet=$('#place-search-sheet');
+ if(!sheet||sheet.hidden)return;
+ const input=$('#place-search-active'),field=$('#record-location'),popup=$('#place-popup');
+ if(input&&field){
+  field.value=input.value;
+  if(editor)editor.location=input.value;
+ }
+ cancelPlaceLookup();
+ hidePlaceSuggestions();
+ if(popup)$('#dialog-content').appendChild(popup);
+ sheet.hidden=true;
+ $('#dialog').classList.remove('place-search-open');
+ if(document.activeElement===input)input.blur();
 }
 function showPlaceChoices(field,places){
  const list=$('#place-suggestions'),popup=$('#place-popup');
- if(!field?.isConnected||!list||!popup||field!==$('#record-location'))return;
+ if(!field?.isConnected||!list||!popup||field!==activePlaceInput())return;
  list.innerHTML=places.map(place=>'<button type="button" class="place-suggestion" role="option" data-action="pick-location" data-value="'+esc(place.value)+'"><strong>'+esc(place.name)+'</strong><small>'+esc(place.detail||'住所の登録なし')+'</small></button>').join('');
  popup.hidden=places.length===0&&!$('#place-search-status')?.textContent;
  field.setAttribute('aria-expanded',String(places.length>0));
@@ -467,12 +507,13 @@ function queuePlaceLookup(field,{immediate=false}={}){
  },delay);
 }
 function pickPlaceSuggestion(button){
- const field=$('#record-location');
+ const field=activePlaceInput(),original=$('#record-location');
  if(!editor||!button||!field)return;
  const name=button.dataset.value||'';
  if(!name)return;
  cancelPlaceLookup();
- field.value=name;editor.location=name;
+ field.value=name;if(original)original.value=name;editor.location=name;
+ closePlaceSearchSheet();
  hidePlaceSuggestions();updatePlaceSearchMessage('');field.blur();
 }
 function hideDishSuggestions(){
@@ -510,6 +551,10 @@ function openRecord(record=null,{date=today(),dishes=null}={}){
 function drawRecord(){cancelPlaceLookup();const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><span class="dialog-date-control"><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></span></label><div class="field place-field"><label for="record-location" class="place-input-label">場所（任意・外食の場合に入力）</label><input id="record-location" type="text" value="${esc(editor.location||'')}" placeholder="店名・支店名・住所で検索" maxlength="500" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><small>入力すると候補が自動表示されます。店名・支店名・住所の断片をスペースで区切ると、入力順に関係なくすべて含む候補に絞れます。候補を選ばず自由入力で保存することもできます。</small><div id="place-popup" class="place-popup" hidden><p id="place-search-status" class="place-search-status" role="status" aria-live="polite"></p><div id="place-suggestions" class="place-suggestions" role="listbox" aria-label="場所の候補"></div></div><small class="place-attribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> / <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a>。地図データに未登録の店舗は候補に出ません。</small></div><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);
  const popup=$('#place-popup');
  if(popup)$('#dialog-content').appendChild(popup);
+ const sheet=document.createElement('div');
+ sheet.id='place-search-sheet';sheet.className='place-search-sheet';sheet.hidden=true;
+ sheet.innerHTML=`<div class="place-sheet-bar"><span class="place-sheet-search-icon" aria-hidden="true">⌕</span><input type="search" id="place-search-active" autocomplete="off" enterkeyhint="search" maxlength="500" value="${esc(editor.location||'')}" placeholder="店名・支店名・住所を入力" aria-label="場所を検索" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><button type="button" data-action="close-place-search" aria-label="場所の検索を閉じる">×</button></div><div class="place-sheet-results"></div><small class="place-sheet-attribution">© OpenStreetMap contributors · Photon</small>`;
+ $('#dialog-content').appendChild(sheet);
 }
 async function saveRecord(){
  const current=structuredClone(editor);
@@ -882,6 +927,7 @@ const actions={
  'new-record':b=>openRecord(null,{date:b.dataset.date||today()}),record:b=>openRecord(records().find(r=>r.id===b.dataset.id&&r.calendarId===(b.dataset.calendar||primaryCalendarId()))),
  'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
  'suggest-record-dish':pickRecordDishSuggestion,'pick-location':pickPlaceSuggestion,
+ 'close-place-search':()=>closePlaceSearchSheet(),
  
  'save-record':saveRecord,
  'delete-record':()=>{modal('この実績を削除しますか？',`<p>${esc(editor.date)}：${esc(editor.dishes.map(d=>d.name).join('、'))}</p><p>Googleカレンダーからこの予定を直接削除します。この操作は取り消せません。</p>`,button('戻る','return-editor')+button('削除する','confirm-delete','danger'));},'return-editor':drawRecord,
@@ -1112,6 +1158,9 @@ function movePresetByKeyboard(handle,direction){
 document.addEventListener('pointerdown',e=>{
  if(e.pointerType!=='touch'&&e.button===0)beginPresetDrag(e.target,e.clientX,e.clientY,'pointer');
  // Select location options on click rather than pointerdown, allowing touch scrolling.
+ if(e.target.id==='record-location'&&e.pointerType==='touch'&&matchMedia('(max-width:760px)').matches){
+  e.preventDefault();openPlaceSearchSheet();return;
+ }
  const candidate=e.target.closest?.('[data-action="suggest-record-dish"]');
  if(!candidate)return;
  e.preventDefault();
@@ -1149,6 +1198,9 @@ document.addEventListener('keydown',e=>{
  movePresetByKeyboard(handle,e.key==='ArrowUp'?-1:1);
 });
 document.addEventListener('click',e=>{
+ if(e.target.id==='record-location'&&matchMedia('(max-width:760px)').matches){
+  openPlaceSearchSheet();return;
+ }
  if(Date.now()<suppressPresetClickUntil&&e.target.closest?.('.icon-preset-row')){e.preventDefault();return;}
  const tabButton=e.target.closest('[data-tab]');
  if(tabButton){tab=tabButton.dataset.tab;notify('');render();if(tab==='settings')prepareGoogleIdentity();return;}
@@ -1185,7 +1237,12 @@ $('#dialog').addEventListener('cancel',()=>{editor=null;presetEditDraft=null;pre
 document.addEventListener('input',e=>{const el=e.target;
  if(el.id==='preset-edit-color'){updatePresetEditorIconPreview();return;}
  if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;showDishSuggestions(el);}
- if(editor&&el.id==='record-location'){editor.location=el.value;queuePlaceLookup(el);}
+ if(editor&&(el.id==='record-location'||el.id==='place-search-active')){
+  editor.location=el.value;
+  const other=el.id==='record-location'?$('#place-search-active'):$('#record-location');
+  if(other)other.value=el.value;
+  queuePlaceLookup(el);
+ }
  if(el.id==='master-search'){const pos=el.selectionStart;masterQuery=el.value;masterModal();$('#master-search').focus();$('#master-search').setSelectionRange(pos,pos);}
 });
 document.addEventListener('scroll',e=>{
@@ -1200,10 +1257,13 @@ document.addEventListener('focusin',e=>{
   for(const list of document.querySelectorAll('.dish-suggestions'))if(list!==field.closest('.dish-input-group')?.querySelector('.dish-suggestions'))list.hidden=true;
   showDishSuggestions(field);
  }else if(!e.target.closest?.('.dish-suggestions'))hideDishSuggestions();
- if(e.target.id==='record-location'&&placeCache.has(e.target.value.trim()))queuePlaceLookup(e.target);
+ if(e.target.id==='record-location'){
+  if(matchMedia('(max-width:760px)').matches){openPlaceSearchSheet();return;}
+  if(placeCache.has(e.target.value.trim()))queuePlaceLookup(e.target);
+ }
 });
 document.addEventListener('keydown',e=>{
- if(e.target.id==='record-location'){
+ if(e.target.id==='record-location'||e.target.id==='place-search-active'){
   if(e.key==='Enter'){e.preventDefault();queuePlaceLookup(e.target,{immediate:true});}
   else if(e.key==='ArrowDown'){
    const first=document.querySelector('#place-suggestions .place-suggestion');
