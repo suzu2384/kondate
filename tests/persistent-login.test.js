@@ -9,7 +9,9 @@ test('explicit opt-in restores the valid browser session on the next app launch'
  try{
   const first=new CalendarClient();
   first.clientId='example-client';first.token='valid-test-value';first.expires=Date.now()+120000;
-  first.rememberSession();assert.equal(persistent.size,0);
+  first.rememberSession();
+  assert.equal(persistent.has('kondate.google-calendar-token.v1'),false,'access token must not be persisted without opt-in');
+  assert.equal(persistent.get('kondate.google-calendar-authorized-client.v1'),'example-client','only non-secret connection history is saved');
   first.setKeepConnected(true);
   tab.clear();
   const reopened=new CalendarClient();
