@@ -11,7 +11,9 @@ test('record registration and editing show an optional Google Calendar location 
  assert.match(draw,/editor\.location\?\?=editor\.raw\?\.location/);
 });
 test('location changes persist in editor without blur and are included on save',()=>{
- assert.match(app,/if\(editor&&el\.id==='record-location'\)\{editor\.location=el\.value;queuePlaceLookup\(el\);\}/);
+ assert.match(app,/if\(editor&&\(el\.id==='record-location'\|\|el\.id==='place-search-active'\)\)\{/);
+ assert.match(app,/editor\.location=el\.value/);
+ assert.match(app,/queuePlaceLookup\(el\)/);
  assert.match(app,/if\(el\.id==='record-location'\)editor\.location=el\.value/);
  assert.match(app,/current\.location=String\(current\.location\|\|''\)\.trim\(\)/);
  assert.match(app,/外食・場所：\$\{esc\(r\.location\)\}/);
