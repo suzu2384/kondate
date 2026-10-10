@@ -71,11 +71,21 @@ function showStatus(){
  notice.textContent=message;
  notice.title=warning||driveWarning?'期限切れのGoogleサービスを再認証':message;
  notice.setAttribute('aria-label',warning&&driveWarning?'カレンダーとDriveを一度に再認証します。':warning?'カレンダーを再認証します。':driveWarning?'Driveを再認証します。':message);
- const idle=$('#status-idle');
- idle.hidden=!!message||presetQueue.size>0;
- idle.textContent=busy?'同期中…':api.connected?'待機中':'Google未接続';
- $('#status-bar').classList.toggle('has-message',!!message);
- $('#status-bar').classList.toggle('auth-required',warning||driveWarning);
+ // An older cached index.html can briefly be paired with a newer app.js.
+ // Recreate the idle element instead of crashing the entire application.
+ const statusBar=$('#status-bar');
+ let idle=$('#status-idle');
+ if(!idle&&statusBar){
+  idle=document.createElement('span');
+  idle.id='status-idle';idle.className='status-idle';
+  statusBar.prepend(idle);
+ }
+ if(idle){
+  idle.hidden=!!message||presetQueue.size>0;
+  idle.textContent=busy?'同期中…':api.connected?'待機中':'Google未接続';
+ }
+ statusBar?.classList.toggle('has-message',!!message);
+ statusBar?.classList.toggle('auth-required',warning||driveWarning);
  const status=$('#drive-sync-state');
  if(status){
   const time=driveLastSuccessAt?new Date(driveLastSuccessAt).toLocaleString('ja-JP'):'なし';

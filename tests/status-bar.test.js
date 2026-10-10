@@ -17,6 +17,9 @@ test('status bar always exists, with an idle label when no action is needed',()=
 
 test('idle state is informative but does not hide actionable notices and pending changes',()=>{
  const fn=app.slice(app.indexOf('function showStatus(){'),app.indexOf('const NEW_CALENDAR_VALUE'));
+ assert.match(fn,/if\(!idle&&statusBar\)/);
+ assert.match(fn,/document\.createElement\('span'\)/);
+ assert.match(fn,/statusBar\.prepend\(idle\)/);
  assert.match(fn,/idle\.hidden=!!message\|\|presetQueue\.size>0/);
  assert.match(fn,/busy\?'同期中…':api\.connected\?'待機中':'Google未接続'/);
  assert.match(fn,/notice\.hidden=!message/);
@@ -33,4 +36,29 @@ test('status layout remains fixed and compact with or without preset toolbar',()
  assert.match(css,/#preset-pending\{display:inline-flex;[\s\S]*?height:20px;min-height:20px/);
  const result=spawnSync(process.execPath,['--check','src/app.js'],{encoding:'utf8'});
  assert.equal(result.status,0,result.stderr);
+});
+
+test('missing idle node in an older cached HTML does not crash app startup',async()=>{
+ const {runInNewContext}=await import('node:vm');
+ const source=app.slice(app.indexOf('function showStatus(){'),app.indexOf('const NEW_CALENDAR_VALUE'));
+ const nodes={
+  '#status-bar':{prepend(node){nodes['#status-idle']=node;},classList:{toggle(){} }},
+  '#preset-pending':{hidden:true,setAttribute(){}},
+  '#notice':{hidden:true,setAttribute(){}}
+ };
+ const context={
+  '$':selector=>nodes[selector]||null,
+  expiredGoogleServices:()=>({calendar:false,drive:false}),
+  api:{connected:true},drive:{autoEnabled:false},presetQueue:{size:0},
+  document:{createElement:tag=>({tag})},currentNotice:'',busy:false,presetFlushing:false,
+  driveLastSuccessAt:0,driveSyncStatus:'',drivePending:false
+ };
+ const show=runInNewContext(source+';showStatus',context);
+ assert.doesNotThrow(()=>show());
+ assert.equal(nodes['#status-idle'].textContent,'待機中');
+ assert.equal(nodes['#status-idle'].hidden,false);
+ context.currentNotice='保存しました';
+ assert.doesNotThrow(()=>show());
+ assert.equal(nodes['#notice'].textContent,'保存しました');
+ assert.equal(nodes['#status-idle'].hidden,true);
 });
