@@ -31,3 +31,19 @@ test('browser app syntax remains valid',()=>{
  const r=spawnSync(process.execPath,['--check','src/app.js'],{encoding:'utf8'});
  assert.equal(r.status,0,r.stderr);
 });
+
+test('year-month picker is an accessible twelve-month dialog with arbitrary year selection',()=>{
+ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
+ assert.match(app,/data-action="open-month-picker"/);
+ assert.match(app,/function openMonthPicker\(\)/);
+ assert.match(app,/Array\.from\(\{length:12\}/);
+ assert.match(app,/id="month-picker-year"/);
+ assert.match(app,/function chooseMonthFromPicker\(monthNumber\)/);
+ assert.match(app,/month=new Date\(year,monthNumber-1,1,12\)/);
+ assert.match(app,/'choose-month':b=>chooseMonthFromPicker/);
+ assert.match(css,/\.month-picker-options\{display:grid/);
+ assert.doesNotMatch(html,/id="status-legend"/);
+ assert.doesNotMatch(html,/● 調理実績|◇ 献立案|• 既存の献立/);
+ assert.match(css,/@media\(min-width:761px\)\{\s*\.calendar-screen \.month-grid \.day/);
+ assert.match(css,/\.calendar-screen \.month-grid \.event-chip\.general-event\.has-icon\{font-size:13px/);
+});

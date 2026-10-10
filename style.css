@@ -542,3 +542,68 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .drive-sync-tools #drive-sync-state{min-width:0;flex:1;line-height:1.45;overflow-wrap:anywhere}
 .drive-sync-tools button{flex:0 0 auto}
 @media(max-width:420px){.drive-sync-tools{flex-wrap:wrap}.drive-sync-tools #drive-sync-state{flex-basis:100%}}
+
+/* v1.3.41 — larger, more legible PC events without changing phone density. */
+@media(min-width:761px){
+ .calendar-screen .month-grid .day{padding:5px 6px}
+ .calendar-screen .month-grid .day-number{font-size:14px;width:25px;height:25px}
+ .calendar-screen .month-grid .event-chip,
+ .calendar-screen .month-grid .event-chip.general-event.has-icon{font-size:13px;line-height:1.4;gap:4px}
+ .calendar-screen .month-grid .event-chip .calendar-event-note{line-height:1.4}
+ .calendar-screen .day-panel .dish-line{font-size:14px}
+ .calendar-screen .day-panel .general-event-detail{font-size:14px}
+}
+/* The unused legend is gone; give the empty status strip back to the calendar. */
+#status-bar:has(#notice[hidden]):has(#preset-pending[hidden]){display:none}
+.app:not(.has-quick-presets):has(#notice[hidden]):has(#preset-pending[hidden]){
+ grid-template-rows:54px minmax(0,1fr) 0px 58px}
+.app.has-quick-presets:has(#notice[hidden]):has(#preset-pending[hidden]){
+ grid-template-rows:54px minmax(0,1fr) 40px 0px 58px}
+@media(max-width:760px){
+ .app:not(.has-quick-presets):has(#notice[hidden]):has(#preset-pending[hidden]){
+  grid-template-rows:49px minmax(0,1fr) 0px calc(54px + env(safe-area-inset-bottom))}
+ .app.has-quick-presets:has(#notice[hidden]):has(#preset-pending[hidden]){
+  grid-template-rows:49px minmax(0,1fr) 38px 0px calc(54px + env(safe-area-inset-bottom))}
+}
+/* Explicit month jump: native number input and twelve fixed month choices. */
+.month-picker-trigger{display:inline-flex;align-items:center;gap:6px;padding:2px 6px;
+ min-height:32px;border:0;background:transparent;border-radius:6px;
+ font-size:18px;font-weight:700;color:var(--text)}
+.month-picker-trigger:hover{background:var(--tint)}
+.month-picker-trigger .month-picker-chevron{font-size:12px;color:var(--muted)}
+.month-picker-year{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:16px}
+.month-picker-year>button{width:40px;min-height:40px;font-size:23px;padding:2px}
+.month-picker-year label{display:flex;align-items:center;gap:7px;font-weight:650}
+.month-picker-year #month-picker-year{width:115px;min-height:40px;text-align:center}
+.month-picker-options{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.month-picker-options .month-picker-option{min-height:50px;padding:8px 2px}
+.month-picker-options .month-picker-option.selected{background:var(--tint);border:2px solid var(--accent);font-weight:700}
+@media(max-width:760px){.month-picker-trigger{font-size:16px}.month-picker-options{gap:6px}}
+
+/* Place search: inline results stay in the modal's scroll flow, no clipping overlay. */
+.dialog-body .place-field{min-width:0;max-width:100%}
+.place-field .place-input-label{display:block;font-size:12px;margin-bottom:7px;font-weight:600}
+.place-field .place-area-label{display:block;margin:9px 0 5px;font-size:12px;font-weight:600}
+.place-field>input{width:100%;min-width:0}
+.place-search-row{display:flex;align-items:stretch;gap:8px;min-width:0}
+.place-search-row>input{flex:1;min-width:0;width:0}
+.place-search-row>button{flex:0 0 auto;min-width:95px;white-space:nowrap}
+.place-field>small{display:block;margin-top:7px;line-height:1.55}
+.place-search-status{font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.5}
+.place-search-status:empty{display:none}
+.place-field .place-suggestions{position:static;inset:auto;width:100%;z-index:auto;
+ max-height:250px;overflow-y:auto;overflow-x:hidden;
+ display:flex;flex-direction:column;gap:2px;padding:4px;
+ margin-top:7px;border:1px solid var(--line);box-shadow:none}
+.place-field .place-suggestions[hidden]{display:none}
+.place-field .place-suggestion{display:flex;flex-direction:column;align-items:stretch;
+ padding:10px 11px;gap:4px;min-height:54px;overflow:visible;white-space:normal}
+.place-field .place-suggestion strong{font-size:13px;font-weight:650;line-height:1.4;
+ min-width:0;white-space:normal;overflow-wrap:anywhere}
+.place-field .place-suggestion small{font-size:12px;line-height:1.4;
+ white-space:normal;overflow:visible;overflow-wrap:anywhere;text-overflow:clip}
+@media(max-width:760px){
+ .place-field .place-suggestion strong{font-size:14px}
+ .place-field .place-suggestion small{font-size:12px}
+ .place-search-row>button{min-width:98px;padding:7px}
+}

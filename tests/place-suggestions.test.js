@@ -14,7 +14,7 @@ test('Photon suggestions deduplicate and include a readable place label',()=>{
  assert.equal(options.length,3);
  assert.equal(options[0].name,'食堂みどり');
  assert.match(options[0].detail,/習志野市/);
- assert.equal(options[0].value,'食堂みどり');
+ assert.match(options[0].value,/食堂みどり 習志野市/);
  assert.ok(LOCATION_ATTRIBUTION.includes('OpenStreetMap'));
  assert.equal(formatPlace(null),null);
 });
@@ -39,4 +39,34 @@ test('online search encodes Japanese input, caps suggestions and is aborted by c
 });
 test('network failures surface to UI which can leave free-text values intact',async()=>{
  await assert.rejects(()=>searchPlaces('津田沼',{fetcher:async()=>({ok:false,status:429})}),/候補の取得/);
+});
+
+test('searching near an explicitly given region biases chain-store results and preserves address',async()=>{
+ const calls=[],reply={features:[
+  {properties:{name:'吉野家',street:'駅前通り',city:'A市',district:'南口'},geometry:{coordinates:[139.1,35.4]}},
+  {properties:{name:'吉野家',street:'中央通り',city:'A市',district:'北口'},geometry:{coordinates:[139.2,35.4]}}
+ ]};
+ const results=await searchPlaces('吉野家',{area:'A駅',fetcher:async(url)=>{
+  const u=new URL(url);calls.push(u);
+  if(calls.length===1)return {ok:true,json:async()=>({features:[{geometry:{coordinates:[139.8,35.7]}}]})};
+  return {ok:true,json:async()=>reply};
+ }});
+ assert.equal(calls.length,2);
+ assert.equal(calls[0].searchParams.get('q'),'A駅');
+ assert.equal(calls[1].searchParams.get('q'),'吉野家');
+ assert.equal(calls[1].searchParams.get('lat'),'35.7');
+ assert.equal(calls[1].searchParams.get('lon'),'139.8');
+ assert.equal(calls[1].searchParams.get('dedupe'),'0');
+ assert.equal(results.length,2);
+ assert.notEqual(results[0].value,results[1].value,'branches must remain distinguishable');
+ assert.match(results[0].detail,/南口/);
+ assert.match(results[0].value,/駅前通り/);
+});
+test('unknown optional region is included in fallback search without assuming user location',async()=>{
+ const calls=[];
+ await searchPlaces('吉野家',{area:'指定地域',fetcher:async(url)=>{
+  const u=new URL(url);calls.push(u.searchParams.get('q'));
+  return {ok:true,json:async()=>({features:[]})};
+ }});
+ assert.deepEqual(calls,['指定地域','吉野家 指定地域']);
 });

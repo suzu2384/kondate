@@ -200,13 +200,32 @@ function calendarCellInfo(date,list,extras){
   ...extra.map(e=>`<span class="event-chip general-event ${e.icon?'has-icon':''} ${e.pending?'is-pending':''}" title="${esc(e.title+(e.memo?'／'+e.memo:''))}" aria-label="${esc(e.title+(e.memo?'／'+e.memo:''))}">${e.icon?`<span class="calendar-event-icon">${iconMarkup(e.icon,e.color)}</span><span class="calendar-event-note">${esc(e.memo.replace(/\r?\n/g,' '))}</span>`:`<span class="calendar-event-note">${esc(e.title)}</span>`}</span>`)];
  return {html:`<span class="day-number">${d.getDate()}</span>${chips.join('')}`,count:events.length+extra.length};
 }
+function openMonthPicker(){
+ const year=month.getFullYear(),chosen=month.getMonth()+1;
+ const months=Array.from({length:12},(_,i)=>i+1).map(n=>`<button type="button" class="month-picker-option ${n===chosen?'selected':''}" data-action="choose-month" data-month="${n}" aria-label="${n}月" aria-pressed="${n===chosen}">${n}月</button>`).join('');
+ modal('表示する年月を選択',
+  `<div class="month-picker-year"><button type="button" data-action="month-year-previous" aria-label="前年">‹</button>
+   <label for="month-picker-year">年 <input id="month-picker-year" type="number" min="1900" max="2100" step="1" value="${year}"></label>
+   <button type="button" data-action="month-year-next" aria-label="翌年">›</button></div>
+   <div class="month-picker-options" role="group" aria-label="月を選択">${months}</div>
+   <p class="hint">年を入力し、移動したい月を選んでください。</p>`,
+  button('キャンセル','close-dialog'));
+}
+function chooseMonthFromPicker(monthNumber){
+ const year=Number($('#month-picker-year')?.value);
+ if(!Number.isInteger(year)||year<1900||year>2100)throw Error('年は1900〜2100の間で入力してください。');
+ if(!Number.isInteger(monthNumber)||monthNumber<1||monthNumber>12)throw Error('月を選択してください。');
+ month=new Date(year,monthNumber-1,1,12);
+ selected=`${year}-${String(monthNumber).padStart(2,'0')}-01`;
+ closeModal();render();
+}
 function calendarScreen(){
  const list=records(),extras=extraEvents();
  const cells=monthGridDates(month.getFullYear(),month.getMonth()).map(date=>{
   const d=new Date(`${date}T12:00:00`),cell=calendarCellInfo(date,list,extras);
   return `<button class="day ${d.getMonth()!==month.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-pressed="${date===selected}" aria-label="${date}、${cell.count}件">${cell.html}</button>`;
  }).join('');
- return `<section class="screen calendar-screen"><div class="calendar-layout"><div class="calendar-card card"><div class="month-heading"><h2>${month.getFullYear()}年 <span>${month.getMonth()+1}月</span></h2><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid">${cells}</div></div><aside class="card day-panel">${dayContent(selected)}</aside></div></section>`;
+ return `<section class="screen calendar-screen"><div class="calendar-layout"><div class="calendar-card card"><div class="month-heading"><button type="button" class="month-picker-trigger" data-action="open-month-picker" aria-label="表示年月を選択">${month.getFullYear()}年 <span>${month.getMonth()+1}月</span><span class="month-picker-chevron" aria-hidden="true">▾</span></button><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid">${cells}</div></div><aside class="card day-panel">${dayContent(selected)}</aside></div></section>`;
 }
 function patchCalendarCells(){
  const list=records(),extras=extraEvents();
@@ -345,11 +364,9 @@ function dishRows(dishes){
   ${button('×','editor-remove','danger',`data-index="${i}" aria-label="${i+1}品目を削除"`)}
  </div>`).join('');
 }
-let placeRequestTimer=null,placeRequestAbort=null,placeRequestId=0,lastPlaceRequest=0;
-const placeCache=new Map();
+let placeRequestAbort=null,placeRequestId=0,placeSearchArea='';
 function cancelPlaceLookup(){
- if(placeRequestTimer!==null)clearTimeout(placeRequestTimer);
- placeRequestTimer=null;placeRequestAbort?.abort();placeRequestAbort=null;placeRequestId++;
+ placeRequestAbort?.abort();placeRequestAbort=null;placeRequestId++;
 }
 function hidePlaceSuggestions(){
  const list=document.querySelector('#place-suggestions');
@@ -359,44 +376,50 @@ function hidePlaceSuggestions(){
 function showPlaceChoices(field,places){
  const list=document.querySelector('#place-suggestions');
  if(!field?.isConnected||!list||field!==document.querySelector('#record-location'))return;
- list.innerHTML=places.map(place=>'<button type="button" class="place-suggestion" role="option" data-action="pick-location" data-value="'+esc(place.value)+'"><span>'+esc(place.name)+'</span><small>'+esc(place.detail)+'</small></button>').join('');
- list.hidden=!places.length;
+ list.innerHTML=places.map(place=>
+  '<button type="button" class="place-suggestion" role="option" data-action="pick-location" data-value="'+esc(place.value)+'"><strong>'+esc(place.name)+'</strong><small>'+esc(place.detail||'住所の登録なし')+'</small></button>'
+ ).join('');
+ list.hidden=places.length===0;
  field.setAttribute('aria-expanded',String(places.length>0));
 }
-function queuePlaceLookup(field){
- cancelPlaceLookup();
- hidePlaceSuggestions();
- const query=String(field?.value||'').trim();
- if(!globalThis.navigator?.onLine||Array.from(query).length<2)return;
- const cache=placeCache.get(query);
- if(cache){showPlaceChoices(field,cache);return;}
- const id=placeRequestId;
- // A keyless public demo has no SLA. Wait for idle typing, then rate-limit.
- const delay=Math.max(750,1200-(Date.now()-lastPlaceRequest));
- placeRequestTimer=setTimeout(async()=>{
-  placeRequestTimer=null;
+function updatePlaceSearchMessage(message){
+ const target=$('#place-search-status');if(target)target.textContent=message;
+}
+async function runPlaceSearch(){
+ const field=$('#record-location');
+ if(!field||!editor)return;
+ const query=String(field.value||'').trim(),area=String($('#place-search-area')?.value||'').trim();
+ if(Array.from(query).length<2){updatePlaceSearchMessage('店名や施設名を2文字以上入力してください。');return;}
+ if(!navigator.onLine){updatePlaceSearchMessage('オフラインです。場所は手入力のまま保存できます。');return;}
+ cancelPlaceLookup();hidePlaceSuggestions();
+ placeSearchArea=area;
+ const id=placeRequestId,controller=new AbortController();placeRequestAbort=controller;
+ const btn=$('[data-action="search-place"]');if(btn)btn.disabled=true;
+ updatePlaceSearchMessage('場所を検索しています…');
+ try{
+  const results=await searchPlaces(query,{area,signal:controller.signal,online:!!navigator.onLine});
   if(id!==placeRequestId||!field.isConnected)return;
-  lastPlaceRequest=Date.now();
-  const controller=new AbortController();placeRequestAbort=controller;
-  try{
-   const choices=await searchPlaces(query,{signal:controller.signal,online:!!navigator.onLine});
-   if(id!==placeRequestId||field.value.trim()!==query||!field.isConnected)return;
-   if(placeCache.size>=30)placeCache.delete(placeCache.keys().next().value);
-   placeCache.set(query,choices);
-   showPlaceChoices(field,choices);
-  }catch(error){
-   if(id===placeRequestId&&error?.name!=='AbortError')hidePlaceSuggestions();
-  }finally{if(placeRequestAbort===controller)placeRequestAbort=null;}
- },delay);
+  showPlaceChoices(field,results);
+  updatePlaceSearchMessage(results.length?
+   `候補 ${results.length}件。店舗名と住所を確認して選択してください。`:
+   '候補が見つかりませんでした。地域名や支店名を変えて検索するか、店名をそのまま保存できます。');
+ }catch(error){
+  if(id===placeRequestId&&error?.name!=='AbortError')
+   updatePlaceSearchMessage('検索サービスに接続できません。店名は手入力のまま保存できます。');
+ }finally{
+  if(placeRequestAbort===controller)placeRequestAbort=null;
+  if(id===placeRequestId&&btn?.isConnected)btn.disabled=false;
+ }
 }
 function pickPlaceSuggestion(button){
- const field=document.querySelector('#record-location');
+ const field=$('#record-location');
  if(!editor||!button||!field)return;
  const name=button.dataset.value||'';
  if(!name)return;
  cancelPlaceLookup();
  field.value=name;editor.location=name;
  hidePlaceSuggestions();
+ updatePlaceSearchMessage('選択した場所を入力しました。必要なら手動で修正できます。');
  field.blur();
 }
 function hideDishSuggestions(){
@@ -429,9 +452,9 @@ function pickRecordDishSuggestion(button){
 }
 function openRecord(record=null,{date=today(),dishes=null}={}){
  editor=record?structuredClone(record):{id:uid(),date,status:'actual',location:'',dishes:dishes?structuredClone(dishes):[{name:'',category:'main'}],owned:true,new:true,scope:scopeKey()};
- editor.scope??=scopeKey();editor.location??=editor.raw?.location||'';editor.status='actual';drawRecord();
+ editor.scope??=scopeKey();editor.location??=editor.raw?.location||'';editor.status='actual';placeSearchArea='';drawRecord();
 }
-function drawRecord(){cancelPlaceLookup();const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><span class="dialog-date-control"><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></span></label><label class="field"><span>場所（任意・外食の場合に入力）</span><div class="place-input-group"><input id="record-location" type="text" value="${esc(editor.location||'')}" placeholder="店名・施設名を入力" maxlength="500" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><div id="place-suggestions" class="place-suggestions" role="listbox" aria-label="場所の候補" hidden></div></div><small>場所がある記録は外食として扱います。オンライン時は地名候補を表示（候補にない場所も入力可）。<a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> / <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a></small></label><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);}
+function drawRecord(){cancelPlaceLookup();const legacy=!editor.owned;modal(editor.new?'調理実績を登録':'調理実績を編集',`${legacy?'<div class="banner">保存すると、元のGoogleカレンダーの予定を直接更新します。日付と時刻などは維持します。</div>':''}<label class="field"><span>調理した日</span><span class="dialog-date-control"><input id="record-date" type="date" value="${editor.date}" ${legacy?'disabled':''}></span></label><div class="field place-field"><label for="record-location" class="place-input-label">場所（任意・外食の場合に入力）</label><input id="record-location" type="text" value="${esc(editor.location||'')}" placeholder="店名・施設名" maxlength="500" autocomplete="off" role="combobox" aria-autocomplete="list" aria-controls="place-suggestions" aria-expanded="false"><label for="place-search-area" class="place-area-label">検索する地域・駅名（任意）</label><div class="place-search-row"><input id="place-search-area" type="text" value="${esc(placeSearchArea)}" placeholder="地域・駅名を入力" maxlength="120" autocomplete="off"><button type="button" class="mini" data-action="search-place">候補を検索</button></div><small>使い方：店名を入力し、必要なら地域や駅名も指定して「候補を検索」を押してください。候補を選ぶと店舗名と地域情報を入力できます。候補がなくても自由入力で保存できます。</small><p id="place-search-status" class="place-search-status" role="status" aria-live="polite"></p><div id="place-suggestions" class="place-suggestions" role="listbox" aria-label="場所の候補" hidden></div><small class="place-attribution"><a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">© OpenStreetMap contributors</a> / <a href="https://photon.komoot.io/" target="_blank" rel="noopener noreferrer">Photon</a>。外部の地図データに店舗が登録されていない場合は候補に出ません。</small></div><h3>料理</h3>${dishRows(editor.dishes)}${button('＋ 料理を追加','editor-add','text-button')}<p class="hint">「カレンダーに保存」でGoogleカレンダーへ反映します。閉じると未保存の入力は破棄されます。</p>`,`${!editor.new?button('削除','delete-record','danger'):''}${button('閉じる','close-dialog')}${button('カレンダーに保存','save-record','primary',busy?'disabled':'')}`);}
 async function saveRecord(){
  const current=structuredClone(editor);
  current.dishes=validateDishes(current.dishes);
@@ -793,12 +816,17 @@ const actions={
  },
  'notice-detail':()=>{const expired=expiredGoogleServices(api,drive);if(expired.calendar||expired.drive)return reauthenticateExpiredGoogle();if(currentNotice)modal('ステータス',`<p>${esc(currentNotice)}</p>`,button('閉じる','close-dialog'));},
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
+ 'open-month-picker':()=>openMonthPicker(),
+ 'choose-month':b=>chooseMonthFromPicker(Number(b.dataset.month)),
+ 'month-year-previous':()=>{const field=$('#month-picker-year');if(field)field.value=String(Math.max(1900,(Number(field.value)||month.getFullYear())-1));},
+ 'month-year-next':()=>{const field=$('#month-picker-year');if(field)field.value=String(Math.min(2100,(Number(field.value)||month.getFullYear())+1));},
  'prev-month':()=>shiftCalendarMonth(-1),'next-month':()=>shiftCalendarMonth(1),today:()=>{selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);render();},
  date:b=>selectCalendarDate(b.dataset.date),
  'select-preset':b=>{selectedPresetId=selectedPresetId===b.dataset.ruleId?null:b.dataset.ruleId;renderPresetBar();},
  'new-record':b=>openRecord(null,{date:b.dataset.date||today()}),record:b=>openRecord(records().find(r=>r.id===b.dataset.id&&r.calendarId===(b.dataset.calendar||primaryCalendarId()))),
  'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
  'suggest-record-dish':pickRecordDishSuggestion,'pick-location':pickPlaceSuggestion,
+ 'search-place':()=>runPlaceSearch(),
  'save-record':saveRecord,
  'delete-record':()=>{modal('この実績を削除しますか？',`<p>${esc(editor.date)}：${esc(editor.dishes.map(d=>d.name).join('、'))}</p><p>Googleカレンダーからこの予定を直接削除します。この操作は取り消せません。</p>`,button('戻る','return-editor')+button('削除する','confirm-delete','danger'));},'return-editor':drawRecord,
  'confirm-delete':async()=>{if(editor.scope!==scopeKeyFor(editor.calendarId||primaryCalendarId()))throw Error('元のカレンダーに戻って操作してください。');busy=true;updateConnection();try{const id=editor.calendarId||primaryCalendarId();await api.remove(id,editor);dataFor(id).events=dataFor(id).events.filter(e=>e.id!==editor.id);closeModal();render();notify('実績を削除しました。');}finally{busy=false;updateConnection();}},
@@ -1102,7 +1130,8 @@ $('#dialog').addEventListener('cancel',()=>{editor=null;presetEditDraft=null;pre
 document.addEventListener('input',e=>{const el=e.target;
  if(el.id==='preset-edit-color'){updatePresetEditorIconPreview();return;}
  if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;showDishSuggestions(el);}
- if(editor&&el.id==='record-location'){editor.location=el.value;queuePlaceLookup(el);}
+ if(editor&&el.id==='record-location'){editor.location=el.value;cancelPlaceLookup();hidePlaceSuggestions();}
+ if(editor&&el.id==='place-search-area'){placeSearchArea=el.value;cancelPlaceLookup();hidePlaceSuggestions();}
  if(el.id==='master-search'){const pos=el.selectionStart;masterQuery=el.value;masterModal();$('#master-search').focus();$('#master-search').setSelectionRange(pos,pos);}
 });
 document.addEventListener('focusin',e=>{
@@ -1111,12 +1140,12 @@ document.addEventListener('focusin',e=>{
   for(const list of document.querySelectorAll('.dish-suggestions'))if(list!==field.closest('.dish-input-group')?.querySelector('.dish-suggestions'))list.hidden=true;
   showDishSuggestions(field);
  }else if(!e.target.closest?.('.dish-suggestions'))hideDishSuggestions();
- if(e.target.id==='record-location')queuePlaceLookup(e.target);
- else if(!e.target.closest?.('.place-suggestions'))hidePlaceSuggestions();
+ // Place choices are inline; keep them open until a new search or selection.
 });
 document.addEventListener('keydown',e=>{
- if(e.target.id==='record-location'){
-  if(e.key==='ArrowDown'){
+ if(e.target.id==='record-location'||e.target.id==='place-search-area'){
+  if(e.key==='Enter'){e.preventDefault();runPlaceSearch();}
+  else if(e.key==='ArrowDown'){
    const first=document.querySelector('#place-suggestions .place-suggestion');
    if(first){e.preventDefault();first.focus();}
   }else if(e.key==='Escape'){cancelPlaceLookup();hidePlaceSuggestions();}
