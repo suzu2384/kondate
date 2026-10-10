@@ -100,7 +100,7 @@ let calendarCreationBusy=false;
 let presetEditDraft=null,presetEditOriginalId=null;
 let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',photoURL=null,photoFile=null;
 let calendarTouchStart=null,ignoreDateClickUntil=0,selectedPresetId=null;
-let calendarSwipeSettling=false,calendarSwipeToken=0,calendarSwipeTimer=null;
+let calendarSwipeSettling=false,calendarSwipeToken=0,calendarSwipeTimer=null,calendarSwipeAnimation=null;
 const scopeKeyFor=id=>calendarKey(GOOGLE_CLIENT_ID,id);
 const primaryCalendarId=()=>activeCalendarIds('',state.categories,state.categoryCalendars)[0]||'';
 const scopeKey=()=>scopeKeyFor(primaryCalendarId());
@@ -817,7 +817,11 @@ async function loadCalendarOptions(){
 function cancelCalendarSwipe(){
  ++calendarSwipeToken;
  if(calendarSwipeTimer!==null)clearTimeout(calendarSwipeTimer);
- calendarSwipeTimer=null;calendarSwipeSettling=false;calendarTouchStart=null;
+ calendarSwipeTimer=null;
+ if(calendarSwipeAnimation){calendarSwipeAnimation.cancel();calendarSwipeAnimation=null;}
+ calendarSwipeSettling=false;calendarTouchStart=null;
+ const track=$('#main .month-grid-track');
+ if(track){track.style.transition='none';track.style.transform='translate3d(-100%,0,0)';}
 }
 function shiftCalendarMonth(offset){
  cancelCalendarSwipe();
@@ -829,20 +833,52 @@ function settleCalendarSwipe(offset){
  if(!track){if(offset)shiftCalendarMonth(offset);return;}
  const token=++calendarSwipeToken;
  calendarSwipeSettling=true;
+ // Capture the precise finger position before committing the drag to a month.
+ const startTransform=getComputedStyle(track).transform;
+ const targetTransform=`translate3d(${-100-offset*100}%,0,0)`;
  const finish=()=>{
   if(token!==calendarSwipeToken)return;
+  const animation=calendarSwipeAnimation;
+  calendarSwipeAnimation=null;
   if(calendarSwipeTimer!==null)clearTimeout(calendarSwipeTimer);
   calendarSwipeTimer=null;calendarSwipeSettling=false;
-  track.style.transition='';track.style.transform='';
-  if(offset)shiftCalendarMonth(offset);
+  if(offset){
+   // Only replace the strip after the destination month has slid into view.
+   month=moveMonth(month,offset);
+   render();
+  }else{
+   track.style.transition='none';
+   track.style.transform='translate3d(-100%,0,0)';
+  }
+  if(animation)animation.cancel();
  };
  if(matchMedia('(prefers-reduced-motion: reduce)').matches){finish();return;}
- track.style.transition='transform 240ms cubic-bezier(.22,.75,.25,1)';
- track.style.transform=`translate3d(${-100-offset*100}%,0,0)`;
+ const duration=300,easing='cubic-bezier(.22,.72,.26,1)';
+ // A CSS transition set during touchend may coalesce with the drag transform.
+ // Explicit keyframes guarantee a visible transition from the dragged location.
+ if(typeof track.animate==='function'){
+  const animation=track.animate(
+   [{transform:startTransform},{transform:targetTransform}],
+   {duration,easing,fill:'forwards'}
+  );
+  calendarSwipeAnimation=animation;
+  animation.addEventListener('finish',finish,{once:true});
+  calendarSwipeTimer=setTimeout(finish,duration+250);
+  return;
+ }
+ // Older browsers: commit the dragged offset before enabling CSS transitions.
+ track.style.transition='none';
+ track.style.transform=startTransform;
+ void track.offsetWidth;
+ requestAnimationFrame(()=>{
+  if(token!==calendarSwipeToken)return;
+  track.style.transition=`transform ${duration}ms ${easing}`;
+  track.style.transform=targetTransform;
+ });
  track.addEventListener('transitionend',event=>{
   if(event.target===track&&event.propertyName==='transform')finish();
  },{once:true});
- calendarSwipeTimer=setTimeout(finish,330);
+ calendarSwipeTimer=setTimeout(finish,duration+250);
 }
 
 // Reconcile the durable local desired state to Google every few seconds.
@@ -1258,7 +1294,7 @@ document.addEventListener('click',e=>{
  }
  if(Date.now()<suppressPresetClickUntil&&e.target.closest?.('.icon-preset-row')){e.preventDefault();return;}
  const tabButton=e.target.closest('[data-tab]');
- if(tabButton){tab=tabButton.dataset.tab;notify('');render();if(tab==='settings')prepareGoogleIdentity();return;}
+ if(tabButton){cancelCalendarSwipe();tab=tabButton.dataset.tab;notify('');render();if(tab==='settings')prepareGoogleIdentity();return;}
  const b=e.target.closest('[data-action]');
  if(!b)return;
  // iOS may synthesize a click after touchend even when the grid was swiped.
