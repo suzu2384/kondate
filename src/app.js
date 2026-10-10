@@ -10,6 +10,7 @@ import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEve
 import {PresetWriteQueue,PRESET_FLUSH_INTERVAL_MS} from './preset-queue.js';
 import {beginPresetEdit,commitPresetEdit} from './preset-editor.js';
 import {DriveSettingsClient} from './drive.js';
+import {expiredGoogleServices,renewExpiredGoogleServices} from './google-reauth.js';
 import {dateTapAction,horizontalMonthSwipe,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync} from './drive-sync.js';
 import {dishSuggestions,selectRecordDish} from './dish-suggestions.js';
@@ -48,11 +49,12 @@ let calendarLoadError='';
 let authReady=!!globalThis.google?.accounts?.oauth2;
 let authLoadError='';
 let currentNotice='';
-const LOGIN_WARNING='⚠ Googleの再認証が必要です。タップして接続';
 function showStatus(){
- const warning=api.reauthenticationRequired&&!api.connected;
- const driveWarning=!warning&&drive.autoEnabled&&!drive.connected;
- const message=warning?LOGIN_WARNING:driveWarning?'⚠ Driveの自動同期は停止中。タップして再接続':currentNotice;
+ const expired=expiredGoogleServices(api,drive);
+ const warning=expired.calendar,driveWarning=expired.drive;
+ const message=warning&&driveWarning?'⚠ カレンダーとDriveの再認証が必要です。タップして再接続':
+  warning?'⚠ カレンダーの再認証が必要です。タップして接続':
+  driveWarning?'⚠ Driveの再認証が必要です。タップして接続':currentNotice;
  const pending=$('#preset-pending');
  if(pending){
   pending.hidden=presetQueue.size===0;
@@ -63,8 +65,8 @@ function showStatus(){
  const notice=$('#notice');
  notice.hidden=!message;
  notice.textContent=message;
- notice.title=warning?'タップしてGoogleに再接続':driveWarning?'タップしてDriveを再認証':message;
- notice.setAttribute('aria-label',warning?'Googleの再認証が必要です。タップして接続してください。':driveWarning?'Driveの自動同期を再開するためにタップしてください。':message);
+ notice.title=warning||driveWarning?'期限切れのGoogleサービスを再認証':message;
+ notice.setAttribute('aria-label',warning&&driveWarning?'カレンダーとDriveを一度に再認証します。':warning?'カレンダーを再認証します。':driveWarning?'Driveを再認証します。':message);
  $('#status-bar').classList.toggle('has-message',!!message);
  $('#status-bar').classList.toggle('auth-required',warning||driveWarning);
 }
@@ -587,6 +589,25 @@ async function autoDriveSync(){
  }
 }
 
+// Sign in only to services with an expired session. Initial sign-in is unchanged.
+async function reauthenticateExpiredGoogle(){
+ if(!GOOGLE_CLIENT_ID)throw Error('Googleログインの設定が完了していません。');
+ if(!authReady||!globalThis.google?.accounts?.oauth2){
+  prepareGoogleIdentity();
+  throw Error('Google認証を準備しています。少し待って再試行してください。');
+ }
+ // Start OAuth immediately in the click handler; no preceding asynchronous work.
+ const refreshing=renewExpiredGoogleServices(api,drive,GOOGLE_CLIENT_ID);
+ const refreshed=await refreshing;
+ currentNotice='';showStatus();
+ if(refreshed.calendar){
+  if(!await loadCalendarOptions()){notify(calendarLoadError);return;}
+ }
+ if(refreshed.drive&&drive.autoEnabled)await autoDriveSync();
+ if(refreshed.calendar&&hasSyncedCalendars())await sync();
+ const which=refreshed.calendar&&refreshed.drive?'カレンダーとDrive':refreshed.calendar?'カレンダー':'Drive';
+ notify(which+'の再認証が完了しました。');
+}
 function prepareDriveAuthorization(){
  if(!globalThis.google?.accounts?.oauth2){prepareGoogleIdentity();throw Error('Googleの認証を準備しています。準備完了後にもう一度操作してください。');}
 }
@@ -733,7 +754,7 @@ const actions={
    }).catch(()=>{});
   }finally{calendarCreationBusy=false;b.disabled=false;}
  },
- 'notice-detail':()=>{if(api.reauthenticationRequired&&!api.connected)return actions.connect();if(drive.autoEnabled&&!drive.connected)return actions['drive-reconnect']();if(currentNotice)modal('ステータス',`<p>${esc(currentNotice)}</p>`,button('閉じる','close-dialog'));},
+ 'notice-detail':()=>{const expired=expiredGoogleServices(api,drive);if(expired.calendar||expired.drive)return reauthenticateExpiredGoogle();if(currentNotice)modal('ステータス',`<p>${esc(currentNotice)}</p>`,button('閉じる','close-dialog'));},
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
  'prev-month':()=>shiftCalendarMonth(-1),'next-month':()=>shiftCalendarMonth(1),today:()=>{selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);render();},
  date:b=>selectCalendarDate(b.dataset.date),
@@ -753,6 +774,7 @@ const actions={
    notify('Google認証を読み込んでいます。準備完了後にログインできます。');
    return;
   }
+  if(expiredGoogleServices(api,drive).calendar)return reauthenticateExpiredGoogle();
   await api.authorize(GOOGLE_CLIENT_ID);
   currentNotice='';showStatus();
   if(!await loadCalendarOptions()){notify(calendarLoadError);return;}
@@ -781,6 +803,8 @@ const actions={
  'pick-photo':()=>$('#photo-file').click(),
  'analyze-photo':async()=>{const dishes=await ai.analyzePhoto(photoFile);openRecord(null,{dishes});notify('写真の推定結果です。料理名と分類を確認してから登録してください。');},
  'drive-reconnect':async()=>{
+  const expired=expiredGoogleServices(api,drive);
+  if(expired.calendar||expired.drive)return reauthenticateExpiredGoogle();
   prepareDriveAuthorization();
   await drive.authorize(GOOGLE_CLIENT_ID);
   showStatus();

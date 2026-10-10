@@ -1,6 +1,7 @@
 // Google Drive AppDataFolder backup. Drive access is requested only on user action.
 const ROOT='https://www.googleapis.com';
-const SCOPE='https://www.googleapis.com/auth/drive.appdata';
+export const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.appdata';
+const SCOPE=DRIVE_SCOPE;
 const FILE='kondate-settings.json';
 const AUTO_KEY='kondate.drive-autosync.v1';
 const TOKEN_KEY='kondate.drive-autosync-token.v1';
