@@ -5,12 +5,12 @@ const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 const match=source.match(/function generateScreen\(\)\{([\s\S]*?)\n\}\nfunction photoScreen\(/);
 assert.ok(match,'generator screen template is available');
-const view=new Function('state','ai','issues','button','esc','categoryName','empty',match[1]);
+const view=new Function('state','ai','issues','button','esc','categoryName','empty','menuGenerationMode','aiGenerating',match[1]);
 const button=(text,action,cls='',attrs='')=>'<button class="'+cls+'" data-action="'+action+'" '+attrs+'>'+text+'</button>';
 const escape=v=>String(v);
 function screen(days){
  const state={rules:{days:days.length},draft:days.map(dishes=>({dishes}))};
- return view(state,{available:false},[],button,escape,c=>({main:'主菜',side:'副菜'}[c]||c),()=>'<div>empty</div>');
+ return view(state,{available:false},[],button,escape,c=>({main:'主菜',side:'副菜'}[c]||c),()=>'<div>empty</div>','rules',false);
 }
 test('one Main dish per day generates exactly seven compact rows',()=>{
  const html=screen(Array.from({length:7},(_,i)=>[{category:'main',name:'料理'+i,locked:i===0}]));
