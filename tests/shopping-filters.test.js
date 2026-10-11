@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
+import {MAX_SHOPPING_SERVINGS} from '../src/shopping.js';
 
 const read=name=>readFileSync(new URL('../'+name,import.meta.url),'utf8');
 const app=read('src/app.js'),css=read('style.css'),html=read('index.html');
@@ -17,7 +18,7 @@ const sample={
 };
 sample.items=[...sample.pending,...sample.bought,...sample.excluded];
 function screen(filter,view=sample){
- const ctx={shoppingFilter:filter,shoppingData:()=>view,button,esc:s=>String(s),};
+ const ctx={shoppingFilter:filter,shoppingData:()=>view,button,esc:s=>String(s),MAX_SHOPPING_SERVINGS};
  const compiled=runInNewContext(source+';({shoppingScreen,shoppingFilterButtons})',ctx);
  return {screen:compiled.shoppingScreen(),filterBar:compiled.shoppingFilterButtons()};
 }
@@ -94,4 +95,26 @@ test('bulk check reset action is removed but per-item purchase toggles remain',(
  assert.match(app,/if\(el\.matches\('\[data-shopping-check\]'\)\)/);
  assert.match(app,/if\(el\.checked\)state\.shopping\.checked\[item\.id\]=item\.signature/);
  assert.match(app,/else delete state\.shopping\.checked\[item\.id\]/);
+});
+
+test('servings are a native 1–30 dropdown with exactly one saved value selected',()=>{
+ const cases=[{servings:1},{servings:5},{servings:30}];
+ for(const {servings} of cases){
+  const {screen:markup}=screen('pending',{...sample,servings});
+  const start=markup.indexOf('<select id="shopping-servings"');
+  const end=markup.indexOf('</select>',start);
+  assert.ok(start>=0&&end>start,'Shopping servings dropdown exists');
+  const select=markup.slice(start,end+9);
+  assert.equal((select.match(/<option value="/g)||[]).length,30);
+  assert.equal((select.match(/ selected>/g)||[]).length,1);
+  assert.match(select,new RegExp('<option value="'+servings+'" selected>'+servings+'</option>'));
+  assert.doesNotMatch(select,/value="0"|value="31"/);
+  assert.match(select,/aria-label="買い物に必要な人数"/);
+  assert.doesNotMatch(markup,/<input id="shopping-servings"/);
+ }
+});
+
+test('servings selection reuses the existing change handler that persists user selection',()=>{
+ assert.match(app,/if\(el\.id==='shopping-servings'\)\{[\s\S]*?state\.shopping\.servings=n;persist\(\);render\(\);return;/);
+ assert.match(css,/\.shopping-toolbar #shopping-servings\{width:68px/);
 });
