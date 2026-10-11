@@ -133,7 +133,7 @@ test('shopping filter contains only explicitly chosen dishes in selection order'
  assert.match(functions.masterFilterButtons(),/data-master-filter="shopping" aria-pressed="true">買い物<\/button>/);
  ctx.state.shopping.selected=[];
  assert.deepEqual(Array.from(functions.masterItems()),[]);
- assert.match(functions.masterScreen(),/data-master-filter="shopping" aria-pressed="true"/);
+ assert.match(functions.masterFilterButtons(),/data-master-filter="shopping" aria-pressed="true"/);
 });
 
 test('shopping filter follows alias changes, and allows removing missing master entries',()=>{
