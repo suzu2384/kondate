@@ -17,7 +17,7 @@ export function generate(master,rules,previous=[],reference=today(),random=Math.
    if(rules.preferOld)score+=!d.lastDate?45:d.lastDate<addDays(reference,-rules.oldDays)?40:Math.min(rules.oldDays,Math.max(0,(Date.parse(reference)-Date.parse(d.lastDate))/86400000))/Math.max(1,rules.oldDays)*20;
    if(rules.balance)for(const k of Object.keys(counts)){if(d[k]&&d[k]!=='不明'){score-=(counts[k].get(d[k])||0)*12;if(plan[dayIndex]?.dishes.some(x=>x[k]===d[k]))score-=6;if(dayIndex>0&&plan[dayIndex-1].dishes.some(x=>x.category===category&&x[k]===d[k]))score-=8;}}
    return {d,score};}).sort((a,b)=>b.score-a.score);
-  const picked={...scored[0].d,locked:false};delete picked.dates;used.add(normalize(picked.name));tally(picked);return picked;
+  const picked={...scored[0].d,locked:false,isNew:category==='main'&&!Number(scored[0].d.count)};delete picked.dates;used.add(normalize(picked.name));tally(picked);return picked;
  }
  let needNew=rules.newMain&&!plan.some(day=>day.dishes.some(d=>d.category==='main'&&!master.find(m=>normalize(m.name)===normalize(d.name))?.count));
  if(needNew&&rules.counts.main>0){const target=plan.findIndex(day=>day.dishes.filter(d=>d.category==='main').length<rules.counts.main);if(target>=0){const d=pick('main',true,target);if(d){plan[target].dishes.push(d);needNew=false;}else issues.push('未調理の主菜がありません。料理マスターに新しい主菜を追加するか「新しい主菜を1品」を解除してください。');}else issues.push('主菜がすべて固定されているため、新しい主菜を追加できません。固定を解除してください。');}
