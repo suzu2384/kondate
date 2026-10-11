@@ -796,3 +796,22 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 #dialog-content .status-detail-guidance{color:var(--text)}
 #dialog-content .dialog-body .status-detail-summary+h3,
 #dialog-content .dialog-body .status-detail-message+h3{margin:12px 0 4px;font-size:13px}
+
+/* Action outcome status colors: errors mean requirements were not met. */
+#status-bar.status-error{background:#9e2424;border-top-color:#9e2424;color:#fff}
+#status-bar.status-error #notice.status-message{color:#fff;font-weight:750}
+#status-bar.status-warning{background:#ffdc75;border-top-color:#e3b947;color:#3c2a07}
+#status-bar.status-warning #notice.status-message{color:#3c2a07;font-weight:700}
+#status-bar.status-error #preset-pending,#status-bar.status-warning #preset-pending{background:var(--surface)}
+/* Keep the compact meal row width unchanged; the visible badge fits inside it. */
+.compact-plan-dish .dish-name.new-dish{
+ display:flex;align-items:center;gap:4px;
+ color:var(--accent);font-weight:800;background:var(--tint);
+ border-radius:5px;padding:0 4px;
+}
+.compact-plan-dish .dish-name .dish-name-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.compact-plan-dish .dish-name .new-dish-badge{
+ display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;
+ font-size:10px;line-height:1.2;font-weight:800;border:1px solid currentColor;
+ border-radius:3px;padding:0 2px;
+}
