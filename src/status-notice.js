@@ -25,6 +25,19 @@ export function normalizeStatusNotice(value){
  };
 }
 
+/**
+ * Preserve a displayed notice until an incoming notice of equal or greater
+ * severity replaces it. An empty update only clears ordinary information;
+ * higher-priority notices require explicit dismissal.
+ */
+const noticePriorities=Object.freeze({info:0,warning:1,error:2});
+export function selectStatusNotice(current,incoming){
+ const active=current?normalizeStatusNotice(current):null;
+ const next=normalizeStatusNotice(incoming);
+ if(active?.summary&&(!next.summary||noticePriorities[next.severity]<noticePriorities[active.severity]))return active;
+ return next.summary?next:null;
+}
+
 export function generationFailureNotice(error,mode='rules'){
  const detail=clean(error?.message||error)||'原因を取得できませんでした。';
  const ai=mode==='ai';
