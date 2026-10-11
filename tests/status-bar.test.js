@@ -99,3 +99,26 @@ test('status details escape untrusted messages and offer only allowlisted remedy
  assert.match(calls[0].foot,/data-action="notice-settings"/);
  assert.doesNotMatch(calls[0].foot,/unsupported/);
 });
+
+test('status dialog uses only the header close icon and optional corrective actions',async()=>{
+ const {runInNewContext}=await import('node:vm');
+ const code=app.slice(app.indexOf('function showNoticeDetail('),app.indexOf('function closeModal()'));
+ const calls=[];
+ const render=runInNewContext(code+';showNoticeDetail',{
+  normalizeStatusNotice,STATUS_REMEDIES,
+  esc:s=>String(s),button:(label,action)=>'['+action+':'+label+']',
+  modal:(title,body,footer)=>calls.push({title,body,footer})
+ });
+ render({summary:'確認事項',detail:'候補不足',actions:['rules']});
+ assert.match(calls[0].footer,/notice-rules/);
+ assert.doesNotMatch(calls[0].footer,/close-dialog|閉じる/);
+ render({summary:'通信エラー',detail:'接続できません'});
+ assert.equal(calls[1].footer,'');
+ assert.match(app,/function modal\(title,body,foot=''\)/);
+ assert.match(app,/button\('×','close-dialog','icon-button','aria-label="閉じる"'\)/);
+});
+
+test('validation issues from editing and rerolling are also sent to status bar',()=>{
+ assert.match(app,/function checkDraft\(\)\{issues=validatePlan\([\s\S]*?notify\(issues.length\?generationIssuesNotice\(issues\):/);
+ assert.match(app,/reroll:b=>\{[^\n]*?notify\(issues.length\?generationIssuesNotice\(issues\):/);
+});

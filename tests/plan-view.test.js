@@ -9,9 +9,9 @@ assert.ok(match,'generator screen template is available');
 const view=new Function('state','ai','issues','button','esc','categoryName','empty','aiGenerating','MAX_GENERATION_DAYS',match[1]);
 const button=(text,action,cls='',attrs='')=>'<button class="'+cls+'" data-action="'+action+'" '+attrs+'>'+text+'</button>';
 const escape=v=>String(v);
-function screen(days,mode='rules',generating=false){
+function screen(days,mode='rules',generating=false,problems=[]){
  const state={rules:{days:days.length},menuGenerationMode:mode,draft:days.map(dishes=>({dishes}))};
- return view(state,{available:mode==='ai'},[],button,escape,c=>({main:'主菜',side:'副菜'}[c]||c),()=>'<div>empty</div>',generating,MAX_GENERATION_DAYS);
+ return view(state,{available:mode==='ai'},problems,button,escape,c=>({main:'主菜',side:'副菜'}[c]||c),()=>'<div>empty</div>',generating,MAX_GENERATION_DAYS);
 }
 test('one Main dish per day generates exactly seven compact rows',()=>{
  const html=screen(Array.from({length:7},(_,i)=>[{category:'main',name:'料理'+i,locked:i===0}]));
@@ -82,4 +82,10 @@ test('generation mode stays selected and generating retains a fixed-size label',
  const busy=screen([[]],'ai',true);
  assert.match(busy,/data-action="generate"[^>]*disabled aria-busy="true"[^>]*>生成<\/button>/);
  assert.doesNotMatch(busy,/考え中/);
+});
+
+test('generation issues appear only in the status bar, never inline above the plan',()=>{
+ const html=screen([[{category:'main',name:'カレー'}]],'rules',false,['1日目：mainの候補が1品不足しています。']);
+ assert.doesNotMatch(html,/class="issues"|条件に合う候補が足りない場合があります|候補が1品不足/);
+ assert.match(html,/class="plan-grid compact-plan-grid scroll"/);
 });

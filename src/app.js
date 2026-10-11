@@ -291,7 +291,6 @@ function generateScreen(){
   ${button('ルール調整','rules','text-button mini generation-rule-button')}
   ${button('生成','generate','primary mini generation-submit-button',aiGenerating?'disabled aria-busy="true"':'')}
  </div>
- ${issues.length?`<div class="issues"><strong>条件に合う候補が足りない場合があります</strong><ul>${issues.map(s=>`<li>${esc(s.replace(/：([a-z0-9-]+)の/g,(_,c)=>'：'+categoryName(c)+'の'))}</li>`).join('')}</ul><p>料理を追加するか、直近の除外日数・1日あたりの品数を減らして再生成できます。重複許可は設定から明示的に変更してください。</p>${button('条件を変更','rules','mini')} ${button('料理を追加','add-master','mini')}</div>`:''}
  <div class="plan-grid compact-plan-grid scroll">
  ${state.draft.length?state.draft.map((day,i)=>`<article class="plan-card compact-plan-card card" aria-label="${i+1}日目の献立" data-dish-count="${day.dishes.length}">
   <div class="plan-head compact-plan-head"><h2>${i+1}日目</h2></div>
@@ -390,7 +389,7 @@ function showNoticeDetail(note){
   (info.detail?`<h3>詳細</h3><p class="status-detail-message">${esc(info.detail)}</p>`:'')+
   (info.guidance?`<h3>対処方法</h3><p class="status-detail-guidance">${esc(info.guidance)}</p>`:'');
  const remedies=info.actions.map(key=>button(STATUS_REMEDIES[key],'notice-'+key,'mini'+(key==='use-rules'?' primary':''))).join('');
- modal('ステータス',body,button('閉じる','close-dialog')+remedies);
+ modal('ステータス',body,remedies);
 }
 function closeModal(){cancelPlaceLookup();$('#dialog').close();editor=null;presetEditDraft=null;presetEditOriginalId=null;}
 function categoryOptions(selectedId){return state.categories.map(c=>`<option value="${esc(c.id)}" ${c.id===selectedId?'selected':''}>${esc(c.name)}</option>`).join('');}
@@ -633,7 +632,7 @@ let editingMaster=null,editingPlan=null;
 function editMaster(key=null){editingMaster=key;const d=master().find(d=>d.key===key)||{name:'',category:'main',protein:'不明',method:'不明',genre:'不明',dates:[]};modal(key?'料理の情報':'料理を追加',`<label class="field"><span>料理名（変更で表記を統一）</span><input id="master-name" value="${esc(d.name)}" maxlength="100" list="dish-options"></label><datalist id="dish-options">${master().map(d=>`<option value="${esc(d.name)}">`).join('')}</datalist><label class="field"><span>分類</span><select id="master-category">${categoryOptions(d.category)}</select></label>${[['protein','主な食材',['不明','肉','魚','野菜・豆','卵']],['method','調理法',['不明','焼く','煮る','炒める','揚げる','蒸す','ゆでる','和える']],['genre','ジャンル',['不明','和食','洋食','中華','その他']]].map(([k,label,values])=>`<label class="field"><span>${label}</span><select id="master-${k}">${values.map(v=>`<option ${d[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')}${d.dates.length?`<details><summary>過去の調理日（${d.count}回）</summary><p class="hint">${d.dates.join(' / ')}</p></details>`:''}<p class="hint">同じ名前へ変更すると、調理履歴を統合して表示します。</p>`,button('戻る','master')+button('保存','save-master','primary'));}
 function saveMaster(){const dish=validateDishes([{name:$('#master-name').value,category:$('#master-category').value,protein:$('#master-protein').value,method:$('#master-method').value,genre:$('#master-genre').value}])[0];const key=normalize(dish.name);if(editingMaster&&editingMaster!==key){if(resolveName(dish.name,data().aliases)&&normalize(resolveName(dish.name,data().aliases))===editingMaster)throw Error('この名前は元の料理へ統一済みです。別の名前を指定してください。');data().aliases[editingMaster]=dish.name;}data().metadata[key]={category:dish.category,protein:dish.protein,method:dish.method,genre:dish.genre};if(!editingMaster||!master().some(d=>d.key===key))data().manual.push(dish);persist();masterModal();render();}
 function editPlanDish(dayIndex,dishIndex=null){editingPlan={dayIndex,dishIndex};const d=state.draft[dayIndex].dishes[dishIndex]||{name:'',category:'main'};modal(dishIndex===null?'料理を追加':'料理を差し替える',`<label class="field"><span>料理名</span><input id="plan-name" value="${esc(d.name)}" list="plan-options" maxlength="100" placeholder="料理名を入力・候補から選択"></label><datalist id="plan-options">${master().map(d=>`<option value="${esc(d.name)}">${esc(categoryName(d.category))}</option>`).join('')}</datalist><label class="field"><span>分類</span><select id="plan-category">${categoryOptions(d.category)}</select></label><p class="hint">変更は下書きに反映されます。カレンダーには登録されません。</p>`,`${dishIndex!==null?button('この料理を削除','delete-plan-dish','danger'):''}${button('反映','save-plan-dish','primary')}`);}
-function checkDraft(){issues=validatePlan(state.draft,state.rules,master());persist();render();}
+function checkDraft(){issues=validatePlan(state.draft,state.rules,master());persist();render();notify(issues.length?generationIssuesNotice(issues):'献立の確認事項が解消しました。');}
 async function sync({automatic=false}={}){
  if(automatic&&presetFlushing)return;
  if(!automatic&&presetQueue.size&&!presetFlushing)await flushPendingPresets();
@@ -1090,7 +1089,7 @@ const actions={
    notify(issues.length?generationIssuesNotice(issues):'献立案を作りました。カレンダーにはまだ登録していません。');
   }
  },
- reroll:b=>{const i=Number(b.dataset.day),j=Number(b.dataset.dish);if(state.draft[i]?.dishes[j]?.locked)state.draft[i].dishes[j]={...state.draft[i].dishes[j],locked:false};const result=reroll(master(),state.rules,state.draft,i,j);state.draft[i].dishes[j]=result.dish;issues=result.issues;persist();render();},
+ reroll:b=>{const i=Number(b.dataset.day),j=Number(b.dataset.dish);if(state.draft[i]?.dishes[j]?.locked)state.draft[i].dishes[j]={...state.draft[i].dishes[j],locked:false};const result=reroll(master(),state.rules,state.draft,i,j);state.draft[i].dishes[j]=result.dish;issues=result.issues;persist();render();notify(issues.length?generationIssuesNotice(issues):'料理を再抽選しました。');},
  'edit-plan-dish':b=>editPlanDish(Number(b.dataset.day),Number(b.dataset.dish)),'add-plan-dish':b=>editPlanDish(Number(b.dataset.day)),
  'save-plan-dish':()=>{const {dayIndex,dishIndex}=editingPlan;const name=$('#plan-name').value.trim(),existing=master().find(d=>normalize(d.name)===normalize(name));const d=validateDishes([{...existing,name,category:$('#plan-category').value}])[0];d.locked=dishIndex!==null?state.draft[dayIndex].dishes[dishIndex].locked:false;if(dishIndex===null)state.draft[dayIndex].dishes.push(d);else state.draft[dayIndex].dishes[dishIndex]=d;closeModal();checkDraft();},
  'delete-plan-dish':()=>{state.draft[editingPlan.dayIndex].dishes.splice(editingPlan.dishIndex,1);closeModal();checkDraft();},
