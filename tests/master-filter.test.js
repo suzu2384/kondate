@@ -82,14 +82,15 @@ test('master screen removes title/explanation and dynamically shows configured f
  ctx.state.draft=draft;ctx.masterFilter='plan';
  const html=functions.masterScreen();
  assert.match(html,/data-master-filter="plan" aria-pressed="true">献立<\/button>/);
+ assert.match(html,/data-master-filter="shopping" aria-pressed="false">買い物<\/button>/);
  assert.match(html,/data-master-filter="category:main" aria-pressed="false">主菜<\/button>/);
  assert.match(html,/data-master-filter="category:soup" aria-pressed="false">汁物<\/button>/);
  assert.match(html,/data-master-filter="category:side" aria-pressed="false">副菜<\/button>/);
  assert.match(html,/data-master-filter="all" aria-pressed="false">すべて<\/button>/);
  assert.doesNotMatch(html,/<h2>料理マスター<\/h2>/);
  assert.doesNotMatch(html,/最終調理日の新しい順。料理の表記や属性の変更/);
- const p=html.indexOf('data-master-filter="plan"'),m=html.indexOf('data-master-filter="category:main"'),all=html.indexOf('data-master-filter="all"');
- assert.ok(p<m&&m<all);
+ const p=html.indexOf('data-master-filter="plan"'),shopping=html.indexOf('data-master-filter="shopping"'),m=html.indexOf('data-master-filter="category:main"'),all=html.indexOf('data-master-filter="all"');
+ assert.ok(p<shopping&&shopping<m&&m<all);
  ctx.state.draft=[];ctx.masterFilter='plan';
  const empty=functions.masterScreen();
  assert.doesNotMatch(empty,/>献立<\/button>/);
@@ -116,4 +117,27 @@ test('Buy appears for every dish, including unregistered generated-menu dishes',
  assert.match(entries[1],/data-action="edit-master"[^>]*disabled/);
  ctx.state.shopping.selected=['ハンバーグ'];
  assert.match(functions.masterRows([cooked[2]]),/data-action="buy-master"[^>]*aria-pressed="true"/);
+});
+
+test('shopping filter contains only explicitly chosen dishes in selection order',()=>{
+ ctx.state.shopping.selected=['ハンバーグ','肉じゃが'];
+ ctx.masterFilter='shopping';
+ const selected=functions.masterItems();
+ assert.deepEqual(Array.from(selected.map(d=>d.name)),['ハンバーグ','肉じゃが']);
+ assert.strictEqual(selected[0],cooked[2]);
+ assert.strictEqual(selected[1],cooked[0]);
+ assert.match(functions.masterScreen(),/data-master-filter="shopping" aria-pressed="true">買い物<\/button>/);
+ ctx.state.draft=[];
+ assert.match(functions.masterScreen(),/data-master-filter="shopping" aria-pressed="true">買い物<\/button>/);
+ ctx.state.shopping.selected=[];
+ assert.deepEqual(Array.from(functions.masterItems()),[]);
+ assert.match(functions.masterScreen(),/data-master-filter="shopping" aria-pressed="true"/);
+});
+
+test('shopping filter follows alias changes, and allows removing missing master entries',()=>{
+ const selected=masterFilterItems(cooked,[], 'shopping',{'旧ハンバーグ':'ハンバーグ'}, ['旧ハンバーグ','なくなった料理']);
+ assert.equal(selected[0].name,'ハンバーグ');
+ assert.equal(selected[1].name,'なくなった料理');
+ assert.equal(selected[1].unregistered,true);
+ assert.match(functions.masterRows(selected.slice(1)),/data-action="buy-master"/);
 });
