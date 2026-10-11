@@ -24,7 +24,7 @@ function renderRows(dishes){
  const source=app.slice(begin,end);
  const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  const button=(label,action,cls,attrs)=>`<button class="${cls}" data-action="${action}" ${attrs}>${label}</button>`;
- return runInNewContext(source+';masterRows',{esc,button,categoryName:()=> '主菜',recipeSearchUrl})(dishes);
+ return runInNewContext(source+';masterRows',{esc,button,categoryName:()=> '主菜',recipeSearchUrl,isShoppingMasterSelected:()=>false})(dishes);
 }
 
 test('each dish shows last cooked date below its name and direct search/edit actions',()=>{
