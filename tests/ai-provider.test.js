@@ -63,3 +63,17 @@ test('unconfigured public build contains no shared Firebase credentials',()=>{
  const cfgText=readFileSync(new URL('../src/ai-config.js',import.meta.url),'utf8');
  assert.match(cfgText,/mode:'disabled'/);
 });
+
+test('shared generation stays disabled until explicitly configured and the free model is pinned',()=>{
+ const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
+ const build=readFileSync(new URL('../scripts/build.js',import.meta.url),'utf8');
+ assert.equal(pkg.version,'1.4.0');
+ assert.match(build,/KONDATE_AI_SPARK_VERIFIED/);
+ assert.match(build,/mode:'disabled'/);
+ assert.match(build,/model:'gemini-3.5-flash-lite'/);
+ assert.match(build,/dist\/src\/ai-config.js/);
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ assert.match(app,/new AIService\(createAIProvider\(AI_PUBLIC_CONFIG\)\)/);
+ assert.match(app,/menuGenerationMode/);
+ assert.match(app,/aiGenerating=true/);
+});

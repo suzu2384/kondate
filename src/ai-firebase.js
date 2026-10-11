@@ -1,7 +1,6 @@
 import {createMenuRequest,parseMenuResponse} from './ai-menu.js';
 
 // Google-hosted Firebase SDK: loaded only after a person chooses AI generation.
-const FIREBASE_CDN='https://www.gstatic.com/firebasejs/12.19.0/';
 async function loadFirebaseSDK(){
  const [app,appCheck,ai]=await Promise.all([
   import('https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js'),
@@ -40,7 +39,7 @@ export function createFirebaseAIProvider(config,{loadSDK=loadFirebaseSDK,storage
    const service=ai.getAI(firebase,{backend:new ai.GoogleAIBackend()});
    return ai.getGenerativeModel(service,{
     model:config.model,
-    generationConfig:{responseMimeType:'application/json',temperature:0.6}
+    generationConfig:{responseMimeType:'application/json'}
    });
   })().catch(error=>{modelPromise=null;throw error;});
   return modelPromise;
