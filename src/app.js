@@ -175,7 +175,7 @@ function render(){
  // Rebuilding #main on every edit briefly clears all SVG masks and focus state.
  const previousScroll=tab==='settings'?$('#main .settings-grid')?.scrollTop:null;
  const previousMasterScroll=tab==='master'?$('#main .master-list-wrap')?.scrollTop:null;
- const previousMasterFilterScroll=tab==='master'?$('#main .master-filter-bar')?.scrollLeft:null;
+ const previousMasterFilterScroll=tab==='master'?$('#quick-preset-bar')?.scrollLeft:null;
  const previousShoppingScroll=tab==='shopping'?$('#main .shopping-list')?.scrollTop:null;
  applyTheme(state.theme);
  updateConnection();
@@ -192,7 +192,7 @@ function render(){
  showStatus();
  if(previousScroll!=null){const list=$('#main .settings-grid');if(list)list.scrollTop=previousScroll;}
  if(previousMasterScroll!=null){const list=$('#main .master-list-wrap');if(list)list.scrollTop=previousMasterScroll;}
- if(previousMasterFilterScroll!=null){const filters=$('#main .master-filter-bar');if(filters)filters.scrollLeft=previousMasterFilterScroll;}
+ if(previousMasterFilterScroll!=null){const filters=$('#quick-preset-bar');if(filters)filters.scrollLeft=previousMasterFilterScroll;}
  if(previousShoppingScroll!=null){const list=$('#main .shopping-list');if(list)list.scrollTop=previousShoppingScroll;}
 }
 // The production build embeds the paths from the bundled MingCute SVG assets.
@@ -207,12 +207,23 @@ function iconMarkup(name,color='',extraClass=''){
 }
 function renderPresetBar(){
  const bar=$('#quick-preset-bar');
+ const masterBar=tab==='master';
  const rules=state.iconRules.filter(rule=>String(rule.keyword||'').trim()&&String(rule.calendarId||'').trim());
- const shown=tab==='calendar'&&rules.length>0;
+ const calendarBar=tab==='calendar'&&rules.length>0;
+ const shown=masterBar||calendarBar;
  if(!rules.some(rule=>rule.id===selectedPresetId))selectedPresetId=null;
- document.querySelector('.app').classList.toggle('has-quick-presets',shown);
+ const app=document.querySelector('.app');
+ app.classList.toggle('has-quick-presets',calendarBar);
+ app.classList.toggle('has-master-filters',masterBar);
+ bar.classList.toggle('master-filter-bar',masterBar);
+ bar.setAttribute('aria-label',masterBar?'料理の絞り込み':'予定のクイック登録プリセット');
  bar.hidden=!shown;
  if(!shown){bar.innerHTML='';return;}
+ if(masterBar){
+  const markup=masterFilterButtons();
+  if(bar.innerHTML!==markup)bar.innerHTML=markup;
+  return;
+ }
  const nextMarkup=rules.map(rule=>{
   const title=String(rule.keyword||'').trim(),memo=String(rule.memo||'').trim();
   const label=[title,memo,rule.calendarId?'':'（登録先未設定）'].filter(Boolean).join('／');
@@ -730,20 +741,22 @@ function masterRows(items){
   </div>
  </li>`).join('')||'<li class="master-empty">該当する料理はありません。</li>';
 }
-function masterScreen(){
+function masterFilterButtons(){
  const hasPlan=hasPlannedDishes(state.draft);
  if((masterFilter==='plan'&&!hasPlan)||(masterFilter.startsWith('category:')&&!state.categories.some(c=>'category:'+c.id===masterFilter)))masterFilter='all';
- const items=masterItems();
  const filterButton=(label,value)=>button(esc(label),'filter-master','master-filter-button'+(masterFilter===value?' selected':''),`data-master-filter="${esc(value)}" aria-pressed="${masterFilter===value}"`);
+ return [
+  hasPlan?filterButton('献立','plan'):'',
+  filterButton('買い物','shopping'),
+  ...state.categories.map(c=>filterButton(c.name,'category:'+c.id)),
+  filterButton('すべて','all')
+ ].join('');
+}
+function masterScreen(){
+ const items=masterItems();
  return `<section class="screen master-screen" aria-label="料理">
   <div class="master-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}</div>
   <div class="master-list-wrap card scroll"><ul class="master-list" id="master-rows">${masterRows(items)}</ul></div>
-  <nav class="master-filter-bar" aria-label="料理の絞り込み">
-   ${hasPlan?filterButton('献立','plan'):''}
-   ${filterButton('買い物','shopping')}
-   ${state.categories.map(c=>filterButton(c.name,'category:'+c.id)).join('')}
-   ${filterButton('すべて','all')}
-  </nav>
  </section>`;
 }
 function refreshMasterRows(){
