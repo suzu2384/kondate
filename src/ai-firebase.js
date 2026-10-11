@@ -45,7 +45,7 @@ export function createFirebaseAIProvider(config,{loadSDK=loadFirebaseSDK}={}){
    for(let attempt=0;attempt<2;attempt++){
     let responseText;
     try{
-     const retry=attempt===0?'':`\\n前の返答は条件違反でした（${firstError.message}）。必ず${context.rules.days}日分すべてをdays配列に含め、形式・固定料理・分類別品数・新しい主菜の条件を満たしたJSONのみを返してください。`;
+     const retry=attempt===0?'':`\n前の返答は条件違反でした（${firstError.message}）。必ず${context.rules.days}日分すべてをdays配列に含め、形式・固定料理・分類別品数・新しい主菜の条件を満たしたJSONのみを返してください。`;
      const result=await model.generateContent(prompt+retry);
      responseText=result?.response?.text();
     }catch(error){
