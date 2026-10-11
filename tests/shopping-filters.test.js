@@ -53,6 +53,7 @@ test('no counts, explanatory note, list section headings or expandable excluded 
   assert.doesNotMatch(markup,/件 未購入|件 購入済み|件 除外/);
   assert.match(markup,/id="shopping-servings"/);
   assert.match(markup,/data-action="shopping-copy"/);
+  assert.doesNotMatch(markup,/チェック解除|shopping-clear-checks/);
  }
 });
 test('empty filtered lists show state-specific empty message',()=>{
@@ -86,4 +87,11 @@ test('filter action updates the selected state and resets list scroll without pe
  action({dataset:{shoppingFilter:'unrecognized'}});
  assert.equal(ctx.shoppingFilter,'excluded');
  assert.equal(ctx.renderCount,2);
+});
+
+test('bulk check reset action is removed but per-item purchase toggles remain',()=>{
+ assert.doesNotMatch(app,/shopping-clear-checks|チェック解除/);
+ assert.match(app,/if\(el\.matches\('\[data-shopping-check\]'\)\)/);
+ assert.match(app,/if\(el\.checked\)state\.shopping\.checked\[item\.id\]=item\.signature/);
+ assert.match(app,/else delete state\.shopping\.checked\[item\.id\]/);
 });
