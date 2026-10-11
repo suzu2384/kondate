@@ -28,10 +28,10 @@ test('recipe filters occupy the exact shared calendar toolbar row with a full-wi
  const toolbar=html.indexOf('<div id="quick-preset-bar"');
  const status=html.indexOf('<div id="status-bar"');
  assert.ok(main>=0&&main<toolbar&&toolbar<status);
- assert.match(app,/bar\.classList\.toggle\('master-filter-bar',masterBar\)/);
- assert.match(app,/app\.classList\.toggle\('has-master-filters',masterBar\)/);
+ assert.match(app,/bar\.classList\.toggle\('master-filter-bar',filterBar\)/);
+ assert.match(app,/app\.classList\.toggle\('has-master-filters',filterBar\)/);
  assert.match(app,/bar\.setAttribute\('aria-label',masterBar\?'料理の絞り込み'/);
- assert.match(app,/const markup=masterFilterButtons\(\)/);
+ assert.match(app,/const markup=masterBar\?masterFilterButtons\(\):shoppingFilterButtons\(\)/);
  assert.match(app,/previousMasterFilterScroll=tab==='master'\?\$\('#quick-preset-bar'\)/);
  const calendar=css.match(/\.app\.has-quick-presets\{grid-template-rows:([^}]+)\}/)?.[1];
  const recipes=css.match(/\.app\.has-master-filters\{grid-template-rows:([^}]+)\}/)?.[1];
