@@ -165,7 +165,9 @@ test('tab captions are concise and header sync plus generator master buttons are
  assert.doesNotMatch(app,/\$\('#sync'\)/);
  const generator=app.slice(app.indexOf('function generateScreen()'),app.indexOf('function photoScreen()'));
  assert.doesNotMatch(generator,/料理マスター|data-action="master"/);
- assert.match(app,/button\('料理マスターを開く','master','full'\)/);
+ assert.match(html,/data-tab="master" aria-label="料理"[^>]*><span[^>]*><\/span><span class="tab-label">料理<\/span><\/button>/);
+ assert.match(app,/function masterScreen\(\)/);
+ assert.doesNotMatch(app,/button\('料理マスターを開く','master','full'\)/);
  assert.match(app,/function autoRefreshCalendar\(\)/);
  assert.match(app,/'refresh-calendars':async/);
 });
