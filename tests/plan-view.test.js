@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {MAX_GENERATION_DAYS} from '../src/model.js';
 const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
-const match=source.match(/function generateScreen\(\)\{([\s\S]*?)\n\}\nfunction photoScreen\(/);
+const match=source.match(/function generateScreen\(\)\{([\s\S]*?)\n\}\nfunction shoppingData\(/);
 assert.ok(match,'generator screen template is available');
 const view=new Function('state','ai','issues','button','esc','categoryName','empty','aiGenerating','MAX_GENERATION_DAYS',match[1]);
 const button=(text,action,cls='',attrs='')=>'<button class="'+cls+'" data-action="'+action+'" '+attrs+'>'+text+'</button>';
