@@ -24,7 +24,7 @@ import {normalizeStatusNotice,selectStatusNotice,generationFailureNotice,generat
 import {catalog} from './catalog.js';
 import {recipeSearchUrl} from './recipe-search.js';
 import {INGREDIENT_UNITS,validateIngredients,MAX_INGREDIENTS,normalizeIngredient} from './ingredients.js';
-import {DEFAULT_SHOPPING_SERVINGS,shoppingSettings,shoppingItems,validateShoppingSettings,addShoppingDish,removeShoppingDish} from './shopping.js';
+import {DEFAULT_SHOPPING_SERVINGS,shoppingSettings,shoppingItems,validateShoppingSettings,addShoppingDish} from './shopping.js';
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
@@ -325,6 +325,10 @@ function buyMasterDish(b){
  const name=String(b.dataset.name||'').trim(),key=String(b.dataset.key||'').trim();
  const existing=master().find(d=>d.key===key&&key)||master().find(d=>normalize(resolveName(d.name,data().aliases))===normalize(resolveName(name,data().aliases)));
  if(!name)throw Error('料理名を確認できません。');
+ if(isShoppingMasterSelected({name})){
+  state.shopping.selected=state.shopping.selected.filter(selected=>normalize(resolveName(selected,data().aliases))!==normalize(resolveName(name,data().aliases)));
+  persist();render();notify('「'+name+'」を買い物対象から外しました。');return;
+ }
  let hasIngredients=false;
  try{hasIngredients=Array.isArray(existing?.ingredients)&&existing.ingredients.length>0&&validateIngredients(existing.ingredients).length>0;}
  catch{hasIngredients=false;}
@@ -332,7 +336,6 @@ function buyMasterDish(b){
   editMaster(existing?.key||null,{buy:true,fallback:{name,category:b.dataset.category||'main'}});
   return;
  }
- if(isShoppingMasterSelected({name})){tab='shopping';render();return;}
  state.shopping.selected=addShoppingDish(state.shopping.selected,existing.name);
  persist();render();notify('「'+existing.name+'」を買い物リストに追加しました。');
 }
@@ -353,7 +356,6 @@ function shoppingRow(item){
 function shoppingScreen(){
  const view=shoppingData();
  const rows=items=>items.map(shoppingRow).join('');
- const selected=view.selected.length?`<details class="shopping-selected" open><summary>買い物対象の料理（${view.selected.length}品）</summary><ul>${view.selected.map(d=>`<li><span>${esc(d.name)}</span><div>${button('材料','shopping-edit-dish','shopping-plain-button',`data-name="${esc(d.selectedName)}" aria-label="${esc(d.name)}の材料を編集"`)}${button('外す','shopping-remove-dish','shopping-plain-button',`data-name="${esc(d.selectedName)}" aria-label="${esc(d.name)}を買い物対象から外す"`)}</div></li>`).join('')}</ul></details>`:'<p class="hint shopping-selected-empty">料理タブの「買う」を押すと、その料理の材料がここに追加されます。</p>';
  return `<section class="screen shopping-screen" aria-label="買い物">
   <div class="shopping-toolbar">
    <label class="shopping-servings">人数 <input id="shopping-servings" type="number" min="1" max="30" step="1" value="${view.servings}" aria-label="買い物に必要な人数"> 人分</label>
@@ -362,9 +364,9 @@ function shoppingScreen(){
    ${button('チェック解除','shopping-clear-checks','mini',view.bought.length?'':'disabled')}
   </div>
   <div class="shopping-summary">${view.pending.length}件 未購入 <span aria-hidden="true">·</span> ${view.bought.length}件 購入済み ${view.excluded.length?`<span aria-hidden="true">·</span> ${view.excluded.length}件 除外`:''}</div>
-  ${selected}
   <div class="shopping-list card scroll">
 
+   ${!view.items.length?'<p class="hint shopping-guidance">料理タブの「買う」から材料を追加できます。選択中の料理は料理タブ下部の「買い物」で確認できます。</p>':''}
    <h3>買うもの</h3><ul class="shopping-items">${rows(view.pending)||'<li class="shopping-empty">未購入の品目はありません。</li>'}</ul>
    ${view.bought.length?`<h3>購入済み</h3><ul class="shopping-items">${rows(view.bought)}</ul>`:''}
    ${view.excluded.length?`<details class="shopping-excluded"><summary>除外した品目（${view.excluded.length}件）</summary><ul class="shopping-items">${rows(view.excluded)}</ul></details>`:''}
@@ -712,7 +714,7 @@ async function saveRecord(){
  }finally{busy=false;updateConnection();if(editor)drawRecord();}
 }
 
-function masterItems(){return masterFilterItems(master(),state.draft,masterFilter,data().aliases).filter(d=>normalize(d.name).includes(normalize(masterQuery)));}
+function masterItems(){return masterFilterItems(master(),state.draft,masterFilter,data().aliases,state.shopping.selected).filter(d=>normalize(d.name).includes(normalize(masterQuery)));}
 function openMasterTab(){masterFilter=initialMasterFilter(state.draft);masterQuery='';tab='master';render();}
 function isShoppingMasterSelected(dish){return state.shopping.selected.some(name=>normalize(resolveName(name,data().aliases))===normalize(resolveName(dish.name,data().aliases)));}
 function masterRows(items){
@@ -738,6 +740,7 @@ function masterScreen(){
   <div class="master-list-wrap card scroll"><ul class="master-list" id="master-rows">${masterRows(items)}</ul></div>
   <nav class="master-filter-bar" aria-label="料理の絞り込み">
    ${hasPlan?filterButton('献立','plan'):''}
+   ${filterButton('買い物','shopping')}
    ${state.categories.map(c=>filterButton(c.name,'category:'+c.id)).join('')}
    ${filterButton('すべて','all')}
   </nav>
@@ -1311,14 +1314,12 @@ const actions={
  'save-plan-dish':()=>{const {dayIndex,dishIndex}=editingPlan;const name=$('#plan-name').value.trim(),existing=master().find(d=>normalize(d.name)===normalize(name));const d=validateDishes([{...existing,name,category:$('#plan-category').value}])[0];d.isNew=d.category==='main'&&(!existing||!Number(existing.count));d.locked=dishIndex!==null?state.draft[dayIndex].dishes[dishIndex].locked:false;if(dishIndex===null)state.draft[dayIndex].dishes.push(d);else state.draft[dayIndex].dishes[dishIndex]=d;closeModal();checkDraft();},
  'delete-plan-dish':()=>{state.draft[editingPlan.dayIndex].dishes.splice(editingPlan.dishIndex,1);closeModal();checkDraft();},
  'day-up':b=>{const i=Number(b.dataset.day);[state.draft[i-1],state.draft[i]]=[state.draft[i],state.draft[i-1]];persist();render();},'day-down':b=>{const i=Number(b.dataset.day);[state.draft[i+1],state.draft[i]]=[state.draft[i],state.draft[i+1]];persist();render();},
- 'record-day':b=>openRecord(null,{dishes:state.draft[b.dataset.day].dishes,date:today()}),master:()=>{closeModal();openMasterTab();},'filter-master':b=>{const target=b.dataset.masterFilter;if(!['all','plan',...state.categories.map(c=>'category:'+c.id)].includes(target))return;if(target==='plan'&&!hasPlannedDishes(state.draft))return;masterFilter=target;render();const list=$('#main .master-list-wrap');if(list)list.scrollTop=0;},'edit-master':b=>editMaster(b.dataset.key),'add-master':()=>editMaster(),'save-master':saveMaster,'add-master-ingredient':()=>{const rows=readIngredientRows(true);if(rows.length>=MAX_INGREDIENTS)throw Error('材料は最大60件まで登録できます。');rows.push({name:'',quantity:'',unit:'g'});redrawIngredientRows(rows);$('#master-ingredients')?.lastElementChild?.querySelector('[data-ingredient-name]')?.focus();},'remove-master-ingredient':b=>{const rows=readIngredientRows(true);rows.splice(Number(b.dataset.index),1);redrawIngredientRows(rows);},'generate-master-ingredients':generateMasterIngredients,
+ 'record-day':b=>openRecord(null,{dishes:state.draft[b.dataset.day].dishes,date:today()}),master:()=>{closeModal();openMasterTab();},'filter-master':b=>{const target=b.dataset.masterFilter;if(!['all','plan','shopping',...state.categories.map(c=>'category:'+c.id)].includes(target))return;if(target==='plan'&&!hasPlannedDishes(state.draft))return;masterFilter=target;render();const list=$('#main .master-list-wrap');if(list)list.scrollTop=0;},'edit-master':b=>editMaster(b.dataset.key),'add-master':()=>editMaster(),'save-master':saveMaster,'add-master-ingredient':()=>{const rows=readIngredientRows(true);if(rows.length>=MAX_INGREDIENTS)throw Error('材料は最大60件まで登録できます。');rows.push({name:'',quantity:'',unit:'g'});redrawIngredientRows(rows);$('#master-ingredients')?.lastElementChild?.querySelector('[data-ingredient-name]')?.focus();},'remove-master-ingredient':b=>{const rows=readIngredientRows(true);rows.splice(Number(b.dataset.index),1);redrawIngredientRows(rows);},'generate-master-ingredients':generateMasterIngredients,
  'add-category':()=>modal('分類を追加','<label class="field"><span>分類名</span><input id="category-new" placeholder="ごはん・麺など" maxlength="20"></label>',button('追加','confirm-category','primary')),
  'confirm-category':()=>{const name=$('#category-new').value.trim();if(!name)throw Error('分類名を入力してください。');if(state.categories.some(c=>c.name===name))throw Error('同じ名前の分類があります。');const id='c'+uid().slice(0,10);state.categories.push({id,name});state.rules.counts[id]=0;persist();closeModal();render();},
  'remove-category':b=>{const id=b.dataset.category;if(id==='main')throw Error('主菜は削除できません。');if(editor?.dishes?.some(d=>d.category===id))throw Error('この分類を使っている入力途中の実績があります。先に保存または破棄してください。');state.categories=state.categories.filter(c=>c.id!==id);state.draft=state.draft.map(day=>({...day,dishes:day.dishes.filter(d=>d.category!==id)}));delete state.rules.counts[id];delete state.categoryCalendars[id];persist();render();notify('分類を削除しました。Googleカレンダーの予定は削除していません。');},
  'shopping-open-master':()=>openMasterTab(),
  'buy-master':buyMasterDish,
- 'shopping-remove-dish':b=>{state.shopping.selected=removeShoppingDish(state.shopping.selected,b.dataset.name);persist();render();},
- 'shopping-edit-dish':b=>{const name=b.dataset.name;const found=master().find(d=>normalize(resolveName(d.name,data().aliases))===normalize(resolveName(name,data().aliases)));if(!found)throw Error('対象の料理が見つかりません。');editMaster(found.key);},
  'shopping-add':()=>editShoppingManual(),
  'shopping-edit':b=>editShoppingManual(b.dataset.id),
  'shopping-save':b=>{
