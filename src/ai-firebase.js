@@ -39,19 +39,32 @@ export function createFirebaseAIProvider(config,{loadSDK=loadFirebaseSDK}={}){
   async generate(context){
    const {prompt}=createMenuRequest(context);
    const model=await getModel();
-   let text;
-   try{
-    const result=await model.generateContent(prompt);
-    text=result?.response?.text();
-   }catch(error){
-    const details=String(error?.message||'');
-    if(/429|quota|RESOURCE_EXHAUSTED|rate.limit/i.test(details))
-     throw Error('AIの無料利用枠または回数制限に達しました。通常の献立生成をご利用ください。');
-    if(/app.check|recaptcha|permission.denied|403/i.test(details))
-     throw Error('AIの不正利用防止認証に失敗しました。通信環境を確認してください。');
-    throw Error('AIから献立を取得できませんでした。通常の献立生成をご利用ください。');
+   // Retry an invalid JSON/menu response once. Never accept a partial or
+   // truncated plan: fixed dishes and all generation constraints still apply.
+   let firstError=null;
+   for(let attempt=0;attempt<2;attempt++){
+    let responseText;
+    try{
+     const retry=attempt===0?'':`\\n前の返答は条件違反でした（${firstError.message}）。必ず${context.rules.days}日分すべてをdays配列に含め、形式・固定料理・分類別品数・新しい主菜の条件を満たしたJSONのみを返してください。`;
+     const result=await model.generateContent(prompt+retry);
+     responseText=result?.response?.text();
+    }catch(error){
+     const details=String(error?.message||'');
+     if(/429|quota|RESOURCE_EXHAUSTED|rate.limit/i.test(details))
+      throw Error('AIの無料利用枠または回数制限に達しました。通常の献立生成をご利用ください。');
+     if(/app.check|recaptcha|permission.denied|403/i.test(details))
+      throw Error('AIの不正利用防止認証に失敗しました。通信環境を確認してください。');
+     throw Error('AIから献立を取得できませんでした。通常の献立生成をご利用ください。');
+    }
+    try{
+     const plan=parseMenuResponse(responseText,context);
+     if(firstError)plan.warnings=[`AIの初回応答に問題があったため再生成し、${context.rules.days}日分を完成させました。初回: ${firstError.message}`];
+     return plan;
+    }catch(error){
+     if(attempt===1)throw Error(`AIの再生成後も条件を満たせませんでした。${error.message}`);
+     firstError=error;
+    }
    }
-   return parseMenuResponse(text,context);
   }
  };
 }
