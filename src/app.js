@@ -20,7 +20,7 @@ import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './driv
 import {AIService} from './ai.js';
 import {createAIProvider} from './ai-provider.js';
 import {AI_PUBLIC_CONFIG} from './ai-config.js';
-import {normalizeStatusNotice,generationFailureNotice,generationIssuesNotice,STATUS_REMEDIES} from './status-notice.js';
+import {normalizeStatusNotice,selectStatusNotice,generationFailureNotice,generationIssuesNotice,STATUS_REMEDIES} from './status-notice.js';
 import {catalog} from './catalog.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
@@ -77,6 +77,8 @@ function showStatus(){
  notice.textContent=message;
  notice.title=warning||driveWarning?'期限切れのGoogleサービスを再認証':message;
  notice.setAttribute('aria-label',warning&&driveWarning?'カレンダーとDriveを一度に再認証します。':warning?'カレンダーを再認証します。':driveWarning?'Driveを再認証します。':message);
+ const dismiss=$('#notice-dismiss');
+ if(dismiss)dismiss.hidden=!message||warning||driveWarning;
  // An older cached index.html can briefly be paired with a newer app.js.
  // Recreate the idle element instead of crashing the entire application.
  const statusBar=$('#status-bar');
@@ -148,7 +150,8 @@ function extraEvents(){
 
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
 function persist(){saveState(state);if(!driveAutoBooting&&drive.autoEnabled)markDriveDirty();}
-function notify(message){const note=normalizeStatusNotice(message);currentNotice=note.summary;currentNoticeData=note.summary?note:null;showStatus();}
+function notify(message){const note=selectStatusNotice(currentNoticeData,message);currentNotice=note?.summary||'';currentNoticeData=note;showStatus();}
+function dismissNotice(){currentNotice='';currentNoticeData=null;showStatus();}
 function updateConnection(){
  if(api.reauthenticationRequired&&!api.connected&&!api.needsReauth)api.clearToken(true);
  const connected=api.connected;
@@ -1042,6 +1045,7 @@ const actions={
   }finally{calendarCreationBusy=false;b.disabled=false;}
  },
  'notice-detail':()=>{const expired=expiredGoogleServices(api,drive);if(expired.calendar||expired.drive)return reauthenticateExpiredGoogle();if(currentNotice)showNoticeDetail(currentNoticeData||currentNotice);},
+ 'dismiss-notice':dismissNotice,
  'notice-rules':()=>{closeModal();tab='generate';render();actions.rules();},
  'notice-settings':()=>{closeModal();tab='settings';notify('');render();prepareGoogleIdentity();},
  'notice-master':()=>{closeModal();tab='master';render();},
@@ -1238,7 +1242,7 @@ const actions={
 async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))return;await actions[action]?.(b);}catch(error){
  if(action==='generate')notify(generationFailureNotice(error,state.menuGenerationMode));
  else if($('#dialog').open&&$('#dialog-error'))$('#dialog-error').textContent=error.message;
- else notify(error.message);
+ else notify({summary:error.message,severity:'error'});
  updateConnection();
 }}
 
