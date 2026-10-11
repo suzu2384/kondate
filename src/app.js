@@ -659,13 +659,13 @@ function masterScreen(){
  const items=masterItems();
  const filterButton=(label,value)=>button(esc(label),'filter-master','master-filter-button'+(masterFilter===value?' selected':''),`data-master-filter="${esc(value)}" aria-pressed="${masterFilter===value}"`);
  return `<section class="screen master-screen" aria-label="料理">
+  <div class="master-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}</div>
+  <div class="master-list-wrap card scroll"><ul class="master-list" id="master-rows">${masterRows(items)}</ul></div>
   <nav class="master-filter-bar" aria-label="料理の絞り込み">
    ${hasPlan?filterButton('献立','plan'):''}
    ${state.categories.map(c=>filterButton(c.name,'category:'+c.id)).join('')}
    ${filterButton('すべて','all')}
   </nav>
-  <div class="master-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}</div>
-  <div class="master-list-wrap card scroll"><ul class="master-list" id="master-rows">${masterRows(items)}</ul></div>
  </section>`;
 }
 function refreshMasterRows(){
@@ -696,8 +696,6 @@ function redrawIngredientRows(items){
  const list=$('#master-ingredients');
  if(!list)return;
  list.innerHTML=items.map((ingredient,i)=>ingredientRow(ingredient,i)).join('');
- const count=$('#master-ingredient-count');
- if(count)count.textContent=`${items.length}件 / ${MAX_INGREDIENTS}件`;
 }
 function editMaster(key=null){
  editingMaster=key;
@@ -709,7 +707,7 @@ function editMaster(key=null){
   <label class="field"><span>分類</span><select id="master-category">${categoryOptions(d.category)}</select></label>
   ${[['protein','主な食材',['不明','肉','魚','野菜・豆','卵']],['method','調理法',['不明','焼く','煮る','炒める','揚げる','蒸す','ゆでる','和える']],['genre','ジャンル',['不明','和食','洋食','中華','その他']]].map(([k,label,values])=>`<label class="field"><span>${label}</span><select id="master-${k}">${values.map(v=>`<option ${d[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')}
   <section class="master-ingredients" aria-label="1人前の材料">
-   <div class="master-ingredients-head"><strong>材料（1人前）</strong><small id="master-ingredient-count">${existing.length}件 / ${MAX_INGREDIENTS}件</small></div>
+   <div class="master-ingredients-head"><strong>材料（1人前）</strong></div>
    <div id="master-ingredients">${existing.map((i,n)=>ingredientRow(i,n)).join('')}</div>
    <div class="master-ingredients-actions">
     ${button('＋ 材料を追加','add-master-ingredient','mini')}
