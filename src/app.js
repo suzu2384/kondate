@@ -325,13 +325,14 @@ function buyMasterDish(b){
  const name=String(b.dataset.name||'').trim(),key=String(b.dataset.key||'').trim();
  const existing=master().find(d=>d.key===key&&key)||master().find(d=>normalize(resolveName(d.name,data().aliases))===normalize(resolveName(name,data().aliases)));
  if(!name)throw Error('料理名を確認できません。');
- if(isShoppingMasterSelected({name})){tab='shopping';render();return;}
- if(!Array.isArray(existing?.ingredients)||!existing.ingredients.length){
+ let hasIngredients=false;
+ try{hasIngredients=Array.isArray(existing?.ingredients)&&existing.ingredients.length>0&&validateIngredients(existing.ingredients).length>0;}
+ catch{hasIngredients=false;}
+ if(!hasIngredients){
   editMaster(existing?.key||null,{buy:true,fallback:{name,category:b.dataset.category||'main'}});
   return;
  }
- // Never add an invalid recipe silently.
- validateIngredients(existing.ingredients);
+ if(isShoppingMasterSelected({name})){tab='shopping';render();return;}
  state.shopping.selected=addShoppingDish(state.shopping.selected,existing.name);
  persist();render();notify('「'+existing.name+'」を買い物リストに追加しました。');
 }
