@@ -24,7 +24,7 @@ import {normalizeStatusNotice,selectStatusNotice,generationFailureNotice,generat
 import {catalog} from './catalog.js';
 import {recipeSearchUrl} from './recipe-search.js';
 import {INGREDIENT_UNITS,validateIngredients,MAX_INGREDIENTS,normalizeIngredient} from './ingredients.js';
-import {DEFAULT_SHOPPING_SERVINGS,shoppingSettings,shoppingItems,validateShoppingSettings,addShoppingDish} from './shopping.js';
+import {DEFAULT_SHOPPING_SERVINGS,MAX_SHOPPING_SERVINGS,shoppingSettings,shoppingItems,validateShoppingSettings,addShoppingDish} from './shopping.js';
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
@@ -380,7 +380,7 @@ function shoppingScreen(){
  const emptyMessage=shoppingFilter==='bought'?'購入済みの材料はありません。':shoppingFilter==='excluded'?'除外した材料はありません。':view.items.length?'未購入の材料はありません。':'料理タブで「買う」を押して材料を追加できます。';
  return `<section class="screen shopping-screen" aria-label="買い物">
   <div class="shopping-toolbar">
-   <label class="shopping-servings">人数 <input id="shopping-servings" type="number" min="1" max="30" step="1" value="${view.servings}" aria-label="買い物に必要な人数"> 人分</label>
+   <label class="shopping-servings">人数 <select id="shopping-servings" aria-label="買い物に必要な人数">${Array.from({length:MAX_SHOPPING_SERVINGS},(_,i)=>i+1).map(n=>`<option value="${n}"${n===view.servings?' selected':''}>${n}</option>`).join('')}</select> 人分</label>
    ${button('＋ 品目追加','shopping-add','mini primary')}
    ${button('未購入をコピー','shopping-copy','mini')}
   </div>
@@ -1734,7 +1734,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
  }
  if(el.id==='shopping-servings'){
   const n=Number(el.value);
-  if(!Number.isInteger(n)||n<1||n>30)throw Error('買い物人数は1〜30人で指定してください。');
+  if(!Number.isInteger(n)||n<1||n>MAX_SHOPPING_SERVINGS)throw Error('買い物人数は1〜30人で指定してください。');
   state.shopping.servings=n;persist();render();return;
  }
  if(el.id==='generate-mode'){state.menuGenerationMode=el.value==='ai'&&ai.available?'ai':'rules';el.value=state.menuGenerationMode;persist();return;}
