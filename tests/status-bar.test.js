@@ -65,7 +65,7 @@ test('missing idle node in an older cached HTML does not crash app startup',asyn
 });
 
 test('generation failures publish a short summary and use one extensible detail dialog',()=>{
- assert.match(app,/function notify\(message\)\{const note=normalizeStatusNotice\(message\)/);
+ assert.match(app,/function notify\(message\)\{const note=selectStatusNotice\(currentNoticeData,message\)/);
  assert.match(app,/if\(action==='generate'\)notify\(generationFailureNotice\(error,state\.menuGenerationMode\)\)/);
  assert.match(app,/if\(currentNotice\)showNoticeDetail\(currentNoticeData\|\|currentNotice\)/);
  assert.match(app,/function showNoticeDetail\(note\)/);
@@ -121,4 +121,15 @@ test('status dialog uses only the header close icon and optional corrective acti
 test('validation issues from editing and rerolling are also sent to status bar',()=>{
  assert.match(app,/function checkDraft\(\)\{issues=validatePlan\([\s\S]*?notify\(issues.length\?generationIssuesNotice\(issues\):/);
  assert.match(app,/reroll:b=>\{[^\n]*?notify\(issues.length\?generationIssuesNotice\(issues\):/);
+});
+
+test('status bar offers explicit dismissal, while navigation cannot discard warnings or errors',()=>{
+ assert.match(html,/id="notice-dismiss" class="status-dismiss" data-action="dismiss-notice"/);
+ assert.match(app,/function dismissNotice\(\)\{currentNotice='';currentNoticeData=null;showStatus\(\);\}/);
+ assert.match(app,/'dismiss-notice':dismissNotice/);
+ assert.match(app,/if\(dismiss\)dismiss.hidden=!message\|\|warning\|\|driveWarning/);
+ assert.match(css,/#notice-dismiss\.status-dismiss\[hidden\]\{display:none\}/);
+ assert.match(css,/#notice-dismiss\.status-dismiss\{[\s\S]*?height:20px;min-height:20px/);
+ assert.match(app,/tab=tabButton.dataset.tab;notify\(''\);render\(\)/);
+ assert.match(app,/selectStatusNotice\(currentNoticeData,message\)/);
 });
