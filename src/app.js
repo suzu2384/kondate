@@ -23,6 +23,7 @@ import {AI_PUBLIC_CONFIG} from './ai-config.js';
 import {normalizeStatusNotice,selectStatusNotice,generationFailureNotice,generationIssuesNotice,STATUS_REMEDIES} from './status-notice.js';
 import {catalog} from './catalog.js';
 import {recipeSearchUrl} from './recipe-search.js';
+import {INGREDIENT_UNITS,validateIngredients,MAX_INGREDIENTS} from './ingredients.js';
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
@@ -673,8 +674,87 @@ function refreshMasterRows(){
  const count=$('#master-count');if(count)count.textContent=`${items.length}件`;
 }
 let editingMaster=null,editingPlan=null;
-function editMaster(key=null){editingMaster=key;const d=master().find(d=>d.key===key)||{name:'',category:'main',protein:'不明',method:'不明',genre:'不明',dates:[]};modal(key?'料理の情報':'料理を追加',`<label class="field"><span>料理名（変更で表記を統一）</span><input id="master-name" value="${esc(d.name)}" maxlength="100" list="dish-options"></label><datalist id="dish-options">${master().map(d=>`<option value="${esc(d.name)}">`).join('')}</datalist><label class="field"><span>分類</span><select id="master-category">${categoryOptions(d.category)}</select></label>${[['protein','主な食材',['不明','肉','魚','野菜・豆','卵']],['method','調理法',['不明','焼く','煮る','炒める','揚げる','蒸す','ゆでる','和える']],['genre','ジャンル',['不明','和食','洋食','中華','その他']]].map(([k,label,values])=>`<label class="field"><span>${label}</span><select id="master-${k}">${values.map(v=>`<option ${d[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')}${d.dates.length?`<details><summary>過去の調理日（${d.count}回）</summary><p class="hint">${d.dates.join(' / ')}</p></details>`:''}<p class="hint">同じ名前へ変更すると、調理履歴を統合して表示します。</p>`,button('キャンセル','close-dialog')+button('保存','save-master','primary'));}
-function saveMaster(){const dish=validateDishes([{name:$('#master-name').value,category:$('#master-category').value,protein:$('#master-protein').value,method:$('#master-method').value,genre:$('#master-genre').value}])[0];const key=normalize(dish.name);if(editingMaster&&editingMaster!==key){if(resolveName(dish.name,data().aliases)&&normalize(resolveName(dish.name,data().aliases))===editingMaster)throw Error('この名前は元の料理へ統一済みです。別の名前を指定してください。');data().aliases[editingMaster]=dish.name;}data().metadata[key]={category:dish.category,protein:dish.protein,method:dish.method,genre:dish.genre};if(!editingMaster||!master().some(d=>d.key===key))data().manual.push(dish);persist();closeModal();render();notify('料理マスターを更新しました。');}
+function ingredientRow(item={},i=0){
+ const amount=item.quantity==null?'':String(item.quantity);
+ const unit=item.unit||'g';
+ return `<div class="master-ingredient-row" data-ingredient-row>
+  <input data-ingredient-name aria-label="${i+1}番目の材料名" placeholder="材料名" maxlength="80" value="${esc(item.name||'')}">
+  <input data-ingredient-quantity aria-label="${i+1}番目の数量" inputmode="decimal" placeholder="分量" value="${esc(amount)}">
+  <select data-ingredient-unit aria-label="${i+1}番目の単位">${INGREDIENT_UNITS.map(u=>`<option value="${u}" ${u===unit?'selected':''}>${u}</option>`).join('')}</select>
+  ${button('×','remove-master-ingredient','mini master-ingredient-remove',`data-index="${i}" aria-label="${i+1}番目の材料を削除"`)}
+ </div>`;
+}
+function readIngredientRows(){
+ return [...document.querySelectorAll('#master-ingredients [data-ingredient-row]')].map(row=>({
+  name:row.querySelector('[data-ingredient-name]').value.trim(),
+  quantity:row.querySelector('[data-ingredient-quantity]').value.trim(),
+  unit:row.querySelector('[data-ingredient-unit]').value
+ })).filter(item=>item.name||item.quantity);
+}
+function redrawIngredientRows(items){
+ const list=$('#master-ingredients');
+ if(!list)return;
+ list.innerHTML=items.map((ingredient,i)=>ingredientRow(ingredient,i)).join('');
+ const count=$('#master-ingredient-count');
+ if(count)count.textContent=`${items.length}件 / ${MAX_INGREDIENTS}件`;
+}
+function editMaster(key=null){
+ editingMaster=key;
+ const d=master().find(d=>d.key===key)||{name:'',category:'main',protein:'不明',method:'不明',genre:'不明',dates:[],ingredients:[]};
+ const existing=Array.isArray(d.ingredients)?d.ingredients:[];
+ modal(key?'料理の情報':'料理を追加',
+  `<label class="field"><span>料理名（変更で表記を統一）</span><input id="master-name" value="${esc(d.name)}" maxlength="100" list="dish-options"></label>
+  <datalist id="dish-options">${master().map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
+  <label class="field"><span>分類</span><select id="master-category">${categoryOptions(d.category)}</select></label>
+  ${[['protein','主な食材',['不明','肉','魚','野菜・豆','卵']],['method','調理法',['不明','焼く','煮る','炒める','揚げる','蒸す','ゆでる','和える']],['genre','ジャンル',['不明','和食','洋食','中華','その他']]].map(([k,label,values])=>`<label class="field"><span>${label}</span><select id="master-${k}">${values.map(v=>`<option ${d[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')}
+  <section class="master-ingredients" aria-label="1人前の材料">
+   <div class="master-ingredients-head"><strong>材料（1人前）</strong><small id="master-ingredient-count">${existing.length}件 / ${MAX_INGREDIENTS}件</small></div>
+   <div id="master-ingredients">${existing.map((i,n)=>ingredientRow(i,n)).join('')}</div>
+   <div class="master-ingredients-actions">
+    ${button('＋ 材料を追加','add-master-ingredient','mini')}
+    ${button('AIで材料を生成','generate-master-ingredients','mini',ai.available&&typeof ai.provider?.generateIngredients==='function'?'':'disabled')}
+   </div>
+   <p class="hint">数量は1/2や0.5でも入力できます。大さじ・小さじ・kg・Lは保存時に計算用の量へ変換します。材料は保存前に修正できます。${ai.available?'AI生成は推定値です。保存前に内容を確認してください。':'AIでの生成はAI接続が有効な場合に利用できます。'}</p>
+  </section>
+  ${d.dates.length?`<details><summary>過去の調理日（${d.count}回）</summary><p class="hint">${d.dates.join(' / ')}</p></details>`:''}
+  <p class="hint">同じ名前へ変更すると、調理履歴を統合して表示します。</p>`,
+  button('キャンセル','close-dialog')+button('保存','save-master','primary'));
+}
+function saveMaster(){
+ const dish=validateDishes([{name:$('#master-name').value,category:$('#master-category').value,protein:$('#master-protein').value,method:$('#master-method').value,genre:$('#master-genre').value}])[0];
+ const ingredients=validateIngredients(readIngredientRows());
+ const key=normalize(dish.name);
+ if(editingMaster&&editingMaster!==key){
+  if(resolveName(dish.name,data().aliases)&&normalize(resolveName(dish.name,data().aliases))===editingMaster)throw Error('この名前は元の料理へ統一済みです。別の名前を指定してください。');
+  data().aliases[editingMaster]=dish.name;
+ }
+ const old=data().metadata[editingMaster]||{},previous=data().metadata[key]||{};
+ data().metadata[key]={...old,...previous,category:dish.category,protein:dish.protein,method:dish.method,genre:dish.genre,ingredients};
+ if(!editingMaster||!master().some(d=>d.key===key))data().manual.push(dish);
+ persist();closeModal();render();notify('料理マスターを更新しました。');
+}
+async function generateMasterIngredients(){
+ const list=$('#master-ingredients'),name=$('#master-name')?.value.trim();
+ if(!list||!$('#dialog').open)throw Error('料理の編集画面を開いてください。');
+ if(!name)throw Error('AIで材料を生成する前に料理名を入力してください。');
+ const current=readIngredientRows();
+ if(current.length&&!window.confirm('入力済みの材料をAIの提案に置き換えますか？（保存するまで確定しません）'))return;
+ const runButton=$('#dialog [data-action="generate-master-ingredients"]');
+ if(runButton?.disabled)return;
+ if(runButton){runButton.disabled=true;runButton.textContent='AI生成中…';}
+ const errorNode=$('#dialog-error');
+ if(errorNode)errorNode.textContent='';
+ try{
+  const ingredients=await ai.generateIngredients(name);
+  // Ignore stale responses after the editor has been closed or replaced.
+  if(!$('#dialog').open||$('#master-ingredients')!==list)return;
+  redrawIngredientRows(ingredients);
+ }finally{
+  if($('#master-ingredients')===list&&runButton){
+   runButton.disabled=false;runButton.textContent='AIで材料を生成';
+  }
+ }
+}
 function editPlanDish(dayIndex,dishIndex=null){editingPlan={dayIndex,dishIndex};const d=state.draft[dayIndex].dishes[dishIndex]||{name:'',category:'main'};modal(dishIndex===null?'料理を追加':'料理を差し替える',`<label class="field"><span>料理名</span><input id="plan-name" value="${esc(d.name)}" list="plan-options" maxlength="100" placeholder="料理名を入力・候補から選択"></label><datalist id="plan-options">${master().map(d=>`<option value="${esc(d.name)}">${esc(categoryName(d.category))}</option>`).join('')}</datalist><label class="field"><span>分類</span><select id="plan-category">${categoryOptions(d.category)}</select></label><p class="hint">変更は下書きに反映されます。カレンダーには登録されません。</p>`,`${dishIndex!==null?button('この料理を削除','delete-plan-dish','danger'):''}${button('反映','save-plan-dish','primary')}`);}
 function checkDraft(){issues=validatePlan(state.draft,state.rules,master());persist();render();notify(issues.length?generationIssuesNotice(issues):'献立の確認事項が解消しました。');}
 async function sync({automatic=false}={}){
@@ -1152,7 +1232,7 @@ const actions={
  'save-plan-dish':()=>{const {dayIndex,dishIndex}=editingPlan;const name=$('#plan-name').value.trim(),existing=master().find(d=>normalize(d.name)===normalize(name));const d=validateDishes([{...existing,name,category:$('#plan-category').value}])[0];d.isNew=d.category==='main'&&(!existing||!Number(existing.count));d.locked=dishIndex!==null?state.draft[dayIndex].dishes[dishIndex].locked:false;if(dishIndex===null)state.draft[dayIndex].dishes.push(d);else state.draft[dayIndex].dishes[dishIndex]=d;closeModal();checkDraft();},
  'delete-plan-dish':()=>{state.draft[editingPlan.dayIndex].dishes.splice(editingPlan.dishIndex,1);closeModal();checkDraft();},
  'day-up':b=>{const i=Number(b.dataset.day);[state.draft[i-1],state.draft[i]]=[state.draft[i],state.draft[i-1]];persist();render();},'day-down':b=>{const i=Number(b.dataset.day);[state.draft[i+1],state.draft[i]]=[state.draft[i],state.draft[i+1]];persist();render();},
- 'record-day':b=>openRecord(null,{dishes:state.draft[b.dataset.day].dishes,date:today()}),master:()=>{closeModal();openMasterTab();},'filter-master':b=>{const target=b.dataset.masterFilter;if(!['all','plan',...state.categories.map(c=>'category:'+c.id)].includes(target))return;if(target==='plan'&&!hasPlannedDishes(state.draft))return;masterFilter=target;render();const list=$('#main .master-list-wrap');if(list)list.scrollTop=0;},'edit-master':b=>editMaster(b.dataset.key),'add-master':()=>editMaster(),'save-master':saveMaster,
+ 'record-day':b=>openRecord(null,{dishes:state.draft[b.dataset.day].dishes,date:today()}),master:()=>{closeModal();openMasterTab();},'filter-master':b=>{const target=b.dataset.masterFilter;if(!['all','plan',...state.categories.map(c=>'category:'+c.id)].includes(target))return;if(target==='plan'&&!hasPlannedDishes(state.draft))return;masterFilter=target;render();const list=$('#main .master-list-wrap');if(list)list.scrollTop=0;},'edit-master':b=>editMaster(b.dataset.key),'add-master':()=>editMaster(),'save-master':saveMaster,'add-master-ingredient':()=>{const rows=readIngredientRows();if(rows.length>=MAX_INGREDIENTS)throw Error('材料は最大60件まで登録できます。');rows.push({name:'',quantity:'',unit:'g'});redrawIngredientRows(rows);$('#master-ingredients [data-ingredient-name]:last-of-type')?.focus();},'remove-master-ingredient':b=>{const rows=readIngredientRows();rows.splice(Number(b.dataset.index),1);redrawIngredientRows(rows);},'generate-master-ingredients':generateMasterIngredients,
  'add-category':()=>modal('分類を追加','<label class="field"><span>分類名</span><input id="category-new" placeholder="ごはん・麺など" maxlength="20"></label>',button('追加','confirm-category','primary')),
  'confirm-category':()=>{const name=$('#category-new').value.trim();if(!name)throw Error('分類名を入力してください。');if(state.categories.some(c=>c.name===name))throw Error('同じ名前の分類があります。');const id='c'+uid().slice(0,10);state.categories.push({id,name});state.rules.counts[id]=0;persist();closeModal();render();},
  'remove-category':b=>{const id=b.dataset.category;if(id==='main')throw Error('主菜は削除できません。');if(editor?.dishes?.some(d=>d.category===id))throw Error('この分類を使っている入力途中の実績があります。先に保存または破棄してください。');state.categories=state.categories.filter(c=>c.id!==id);state.draft=state.draft.map(day=>({...day,dishes:day.dishes.filter(d=>d.category!==id)}));delete state.rules.counts[id];delete state.categoryCalendars[id];persist();render();notify('分類を削除しました。Googleカレンダーの予定は削除していません。');},
