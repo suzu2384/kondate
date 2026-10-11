@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
+import {normalizeStatusNotice,STATUS_REMEDIES} from '../src/status-notice.js';
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
@@ -61,4 +62,40 @@ test('missing idle node in an older cached HTML does not crash app startup',asyn
  assert.doesNotThrow(()=>show());
  assert.equal(nodes['#notice'].textContent,'保存しました');
  assert.equal(nodes['#status-idle'].hidden,true);
+});
+
+test('generation failures publish a short summary and use one extensible detail dialog',()=>{
+ assert.match(app,/function notify\(message\)\{const note=normalizeStatusNotice\(message\)/);
+ assert.match(app,/if\(action==='generate'\)notify\(generationFailureNotice\(error,state\.menuGenerationMode\)\)/);
+ assert.match(app,/if\(currentNotice\)showNoticeDetail\(currentNoticeData\|\|currentNotice\)/);
+ assert.match(app,/function showNoticeDetail\(note\)/);
+ for(const action of ['notice-rules','notice-settings','notice-master','notice-use-rules'])
+  assert.ok(app.includes("'"+action+"':"),action);
+ assert.match(css,/\.status-detail-guidance/);
+ const worker=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+ assert.match(worker,/\.\/src\/status-notice\.js/);
+});
+
+test('status details escape untrusted messages and offer only allowlisted remedy buttons',async()=>{
+ const {runInNewContext}=await import('node:vm');
+ const code=app.slice(app.indexOf('function showNoticeDetail('),app.indexOf('function closeModal()'));
+ assert.match(code,/esc\(info\.detail\)/);
+ assert.match(code,/esc\(info\.guidance\)/);
+ const calls=[];
+ const escape=text=>String(text).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+ const button=(label,action)=>'<button data-action="'+action+'">'+label+'</button>';
+ const show=runInNewContext(code+';showNoticeDetail',{
+  normalizeStatusNotice,STATUS_REMEDIES,esc:escape,button,
+  modal:(title,body,foot)=>calls.push({title,body,foot})
+ });
+ show({summary:'生成失敗',detail:'<script>alert(1)</script>',guidance:'ルールを確認',
+  actions:['rules','settings','unsupported']});
+ assert.equal(calls.length,1);
+ assert.equal(calls[0].title,'ステータス');
+ assert.match(calls[0].body,/&lt;script&gt;/);
+ assert.doesNotMatch(calls[0].body,/<script>/);
+ assert.match(calls[0].body,/対処方法/);
+ assert.match(calls[0].foot,/data-action="notice-rules"/);
+ assert.match(calls[0].foot,/data-action="notice-settings"/);
+ assert.doesNotMatch(calls[0].foot,/unsupported/);
 });

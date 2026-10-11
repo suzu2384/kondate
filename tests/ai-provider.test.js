@@ -69,7 +69,7 @@ test('unconfigured public build contains no shared Firebase credentials',()=>{
 test('shared generation stays disabled until explicitly configured and the free model is pinned',()=>{
  const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
  const build=readFileSync(new URL('../scripts/build.js',import.meta.url),'utf8');
- assert.equal(pkg.version,'1.4.3');
+ assert.equal(pkg.version,'1.4.4');
  assert.match(build,/KONDATE_AI_SPARK_VERIFIED/);
  assert.match(build,/mode:'disabled'/);
  assert.match(build,/model:'gemini-3.5-flash-lite'/);
