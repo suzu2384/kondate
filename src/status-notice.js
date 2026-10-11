@@ -28,7 +28,15 @@ export function generationFailureNotice(error,mode='rules'){
  let guidance=ai?'しばらくしてから試すか、ルールベースの生成に切り替えてください。':'生成ルールや料理候補を確認してください。';
  let actions=ai?['use-rules'] : ['rules'];
 
- if(/品数が多すぎ|日数または品数|品数を調整|品数を設定/.test(detail)){
+ if(/主菜の品数を1以上/.test(detail)){
+  summary='主菜の品数を設定してください';
+  guidance='「ルール調整」で主菜を1日1品以上にしてください。AIに新しい主菜を提案させるには空き枠が必要です。';
+  actions=['rules'];
+ }else if(/AIが新しい主菜を.*提案できません|AIが新しい主菜を正しく提案/.test(detail)){
+  summary='AIによる新しい主菜の提案に失敗しました';
+  guidance='AIが新しい料理を返さなかったか、既存の料理と重複していました。もう一度AI生成を試してください。';
+  actions=[];
+ }else if(/品数が多すぎ|日数または品数|品数を調整|品数を設定/.test(detail)){
   summary='献立の品数を調整してください';
   guidance='「ルール調整」で1日あたりの品数を減らすか、生成日数を短くしてください。';
   actions=['rules'];

@@ -58,3 +58,13 @@ test('rule-based generation with partial results reports details rather than suc
  assert.match(validation.summary,/確認事項/);
  assert.match(validation.detail,/カレーが重複/);
 });
+
+test('AI-created main dish errors show an appropriate retry explanation',()=>{
+ const unavailable=generationFailureNotice(new Error('AIが新しい主菜を提案できませんでした。再度お試しください。'),'ai');
+ assert.match(unavailable.summary,/新しい主菜/);
+ assert.match(unavailable.guidance,/もう一度AI生成/);
+ assert.deepEqual(unavailable.actions,[]);
+ const noSlot=generationFailureNotice(new Error('新しい主菜を提案するには、主菜の品数を1以上に設定してください。'),'ai');
+ assert.deepEqual(noSlot.actions,['rules']);
+ assert.match(noSlot.summary,/主菜の品数/);
+});

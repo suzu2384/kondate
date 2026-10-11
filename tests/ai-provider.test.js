@@ -30,20 +30,22 @@ test('only minimal meal names and metadata are sent, not Calendar raw events, lo
  assert.throws(()=>createMenuRequest({...base,rules:{...base.rules,days:16}}),/15日/);
 });
 test('AI output is normalized against known candidates and preserved day ids',async()=>{
- const text=JSON.stringify({days:[{dishes:[{name:'カレー',category:'main'}]},{dishes:[{name:'肉じゃが',category:'main'}]}]});
+ const text=JSON.stringify({days:[{dishes:[{name:'カレー',category:'main'}]},{dishes:[{name:'鶏肉と白菜の柚子味噌煮',category:'main',new:true,protein:'肉',method:'煮る',genre:'和食'}]}]});
  const plan=parseMenuResponse(text,base);
  assert.deepEqual(plan.map(d=>d.id),['p0','day-1']);
  assert.equal(plan[0].dishes[0].protein,'肉');
  const ai=new AIService({generate:async()=>plan});
  const validated=await ai.generate(base);
  assert.equal(validated[0].dishes[0].locked,true);
- assert.throws(()=>parseMenuResponse(text.replace('肉じゃが','謎の料理'),base),/登録候補にない/);
+ assert.equal(plan[1].dishes[0].name,'鶏肉と白菜の柚子味噌煮');
+ assert.equal(plan[1].dishes[0].protein,'肉');
+ assert.throws(()=>parseMenuResponse(text.replace('カレー','謎の料理'),base),/登録候補にない/);
 });
 test('a mock Firebase implementation uses App Check and Google AI backend, only once',async()=>{
  const calls=[],sdk={
   app:{initializeApp:(config,name)=>{calls.push('init:'+name);return {};}},
   appCheck:{initializeAppCheck:()=>{calls.push('check');return {};},ReCaptchaEnterpriseProvider:class{constructor(key){calls.push('captcha:'+key)}},getToken:async()=>{calls.push('token');return {token:'test'};}},
-  ai:{getAI:()=>{calls.push('ai');return {};},GoogleAIBackend:class{},getGenerativeModel:()=>({generateContent:async()=>{calls.push('generate');return {response:{text:()=>JSON.stringify({days:[{dishes:[{name:'カレー',category:'main'}]},{dishes:[{name:'肉じゃが',category:'main'}]}]})}};}})}
+  ai:{getAI:()=>{calls.push('ai');return {};},GoogleAIBackend:class{},getGenerativeModel:()=>({generateContent:async()=>{calls.push('generate');return {response:{text:()=>JSON.stringify({days:[{dishes:[{name:'カレー',category:'main'}]},{dishes:[{name:'鶏肉と白菜の柚子味噌煮',category:'main',new:true}]}]})}};}})}
  };
  const service=createAIProvider(cfg,{loadSDK:async()=>sdk});
  const plan=await service.generate(base);
@@ -69,7 +71,7 @@ test('unconfigured public build contains no shared Firebase credentials',()=>{
 test('shared generation stays disabled until explicitly configured and the free model is pinned',()=>{
  const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
  const build=readFileSync(new URL('../scripts/build.js',import.meta.url),'utf8');
- assert.equal(pkg.version,'1.4.7');
+ assert.equal(pkg.version,'1.5.0');
  assert.match(build,/KONDATE_AI_SPARK_VERIFIED/);
  assert.match(build,/mode:'disabled'/);
  assert.match(build,/model:'gemini-3.5-flash-lite'/);

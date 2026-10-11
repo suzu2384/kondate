@@ -12,6 +12,7 @@ export function createMenuRequest(context){
  const counts=Object.fromEntries(Object.entries(rules.counts||{}).filter(([,n])=>Number.isInteger(n)&&n>0));
  const required=Object.values(counts).reduce((a,b)=>a+b,0)*days;
  if(required===0||required>120)throw Error('AIの献立に指定した品数が多すぎます。日数または品数を調整してください。');
+ if(rules.newMain&&!counts.main)throw Error('新しい主菜を提案するには、主菜の品数を1以上に設定してください。');
  const chosen=[];
  const names=new Set();
  for(const dish of master){
@@ -31,6 +32,8 @@ export function createMenuRequest(context){
    name:d.name,category:d.category
   }))
  })).filter(d=>d.dishes.length);
+ if(rules.newMain&&locked.reduce((count,day)=>count+day.dishes.filter(d=>d.category==='main').length,0)>=days*counts.main)
+  throw Error('主菜がすべて固定されています。AIに新しい主菜を提案させるには固定を解除してください。');
  // Locked meals must still be in the candidate list, even if they are not in the master.
  for(const day of locked)for(const d of day.dishes){
   if(names.has(normalize(d.name)))continue;
@@ -38,13 +41,16 @@ export function createMenuRequest(context){
   names.add(normalize(d.name));
  }
  const prompt=[
-  '日本語の家庭料理の献立を提案してください。以下のデータ以外は使用せず、JSONのみを返してください。',
-  '形式: {"days":[{"dishes":[{"name":"料理名","category":"分類ID"}]}]}',
-  '厳守: daysの件数はdays、各日の分類別品数はcountsと完全一致。nameはcandidatesまたはlockedにある正確な料理名を使用。',
+  '日本語の家庭料理の献立を提案してください。提供データを踏まえ、JSONのみを返してください。',
+  '形式: {"days":[{"dishes":[{"name":"料理名","category":"分類ID","new":true}]}]}。new:trueはAIが新規提案する主菜だけ。他の料理ではnewを省略。',
+  '厳守: daysの件数はdays、各日の分類別品数はcountsと完全一致。原則としてnameはcandidatesまたはlockedにある正確な料理名を使用。',
   '厳守: lockedの料理は同じ日の献立に必ず残す。uniqueがtrueなら全日を通して重複禁止。',
   'excludeRecentがtrueならlastDateがrecentDays日以内の料理は避ける（lockedは例外）。',
   'preferOldがtrueなら長期間調理していない料理を優先。balanceがtrueなら食材と調理法の偏りを抑える。',
-  'newMainがtrueならcount=0の主菜を少なくとも1つ使う。',
+  ...(rules.newMain?[
+   'newMain=trueの場合、candidates・lockedにない新しい家庭料理の主菜を必ずちょうど1品提案し、その料理だけnew:trueとする。新しい主菜の名前は100文字以内で、既存候補と同名にしない。主菜以外や2品目以降に新しい料理を作らない。',
+   '新しい主菜には任意でprotein（肉/魚/野菜・豆/卵/不明）、method（焼く/煮る/炒める/揚げる/蒸す/ゆでる/和える/不明）、genre（和食/洋食/中華/その他/不明）を付けてよい。'
+  ]:['newMain=falseの場合は新しい料理を作らず、new:trueを付けない。']),
   'データ:',
   JSON.stringify({days,counts,unique:!!rules.unique,excludeRecent:!!rules.excludeRecent,
    recentDays:Number(rules.recentDays)||7,preferOld:!!rules.preferOld,
@@ -63,17 +69,39 @@ export function parseMenuResponse(text,context){
   throw Error('AIが指定日数と異なる献立を返しました。');
  const {candidates}=createMenuRequest(context);
  const byName=new Map(candidates.map(d=>[normalize(d.name),d]));
- return output.days.map((day,i)=>{
+ // Validate novel main dishes against the entire master, not only the 160 sent candidates.
+ const allKnown=new Set((context.master||[]).map(d=>normalize(d.name)));
+ const metadata={
+  protein:new Set(['肉','魚','野菜・豆','卵','不明']),
+  method:new Set(['焼く','煮る','炒める','揚げる','蒸す','ゆでる','和える','不明']),
+  genre:new Set(['和食','洋食','中華','その他','不明'])
+ };
+ let proposed=0;
+ const plan=output.days.map((day,i)=>{
   if(!day||!Array.isArray(day.dishes))throw Error('AIの献立形式が不正です。');
   return {
    id:context.previous?.[i]?.id||`day-${i}`,
    dishes:day.dishes.map(d=>{
-    const matched=byName.get(normalize(d?.name));
-    if(!matched||matched.category!==d.category)
+    const name=typeof d?.name==='string'?d.name.trim():'';
+    const key=normalize(name),matched=byName.get(key);
+    if(matched){
+     if(matched.category!==d.category||d.new===true)
+      throw Error('AIが登録候補の料理名・分類を正しく返しませんでした。');
+     return {name:matched.name,category:matched.category,protein:matched.protein,
+      method:matched.method,genre:matched.genre,locked:false};
+    }
+    // Only one explicitly marked main may be invented. Other categories stay constrained.
+    if(!context.rules.newMain||d?.category!=='main'||d.new!==true)
      throw Error('AIが登録候補にない料理を返しました。通常の献立生成も利用できます。');
-    return {name:matched.name,category:matched.category,protein:matched.protein,
-     method:matched.method,genre:matched.genre,locked:false};
+    if(!name||name.length>100||/[\u0000-\u001f\u007f]/.test(name)||!key||allKnown.has(key)||++proposed>1)
+     throw Error('AIが新しい主菜を正しく提案できませんでした。再度お試しください。');
+    const field=kind=>metadata[kind].has(d[kind])?d[kind]:'不明';
+    return {name,category:'main',protein:field('protein'),method:field('method'),
+     genre:field('genre'),locked:false};
    })
   };
  });
+ if(context.rules.newMain&&proposed!==1)
+  throw Error('AIが新しい主菜を提案できませんでした。再度お試しください。');
+ return plan;
 }
