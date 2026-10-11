@@ -23,7 +23,7 @@ test('both generators use the same 15-day maximum and retain a 7-day default',()
 
 test('generation controls use a 1-15 select shared by both generation modes',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
- assert.match(app,/<select aria-label="生成日数" id="days">/);
+ assert.match(app,/<select aria-label="生成日数" id="days" [^>]*>/);
  assert.match(app,/Array\.from\(\{length:MAX_GENERATION_DAYS\}/);
  assert.doesNotMatch(app,/type="number" id="days"/);
  assert.match(app,/state\.rules\.days=normalizeGenerationDays\(state\.rules\.days\)/);
