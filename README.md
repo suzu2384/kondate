@@ -141,7 +141,7 @@ Service Workerは同一オリジンのアプリ資材だけをキャッシュし
 
 アプリイベント：`extendedProperties.private.kondate = "1"`、`state = "actual" / "plan"`。説明に `--- kondate:v1 ---` で区切ったJSONを保存。JSONには料理名・分類ID・食材・調理法・ジャンルを含めます。終日イベントのendは翌日（排他的）。カスタム分類の表示名は端末設定にあり、別端末では設定移行が必要です。
 
-## AI献立生成（Firebase AI Logic / v1.4.1）
+## AI献立生成（Firebase AI Logic / v1.4.2）
 
 AIプロバイダーを分離し、現在の共通利用モード `shared-firebase` と将来の個人利用モード `personal` を別実装にしています。利用者はAI用APIキーを取得・入力しません。個人利用モードは現段階では実装の拡張点だけで、選択UIやキー管理はありません。
 
@@ -150,7 +150,7 @@ AIプロバイダーを分離し、現在の共通利用モード `shared-fireba
 - **みんコメとは別のFirebase / Google Cloudプロジェクト**を新規作成する。
 - **Firebase Sparkプランで、Cloud Billingアカウントをリンクしない**。無料枠を超えた場合に有料利用へ自動切替する設計にはしない。
 - **Gemini Developer APIの無料枠対応モデル `gemini-3.5-flash-lite` のみ**を使用。課金必須のモデル・Vertex AI・画像生成は使用しない。
-- **請求先アカウントをリンクしないこと自体**が課金防止の条件。端末側の回数制限・App Check・GitHub Actionsの承認フラグは課金状態を独立検証・強制できず、代わりにはならない。
+- **請求先アカウントをリンクしないこと自体**が課金防止の条件。App Check・GitHub Actionsの承認フラグは課金状態を独立検証・強制できず、代わりにはならない。
 - 課金契約を求められた場合は有効化せず、従来のルールベース献立生成だけを使う。後から請求先をリンクした場合は **AIを停止**する。
 - 無料枠到達・リクエスト失敗・不正JSONでも、有料モデルへの切り替え・無限再試行を行わない。
 
@@ -162,7 +162,7 @@ AIプロバイダーを分離し、現在の共通利用モード `shared-fireba
 2. Webアプリを登録し、Firebaseの公開Web設定（`apiKey`、`authDomain`、`projectId`、`appId`等）を控える。これはクライアント識別用の公開設定。**みんコメのGemini APIキーは絶対に使用しない**。
 3. Firebaseコンソールの AI Services → AI Logic から **Gemini Developer API** を有効にする。請求先リンク/Blaze化が必要と表示された場合は中止する。
 4. Firebase App CheckにWebアプリ用 **reCAPTCHA Enterprise** を登録し、`suzu2384.github.io` を許可ドメインとする。Security → App Check → APIs → Firebase AI Logic が **Enforced** であることを確認。reCAPTCHAの有料利用が必要と表示された場合は中止する。**App Checkデバッグトークンは公開しない**。
-5. Google側でAIのper-userリクエスト割り当てを低く設定しておく。端末の1日3回制限はUX用であり、ブラウザのデータ消去などで回避できる。**実質的な公開サービス保護にはApp Checkの強制が必要**。
+5. Google側のAI利用枠と割り当てを管理する。KonDateには端末単位の回数制限を設けないが、Gemini Developer APIの無料枠やレート制限はそのまま適用される。**不正利用防止にはApp Checkの強制を維持する**。
 6. GitHubリポジトリの Settings → Secrets and variables → Actions → Variables に以下の**公開情報のみ**設定する。
 
    | 変数名 | 値 |
@@ -177,7 +177,7 @@ AIプロバイダーを分離し、現在の共通利用モード `shared-fireba
 
 - AIボタンを利用者が選んだ場合のみ、料理候補の**料理名・分類・調理回数・最終調理日・食材/調理法の属性**と献立条件・固定した料理だけを送る。Googleカレンダーの元の予定、住所/店名、認証トークン、保存した設定全体は送らない。
 - AIで生成した料理名・分類は送信した候補と照合し、既存の `AIService` が重複・最近作った料理・固定・品数などを検証する。検証に失敗するとメニューの下書きは更新しない。
-- AI・通常生成ともに最大15日（初期値7日）。無料枠到達・失敗時にはエラーを案内し、利用者が通常生成を選択して続行できる。
+- AI・通常生成ともに最大15日（初期値7日）。AIの端末別回数制限はなく、献立画面のAI説明文も表示しない。Google側の無料枠到達・通信失敗時にはエラーを案内し、利用者が通常生成を選択して続行できる。
 - 写真解析は今回の共通AIプロバイダーには実装していない（誤ってAIが有効化されないよう入口は非表示）。
 - 将来の `personal` モードは `src/ai-provider.js` 経由で別プロバイダーを注入する。個人用APIキー・OAuthを現在の共有Firebaseコードに混ぜない。利用者に必要な手順や利用規約を別途確認したうえで追加する。
 

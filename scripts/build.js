@@ -14,7 +14,7 @@ const firebaseJson=(process.env.KONDATE_AI_FIREBASE_CONFIG||'').trim();
 const siteKey=(process.env.KONDATE_AI_APP_CHECK_SITE_KEY||'').trim();
 const sparkConfirmed=process.env.KONDATE_AI_SPARK_VERIFIED==='true';
 let aiPublicConfig={mode:'disabled',firebase:null,appCheckSiteKey:'',
- model:'gemini-3.5-flash-lite',maxPerDevicePerDay:3};
+ model:'gemini-3.5-flash-lite'};
 if(sparkConfirmed){
  if(!firebaseJson||!siteKey)throw Error('AIを有効化するにはFirebase設定とApp Checkサイトキーの両方が必要です。');
  let config;

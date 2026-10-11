@@ -288,7 +288,6 @@ function generateScreen(){
   ${button(aiGenerating?'考え中…':'生成','generate','primary mini',aiGenerating?'disabled':'')}
   ${button('ルール調整','rules','text-button mini')}
  </div>
- ${ai.available?'<p class="hint">AIを選ぶと、料理候補・調理回数・最終調理日・生成条件のみをGoogleへ送信します。店名・他の予定は送信しません。AI献立生成は1〜15日分・この端末で1日3回までです。</p>':''}
  ${issues.length?`<div class="issues"><strong>条件に合う候補が足りない場合があります</strong><ul>${issues.map(s=>`<li>${esc(s.replace(/：([a-z0-9-]+)の/g,(_,c)=>'：'+categoryName(c)+'の'))}</li>`).join('')}</ul><p>料理を追加するか、直近の除外日数・1日あたりの品数を減らして再生成できます。重複許可は設定から明示的に変更してください。</p>${button('条件を変更','rules','mini')} ${button('料理を追加','add-master','mini')}</div>`:''}
  <div class="plan-grid compact-plan-grid scroll">
  ${state.draft.length?state.draft.map((day,i)=>`<article class="plan-card compact-plan-card card" aria-label="${i+1}日目の献立" data-dish-count="${day.dishes.length}">

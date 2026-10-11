@@ -9,22 +9,12 @@ async function loadFirebaseSDK(){
  ]);
  return {app,appCheck,ai};
 }
-const COUNTER_KEY='kondate.ai-shared-usage.v1';
-export function checkDeviceLimit(storage,max=3,now=new Date()){
- const day=now.toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'});
- let record;
- try{record=JSON.parse(storage?.getItem(COUNTER_KEY)||'null');}catch{}
- const count=record?.day===day&&Number.isInteger(record.count)?record.count:0;
- if(count>=max)throw Error('この端末でのAI献立生成は本日分の上限に達しました。通常の献立生成をご利用ください。');
- try{storage?.setItem(COUNTER_KEY,JSON.stringify({day,count:count+1}));}catch{}
-}
-
 /**
  * Public shared Firebase project only. App Check is mandatory.
- * Browser-side request limits are only a UX safeguard; configure per-user
- * quotas, App Check enforcement and no-billing Spark mode on Google Console.
+ * No per-device request counter: provider-side free-tier quotas
+ * and the owner's no-billing Spark configuration remain in effect.
  */
-export function createFirebaseAIProvider(config,{loadSDK=loadFirebaseSDK,storage=globalThis.localStorage}={}){
+export function createFirebaseAIProvider(config,{loadSDK=loadFirebaseSDK}={}){
  let modelPromise;
  async function getModel(){
   if(!modelPromise)modelPromise=(async()=>{
@@ -49,7 +39,6 @@ export function createFirebaseAIProvider(config,{loadSDK=loadFirebaseSDK,storage
   async generate(context){
    const {prompt}=createMenuRequest(context);
    const model=await getModel();
-   checkDeviceLimit(storage,Math.max(1,Math.min(10,Number(config.maxPerDevicePerDay)||3)));
    let text;
    try{
     const result=await model.generateContent(prompt);

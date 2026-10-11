@@ -2,7 +2,6 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createAIProvider,AI_PROVIDER_MODES} from '../src/ai-provider.js';
 import {createMenuRequest,parseMenuResponse} from '../src/ai-menu.js';
-import {checkDeviceLimit} from '../src/ai-firebase.js';
 import {AIService} from '../src/ai.js';
 import {readFileSync} from 'node:fs';
 
@@ -41,24 +40,26 @@ test('AI output is normalized against known candidates and preserved day ids',as
  assert.throws(()=>parseMenuResponse(text.replace('肉じゃが','謎の料理'),base),/登録候補にない/);
 });
 test('a mock Firebase implementation uses App Check and Google AI backend, only once',async()=>{
- const calls=[],store=new Map(),sdk={
+ const calls=[],sdk={
   app:{initializeApp:(config,name)=>{calls.push('init:'+name);return {};}},
   appCheck:{initializeAppCheck:()=>{calls.push('check');return {};},ReCaptchaEnterpriseProvider:class{constructor(key){calls.push('captcha:'+key)}},getToken:async()=>{calls.push('token');return {token:'test'};}},
   ai:{getAI:()=>{calls.push('ai');return {};},GoogleAIBackend:class{},getGenerativeModel:()=>({generateContent:async()=>{calls.push('generate');return {response:{text:()=>JSON.stringify({days:[{dishes:[{name:'カレー',category:'main'}]},{dishes:[{name:'肉じゃが',category:'main'}]}]})}};}})}
  };
- const service=createAIProvider(cfg,{loadSDK:async()=>sdk,storage:{getItem:k=>store.get(k),setItem:(k,v)=>store.set(k,v)}});
+ const service=createAIProvider(cfg,{loadSDK:async()=>sdk});
  const plan=await service.generate(base);
  assert.equal(plan.length,2);
  assert.deepEqual(calls,['init:kondate-ai-shared','captcha:public-site-key','check','token','ai','generate']);
- await service.generate(base);
+ for(let i=0;i<4;i++)await service.generate(base);
  assert.equal(calls.filter(x=>x==='check').length,1);
- assert.equal(calls.filter(x=>x==='generate').length,2);
+ assert.equal(calls.filter(x=>x==='generate').length,5);
 });
-test('device guard stops further calls but never reports itself as a project quota',()=>{
- const data=new Map(),storage={getItem:k=>data.get(k),setItem:(k,v)=>data.set(k,v)};
- for(let i=0;i<3;i++)checkDeviceLimit(storage,3,new Date('2026-10-10T00:00:00Z'));
- assert.throws(()=>checkDeviceLimit(storage,3,new Date('2026-10-10T00:00:00Z')),/上限/);
- checkDeviceLimit(storage,3,new Date('2026-10-11T00:00:00Z'));
+test('shared AI has no per-device usage limit or local counter',()=>{
+ const provider=readFileSync(new URL('../src/ai-firebase.js',import.meta.url),'utf8');
+ const defaults=readFileSync(new URL('../src/ai-config.js',import.meta.url),'utf8');
+ const build=readFileSync(new URL('../scripts/build.js',import.meta.url),'utf8');
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ for(const source of [provider,defaults,build])assert.doesNotMatch(source,/maxPerDevicePerDay|checkDeviceLimit|kondate\.ai-shared-usage/);
+ assert.doesNotMatch(app,/AIを選ぶと、料理候補|この端末で1日3回/);
 });
 test('unconfigured public build contains no shared Firebase credentials',()=>{
  const cfgText=readFileSync(new URL('../src/ai-config.js',import.meta.url),'utf8');
@@ -68,7 +69,7 @@ test('unconfigured public build contains no shared Firebase credentials',()=>{
 test('shared generation stays disabled until explicitly configured and the free model is pinned',()=>{
  const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
  const build=readFileSync(new URL('../scripts/build.js',import.meta.url),'utf8');
- assert.equal(pkg.version,'1.4.1');
+ assert.equal(pkg.version,'1.4.2');
  assert.match(build,/KONDATE_AI_SPARK_VERIFIED/);
  assert.match(build,/mode:'disabled'/);
  assert.match(build,/model:'gemini-3.5-flash-lite'/);
