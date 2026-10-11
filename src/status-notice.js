@@ -34,7 +34,8 @@ const noticePriorities=Object.freeze({info:0,warning:1,error:2});
 export function selectStatusNotice(current,incoming){
  const active=current?normalizeStatusNotice(current):null;
  const next=normalizeStatusNotice(incoming);
- if(active?.summary&&(!next.summary||noticePriorities[next.severity]<noticePriorities[active.severity]))return active;
+ if(!next.summary)return active?.summary&&active.severity!=='info'?active:null;
+ if(active?.summary&&noticePriorities[next.severity]<noticePriorities[active.severity])return active;
  return next.summary?next:null;
 }
 
