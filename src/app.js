@@ -22,6 +22,7 @@ import {createAIProvider} from './ai-provider.js';
 import {AI_PUBLIC_CONFIG} from './ai-config.js';
 import {normalizeStatusNotice,selectStatusNotice,generationFailureNotice,generationIssuesNotice,STATUS_REMEDIES} from './status-notice.js';
 import {catalog} from './catalog.js';
+import {recipeSearchUrl} from './recipe-search.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
 const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,...loaded};
@@ -169,7 +170,7 @@ function render(){
  // Keep the existing day buttons alive on taps and background saves.
  // Rebuilding #main on every edit briefly clears all SVG masks and focus state.
  const previousScroll=tab==='settings'?$('#main .settings-grid')?.scrollTop:null;
- const previousMasterScroll=tab==='master'?$('#main .master-table-wrap')?.scrollTop:null;
+ const previousMasterScroll=tab==='master'?$('#main .master-list-wrap')?.scrollTop:null;
  applyTheme(state.theme);
  updateConnection();
  document.querySelectorAll('[data-tab]').forEach(b=>{if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
@@ -184,7 +185,7 @@ function render(){
  renderPresetBar();
  showStatus();
  if(previousScroll!=null){const list=$('#main .settings-grid');if(list)list.scrollTop=previousScroll;}
- if(previousMasterScroll!=null){const list=$('#main .master-table-wrap');if(list)list.scrollTop=previousMasterScroll;}
+ if(previousMasterScroll!=null){const list=$('#main .master-list-wrap');if(list)list.scrollTop=previousMasterScroll;}
 }
 // The production build embeds the paths from the bundled MingCute SVG assets.
 // Using real SVG paths gives a precise hairline stroke, unlike a drop shadow.
@@ -635,13 +636,24 @@ async function saveRecord(){
 }
 
 function masterItems(){return master().filter(d=>normalize(d.name).includes(normalize(masterQuery)));}
-function masterRows(items){return items.map(d=>`<tr><td><span class="master-dish-name">${esc(d.name)}</span><br><small>${esc(categoryName(d.category))}</small></td><td>${esc(d.lastDate||'未調理')}</td><td class="optional">${d.count}</td><td>${button('編集','edit-master','mini',`data-key="${esc(d.key)}"` )}</td></tr>`).join('')||'<tr><td colspan="4" class="master-empty">該当する料理はありません。</td></tr>';}
+function masterRows(items){
+ return items.map(d=>`<li class="master-entry">
+  <div class="master-dish-info">
+   <span class="master-dish-name">${esc(d.name)}</span>
+   <small class="master-dish-meta">${esc(categoryName(d.category))} <span aria-hidden="true">·</span> 最終調理日 ${esc(d.lastDate?d.lastDate.replaceAll('-','/'):'未調理')} <span aria-hidden="true">·</span> ${d.count}回</small>
+  </div>
+  <div class="master-actions">
+   <a class="master-recipe-search" href="${esc(recipeSearchUrl(d.name))}" target="_blank" rel="noopener noreferrer" aria-label="${esc(d.name)}のレシピを検索">検索</a>
+   ${button('編集','edit-master','mini',`data-key="${esc(d.key)}"`)}
+  </div>
+ </li>`).join('')||'<li class="master-empty">該当する料理はありません。</li>';
+}
 function masterScreen(){
  const items=masterItems();
  return `<section class="screen master-screen" aria-label="料理マスター">
   <div class="master-screen-head"><h2>料理マスター</h2><span class="hint" id="master-count">${items.length}件表示</span></div>
   <div class="master-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off">${button('＋ 新規','add-master','primary')}</div>
-  <div class="master-table-wrap card scroll"><table class="master-table"><thead><tr><th>料理</th><th>最終調理日</th><th class="optional">回数</th><th aria-label="操作"></th></tr></thead><tbody id="master-rows">${masterRows(items)}</tbody></table></div>
+  <div class="master-list-wrap card scroll"><ul class="master-list" id="master-rows">${masterRows(items)}</ul></div>
   <p class="hint master-description">最終調理日の新しい順。料理の表記や属性の変更はこの端末に保存され、過去の予定は変更されません。</p>
  </section>`;
 }
@@ -650,7 +662,6 @@ function refreshMasterRows(){
  if(rows)rows.innerHTML=masterRows(items);
  const count=$('#master-count');if(count)count.textContent=`${items.length}件表示`;
 }
-
 let editingMaster=null,editingPlan=null;
 function editMaster(key=null){editingMaster=key;const d=master().find(d=>d.key===key)||{name:'',category:'main',protein:'不明',method:'不明',genre:'不明',dates:[]};modal(key?'料理の情報':'料理を追加',`<label class="field"><span>料理名（変更で表記を統一）</span><input id="master-name" value="${esc(d.name)}" maxlength="100" list="dish-options"></label><datalist id="dish-options">${master().map(d=>`<option value="${esc(d.name)}">`).join('')}</datalist><label class="field"><span>分類</span><select id="master-category">${categoryOptions(d.category)}</select></label>${[['protein','主な食材',['不明','肉','魚','野菜・豆','卵']],['method','調理法',['不明','焼く','煮る','炒める','揚げる','蒸す','ゆでる','和える']],['genre','ジャンル',['不明','和食','洋食','中華','その他']]].map(([k,label,values])=>`<label class="field"><span>${label}</span><select id="master-${k}">${values.map(v=>`<option ${d[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')}${d.dates.length?`<details><summary>過去の調理日（${d.count}回）</summary><p class="hint">${d.dates.join(' / ')}</p></details>`:''}<p class="hint">同じ名前へ変更すると、調理履歴を統合して表示します。</p>`,button('キャンセル','close-dialog')+button('保存','save-master','primary'));}
 function saveMaster(){const dish=validateDishes([{name:$('#master-name').value,category:$('#master-category').value,protein:$('#master-protein').value,method:$('#master-method').value,genre:$('#master-genre').value}])[0];const key=normalize(dish.name);if(editingMaster&&editingMaster!==key){if(resolveName(dish.name,data().aliases)&&normalize(resolveName(dish.name,data().aliases))===editingMaster)throw Error('この名前は元の料理へ統一済みです。別の名前を指定してください。');data().aliases[editingMaster]=dish.name;}data().metadata[key]={category:dish.category,protein:dish.protein,method:dish.method,genre:dish.genre};if(!editingMaster||!master().some(d=>d.key===key))data().manual.push(dish);persist();closeModal();render();notify('料理マスターを更新しました。');}
