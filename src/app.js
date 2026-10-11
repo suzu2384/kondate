@@ -20,7 +20,7 @@ import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './driv
 import {AIService} from './ai.js';
 import {createAIProvider} from './ai-provider.js';
 import {AI_PUBLIC_CONFIG} from './ai-config.js';
-import {normalizeStatusNotice,generationFailureNotice,STATUS_REMEDIES} from './status-notice.js';
+import {normalizeStatusNotice,generationFailureNotice,generationIssuesNotice,STATUS_REMEDIES} from './status-notice.js';
 import {catalog} from './catalog.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
@@ -1087,7 +1087,7 @@ const actions={
   }else{
    const result=generate(master(),state.rules,state.draft);
    state.draft=result.plan;issues=result.issues;persist();render();
-   notify('献立案を作りました。カレンダーにはまだ登録していません。');
+   notify(issues.length?generationIssuesNotice(issues):'献立案を作りました。カレンダーにはまだ登録していません。');
   }
  },
  reroll:b=>{const i=Number(b.dataset.day),j=Number(b.dataset.dish);if(state.draft[i]?.dishes[j]?.locked)state.draft[i].dishes[j]={...state.draft[i].dishes[j],locked:false};const result=reroll(master(),state.rules,state.draft,i,j);state.draft[i].dishes[j]=result.dish;issues=result.issues;persist();render();},

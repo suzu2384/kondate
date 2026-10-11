@@ -63,3 +63,23 @@ export function generationFailureNotice(error,mode='rules'){
  }
  return normalizeStatusNotice({summary,detail,guidance,actions});
 }
+
+/**
+ * Rules-based generation is best-effort: it can return a partial plan and
+ * validation issues without throwing. Surface these through the same status
+ * workflow used for thrown AI errors.
+ */
+export function generationIssuesNotice(issues){
+ const details=[...new Set((Array.isArray(issues)?issues:[]).map(clean).filter(Boolean))];
+ if(!details.length)return null;
+ const shortage=details.some(item=>/候補が\d+品不足|未調理の主菜がありません/.test(item));
+ const fixed=details.some(item=>/固定|重複/.test(item));
+ return normalizeStatusNotice({
+  summary:shortage?'献立の料理候補が不足しています':'生成した献立に確認事項があります',
+  detail:details.join('\n'),
+  guidance:fixed
+   ?'固定した料理や重複の条件を確認してください。ルールを見直すか、料理マスターに候補を追加できます。'
+   :'ルール調整で直近の除外条件や1日あたりの品数を見直すか、料理マスターに候補を追加してください。',
+  actions:['rules','master']
+ });
+}

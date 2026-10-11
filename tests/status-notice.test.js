@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeStatusNotice,generationFailureNotice,STATUS_REMEDIES} from '../src/status-notice.js';
+import {normalizeStatusNotice,generationFailureNotice,generationIssuesNotice,STATUS_REMEDIES} from '../src/status-notice.js';
 
 test('status notice accepts legacy strings and structured descriptions safely',()=>{
  assert.deepEqual(normalizeStatusNotice('保存しました'),{
@@ -44,4 +44,17 @@ test('auth and malformed responses do not pretend settings can change provider q
  assert.deepEqual(malformed.actions,['use-rules']);
  const ordinary=generationFailureNotice(new Error('予期せぬ失敗'),'rules');
  assert.deepEqual(ordinary.actions,['rules']);
+});
+
+test('rule-based generation with partial results reports details rather than success',()=>{
+ const note=generationIssuesNotice(['1日目：mainの候補が1品不足しています。','未調理の主菜がありません。']);
+ assert.match(note.summary,/候補/);
+ assert.match(note.detail,/1日目：mainの候補が1品不足/);
+ assert.match(note.detail,/未調理の主菜/);
+ assert.match(note.guidance,/ルール調整|料理マスター/);
+ assert.deepEqual(note.actions,['rules','master']);
+ assert.equal(generationIssuesNotice([]),null);
+ const validation=generationIssuesNotice(['カレーが重複しています。']);
+ assert.match(validation.summary,/確認事項/);
+ assert.match(validation.detail,/カレーが重複/);
 });
