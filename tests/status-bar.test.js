@@ -51,7 +51,7 @@ test('missing idle node in an older cached HTML does not crash app startup',asyn
   '$':selector=>nodes[selector]||null,
   expiredGoogleServices:()=>({calendar:false,drive:false}),
   api:{connected:true},drive:{autoEnabled:false},presetQueue:{size:0},
-  document:{createElement:tag=>({tag})},currentNotice:'',busy:false,presetFlushing:false,
+  document:{createElement:tag=>({tag})},currentNotice:'',currentNoticeData:null,busy:false,presetFlushing:false,
   driveLastSuccessAt:0,driveSyncStatus:'',drivePending:false
  };
  const show=runInNewContext(source+';showStatus',context);
