@@ -48,3 +48,13 @@ test('PWA theme-color matches actual SVG icon background in metadata, manifest, 
  assert.equal(manifest.background_color,background);
  assert.match(themes,/meta\.content=APP_CHROME_COLOR/);
 });
+
+test('category selector is text-only while the selected item stays identifiable',()=>{
+ const rules=css.slice(css.indexOf('/* v1.9.2 —'));
+ assert.ok(rules.length>500,'Expected text-only overrides for recipe filters');
+ assert.match(rules,/\.master-screen \.master-filter-button,[\s\S]*?border:0;/);
+ assert.match(rules,/background:transparent;/);
+ assert.match(rules,/\.master-screen \.master-filter-button\.selected,[\s\S]*?text-decoration:underline;/);
+ assert.match(rules,/\.master-screen \.master-filter-button:hover,[\s\S]*?background:transparent;/);
+ assert.match(rules,/\.master-screen \.master-filter-bar\{\s*border-top:0;/);
+});
