@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {normalizeStatusNotice,generationFailureNotice,generationIssuesNotice,STATUS_REMEDIES} from '../src/status-notice.js';
+import {normalizeStatusNotice,generationFailureNotice,generationIssuesNotice,selectStatusNotice,STATUS_REMEDIES} from '../src/status-notice.js';
 
 test('status notice accepts legacy strings and structured descriptions safely',()=>{
  assert.deepEqual(normalizeStatusNotice('保存しました'),{
@@ -68,4 +68,24 @@ test('AI-created main dish errors show an appropriate retry explanation',()=>{
  const noSlot=generationFailureNotice(new Error('新しい主菜を提案するには、主菜の品数を1以上に設定してください。'),'ai');
  assert.deepEqual(noSlot.actions,['rules']);
  assert.match(noSlot.summary,/主菜の品数/);
+});
+
+test('higher-priority notices stay visible through background info and empty updates',()=>{
+ const error={summary:'AIの生成エラー',detail:'要求7日・返答6日',severity:'error'};
+ const warning={summary:'一度再試行して7日分生成',severity:'warning'};
+ const info='バックグラウンドの更新が終わりました';
+ const failed=selectStatusNotice(null,error);
+ assert.equal(selectStatusNotice(failed,info).detail,'要求7日・返答6日');
+ assert.equal(selectStatusNotice(failed,warning).severity,'error');
+ assert.equal(selectStatusNotice(failed,'').summary,'AIの生成エラー');
+ assert.equal(selectStatusNotice(failed,{summary:'別の生成エラー',severity:'error'}).summary,'別の生成エラー');
+ const warned=selectStatusNotice(null,warning);
+ assert.equal(selectStatusNotice(warned,info).summary,warning.summary);
+ assert.equal(selectStatusNotice(warned,'').summary,warning.summary);
+ assert.equal(selectStatusNotice(warned,error).severity,'error');
+ assert.equal(selectStatusNotice(null,info).severity,'info');
+ assert.equal(selectStatusNotice(selectStatusNotice(null,info),''),null);
+ assert.equal(selectStatusNotice(null,' '),null);
+ // Explicit dismiss clears the active notice before the next normal message.
+ assert.equal(selectStatusNotice(null,info).summary,info);
 });
