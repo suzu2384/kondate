@@ -92,6 +92,8 @@ function showStatus(){
  }
  statusBar?.classList.toggle('has-message',!!message);
  statusBar?.classList.toggle('auth-required',warning||driveWarning);
+ statusBar?.classList.toggle('status-error',!!message&&!warning&&!driveWarning&&currentNoticeData?.severity==='error');
+ statusBar?.classList.toggle('status-warning',!!message&&!warning&&!driveWarning&&currentNoticeData?.severity==='warning');
  const status=$('#drive-sync-state');
  if(status){
   const time=driveLastSuccessAt?new Date(driveLastSuccessAt).toLocaleString('ja-JP'):'なし';
@@ -286,9 +288,9 @@ function dayContent(date){const d=new Date(`${date}T12:00:00`);const list=record
 function generateScreen(){
  return `<section class="screen generation-screen">
  <div class="generation-controls">
-  <label><select aria-label="生成日数" id="days">${Array.from({length:MAX_GENERATION_DAYS},(_,i)=>`<option value="${i+1}" ${state.rules.days===i+1?'selected':''}>${i+1}</option>`).join('')}</select>日分</label>
-  <select aria-label="選定モード" id="generate-mode"><option value="rules" ${state.menuGenerationMode==='rules'?'selected':''}>ルールベース</option><option value="ai" ${ai.available?'':'disabled'} ${state.menuGenerationMode==='ai'?'selected':''}>AI${ai.available?'':'（未設定）'}</option></select>
-  ${button('ルール調整','rules','text-button mini generation-rule-button')}
+  <label><select aria-label="生成日数" id="days" ${aiGenerating?'disabled':''}>${Array.from({length:MAX_GENERATION_DAYS},(_,i)=>`<option value="${i+1}" ${state.rules.days===i+1?'selected':''}>${i+1}</option>`).join('')}</select>日分</label>
+  <select aria-label="選定モード" id="generate-mode" ${aiGenerating?'disabled':''}><option value="rules" ${state.menuGenerationMode==='rules'?'selected':''}>ルールベース</option><option value="ai" ${ai.available?'':'disabled'} ${state.menuGenerationMode==='ai'?'selected':''}>AI${ai.available?'':'（未設定）'}</option></select>
+  ${button('ルール調整','rules','text-button mini generation-rule-button',aiGenerating?'disabled':'')}
   ${button('生成','generate','primary mini generation-submit-button',aiGenerating?'disabled aria-busy="true"':'')}
  </div>
  <div class="plan-grid compact-plan-grid scroll">
@@ -297,7 +299,7 @@ function generateScreen(){
   <div class="plan-dishes">
    ${day.dishes.map((d,j)=>`<div class="plan-dish compact-plan-dish">
     <span class="plan-category" title="${esc(categoryName(d.category))}">${esc(categoryName(d.category))}</span>
-    <button class="dish-name" data-action="edit-plan-dish" data-day="${i}" data-dish="${j}" title="${esc(d.name)}" aria-label="${i+1}日目の${esc(categoryName(d.category))}、${esc(d.name)}を編集">${esc(d.name)}</button>
+    <button class="dish-name ${d.isNew?'new-dish':''}" data-action="edit-plan-dish" data-day="${i}" data-dish="${j}" title="${esc(d.name)}" aria-label="${i+1}日目の${esc(categoryName(d.category))}、${d.isNew?'新しい料理 ':''}${esc(d.name)}を編集"><span class="dish-name-text">${esc(d.name)}</span>${d.isNew?'<span class="new-dish-badge" aria-hidden="true">新</span>':''}</button>
     ${button('↻','reroll','reroll-button',`data-day="${i}" data-dish="${j}" aria-label="${i+1}日目の${esc(d.name)}を再抽選"`)}
    </div>`).join('')||'<p class="hint plan-empty">候補がありません</p>'}
   </div>
@@ -1080,18 +1082,31 @@ const actions={
    if(!ai.available)throw Error('AIはまだ利用できません。通常の献立生成を選んでください。');
    aiGenerating=true;render();
    try{
-    const plan=await ai.generate({master:master(),rules:state.rules,previous:state.draft});
-    state.draft=plan;issues=[];persist();notify('AIが献立を提案しました。カレンダーにはまだ登録していません。');
+    // A frozen request avoids comparing a seven-day response against later UI edits.
+    const context={master:master(),rules:structuredClone(state.rules),previous:structuredClone(state.draft)};
+    const plan=await ai.generate(context);
+    state.draft=plan;issues=[];persist();
+    notify(plan.warnings?.length?{
+     summary:`AIが${requested}日分を生成しました（再生成あり）`,
+     detail:plan.warnings.join('\\n'),
+     guidance:'指定日数と生成条件は満たしています。献立を確認してください。',
+     severity:'warning'
+    }:'AIが献立を提案しました。カレンダーにはまだ登録していません。');
    }finally{aiGenerating=false;render();}
   }else{
    const result=generate(master(),state.rules,state.draft);
-   state.draft=result.plan;issues=result.issues;persist();render();
-   notify(issues.length?generationIssuesNotice(issues):'献立案を作りました。カレンダーにはまだ登録していません。');
+   issues=[...result.issues];
+   if(result.plan.length!==requested)issues.push(`指定${requested}日分に対して${result.plan.length}日分しか生成できませんでした。`);
+   const problem=issues.length?generationIssuesNotice(issues,{requirementsMet:!issues.some(i=>/不足|未調理|重複|直近|固定|指定.*日分|新しい主菜/.test(i))}):null;
+   // Do not overwrite the last complete draft with a failed partial result.
+   if(problem?.severity==='error'){render();notify(problem);return;}
+   state.draft=result.plan;persist();render();
+   notify(problem||'献立案を作りました。カレンダーにはまだ登録していません。');
   }
  },
  reroll:b=>{const i=Number(b.dataset.day),j=Number(b.dataset.dish);if(state.draft[i]?.dishes[j]?.locked)state.draft[i].dishes[j]={...state.draft[i].dishes[j],locked:false};const result=reroll(master(),state.rules,state.draft,i,j);state.draft[i].dishes[j]=result.dish;issues=result.issues;persist();render();notify(issues.length?generationIssuesNotice(issues):'料理を再抽選しました。');},
  'edit-plan-dish':b=>editPlanDish(Number(b.dataset.day),Number(b.dataset.dish)),'add-plan-dish':b=>editPlanDish(Number(b.dataset.day)),
- 'save-plan-dish':()=>{const {dayIndex,dishIndex}=editingPlan;const name=$('#plan-name').value.trim(),existing=master().find(d=>normalize(d.name)===normalize(name));const d=validateDishes([{...existing,name,category:$('#plan-category').value}])[0];d.locked=dishIndex!==null?state.draft[dayIndex].dishes[dishIndex].locked:false;if(dishIndex===null)state.draft[dayIndex].dishes.push(d);else state.draft[dayIndex].dishes[dishIndex]=d;closeModal();checkDraft();},
+ 'save-plan-dish':()=>{const {dayIndex,dishIndex}=editingPlan;const name=$('#plan-name').value.trim(),existing=master().find(d=>normalize(d.name)===normalize(name));const d=validateDishes([{...existing,name,category:$('#plan-category').value}])[0];d.isNew=d.category==='main'&&(!existing||!Number(existing.count));d.locked=dishIndex!==null?state.draft[dayIndex].dishes[dishIndex].locked:false;if(dishIndex===null)state.draft[dayIndex].dishes.push(d);else state.draft[dayIndex].dishes[dishIndex]=d;closeModal();checkDraft();},
  'delete-plan-dish':()=>{state.draft[editingPlan.dayIndex].dishes.splice(editingPlan.dishIndex,1);closeModal();checkDraft();},
  'day-up':b=>{const i=Number(b.dataset.day);[state.draft[i-1],state.draft[i]]=[state.draft[i],state.draft[i-1]];persist();render();},'day-down':b=>{const i=Number(b.dataset.day);[state.draft[i+1],state.draft[i]]=[state.draft[i],state.draft[i+1]];persist();render();},
  'record-day':b=>openRecord(null,{dishes:state.draft[b.dataset.day].dishes,date:today()}),master:masterModal,'edit-master':b=>editMaster(b.dataset.key),'add-master':()=>editMaster(),'save-master':saveMaster,
