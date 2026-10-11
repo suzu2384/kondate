@@ -76,7 +76,7 @@ test('shopping filter uses the same fixed calendar footer as recipe filters',()=
 test('filter action updates the selected state and resets list scroll without persisting',()=>{
  const found=app.match(/'filter-shopping':b=>\{([^}]+)\},/);
  assert.ok(found,'Expected filter-shopping action');
- const list={scrollTop:45};const ctx={shoppingFilter:'pending',renderCount:0,$:()=>list,render(){this.renderCount++;}};
+ const list={scrollTop:45};const ctx={shoppingFilter:'pending',renderCount:0,$:()=>list,render:()=>{ctx.renderCount++;}};
  const action=runInNewContext('(b)=>{'+found[1]+'}',ctx);
  action({dataset:{shoppingFilter:'bought'}});
  assert.equal(ctx.shoppingFilter,'bought');
