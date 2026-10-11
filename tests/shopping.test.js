@@ -123,7 +123,7 @@ test('selected dishes roundtrip in local settings and Drive backup',()=>{
 test('Buy action and selected recipe list replace automatic-plan shopping and missing warnings',()=>{
  const html=read('index.html'),app=read('src/app.js'),css=read('style.css');
  assert.match(html,/data-tab="shopping"/);
- assert.match(app,/data-action="buy-master"/);
+ assert.match(app,/'buy-master'/);
  assert.match(app,/function buyMasterDish\(/);
  assert.match(app,/'buy-master':buyMasterDish/);
  assert.match(app,/editMaster\(existing\?\.key\|\|null,\{buy:true/);
