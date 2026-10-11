@@ -130,7 +130,7 @@ test('shopping filter contains only explicitly chosen dishes in selection order'
  assert.strictEqual(selected[1],cooked[0]);
  assert.match(functions.masterFilterButtons(),/data-master-filter="shopping" aria-pressed="true">買い物<\/button>/);
  ctx.state.draft=[];
- assert.match(functions.masterScreen(),/data-master-filter="shopping" aria-pressed="true">買い物<\/button>/);
+ assert.match(functions.masterFilterButtons(),/data-master-filter="shopping" aria-pressed="true">買い物<\/button>/);
  ctx.state.shopping.selected=[];
  assert.deepEqual(Array.from(functions.masterItems()),[]);
  assert.match(functions.masterScreen(),/data-master-filter="shopping" aria-pressed="true"/);
