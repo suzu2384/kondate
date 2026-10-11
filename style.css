@@ -891,3 +891,21 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .master-filter-button{font-size:11px;min-height:32px;padding:5px 11px}
  .master-screen .master-toolbar .master-count{font-size:10px}
 }
+
+/* v1.9.0 — editable per-serving ingredients inside the existing dish dialog. */
+.master-ingredients{display:flex;flex-direction:column;gap:8px;min-width:0;border-top:1px solid var(--line);padding-top:12px}
+.master-ingredients-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.master-ingredients-head strong{font-size:14px}
+.master-ingredients-head small{font-size:11px;color:var(--muted)}
+#master-ingredients{display:flex;flex-direction:column;gap:6px;min-width:0}
+.master-ingredient-row{display:grid;grid-template-columns:minmax(85px,1fr) minmax(55px,80px) minmax(90px,110px) 34px;gap:5px;align-items:center;min-width:0}
+.master-ingredient-row input,.master-ingredient-row select{width:100%;min-width:0;min-height:35px;font-size:13px;padding:5px 7px}
+.master-ingredient-row .master-ingredient-remove{width:34px;height:35px;min-height:35px;padding:0}
+.master-ingredients-actions{display:flex;align-items:center;flex-wrap:wrap;gap:7px}
+.master-ingredients-actions button{min-height:34px}
+.master-ingredients .hint{font-size:11px;margin:0;line-height:1.5}
+@media(max-width:430px){
+ .master-ingredient-row{grid-template-columns:minmax(80px,1fr) 58px 78px 30px;gap:3px}
+ .master-ingredient-row input,.master-ingredient-row select{padding:4px;font-size:12px}
+ .master-ingredient-row .master-ingredient-remove{width:30px}
+}
