@@ -1,7 +1,8 @@
 import {normalize,resolveName} from './model.js';
 import {normalizeIngredient} from './ingredients.js';
 
-export const DEFAULT_SHOPPING_SERVINGS=5;
+export const DEFAULT_SHOPPING_SERVINGS=1;
+export const MAX_SHOPPING_SERVINGS=30;
 const aliases=new Map([
  ['しょうゆ','醤油'],['しょう油','醤油'],['醤油','醤油'],
  ['じゃがいも','じゃがいも'],['ジャガイモ','じゃがいも'],
@@ -16,7 +17,7 @@ export function shoppingSettings(input={}){
  const value=plainObject(input);
  const servings=Number(value.servings);
  return {
-  servings:Number.isInteger(servings)&&servings>=1&&servings<=30?servings:DEFAULT_SHOPPING_SERVINGS,
+  servings:Number.isInteger(servings)&&servings>=1&&servings<=MAX_SHOPPING_SERVINGS?servings:DEFAULT_SHOPPING_SERVINGS,
   manual:Array.isArray(value.manual)?value.manual.filter(item=>item&&typeof item==='object').slice(0,200):[],
   selected:Array.isArray(value.selected)?value.selected.filter(name=>typeof name==='string'&&name.trim()).slice(0,200):[],
   checked:{...plainObject(value.checked)},
@@ -88,7 +89,7 @@ export function shoppingItems({master=[],aliases:mealAliases={},shopping={}}={})
 }
 export function validateShoppingSettings(settings){
  const raw=plainObject(settings);
- if(raw.servings!==undefined&&(!Number.isInteger(Number(raw.servings))||Number(raw.servings)<1||Number(raw.servings)>30))throw Error('買い物人数は1〜30人で指定してください。');
+ if(raw.servings!==undefined&&(!Number.isInteger(Number(raw.servings))||Number(raw.servings)<1||Number(raw.servings)>MAX_SHOPPING_SERVINGS))throw Error('買い物人数は1〜30人で指定してください。');
  if(raw.selected!==undefined){
   if(!Array.isArray(raw.selected)||raw.selected.length>200)throw Error('買い物対象の料理は最大200品です。');
   const seen=new Set();
