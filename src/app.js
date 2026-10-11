@@ -114,7 +114,7 @@ const NEW_CALENDAR_VALUE='__kondate_create_calendar__';
 let calendarCreationBusy=false;
 let presetEditDraft=null,presetEditOriginalId=null;
 let aiGenerating=false;
-let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',masterFilter='all';
+let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',masterFilter='all',shoppingFilter='pending';
 let calendarTouchStart=null,ignoreDateClickUntil=0,selectedPresetId=null;
 let calendarSwipeSettling=false,calendarSwipeToken=0,calendarSwipeTimer=null,calendarSwipeAnimation=null;
 const scopeKeyFor=id=>calendarKey(GOOGLE_CLIENT_ID,id);
@@ -208,19 +208,22 @@ function iconMarkup(name,color='',extraClass=''){
 function renderPresetBar(){
  const bar=$('#quick-preset-bar');
  const masterBar=tab==='master';
+ const shoppingBar=tab==='shopping';
+ const filterBar=masterBar||shoppingBar;
  const rules=state.iconRules.filter(rule=>String(rule.keyword||'').trim()&&String(rule.calendarId||'').trim());
  const calendarBar=tab==='calendar'&&rules.length>0;
- const shown=masterBar||calendarBar;
+ const shown=filterBar||calendarBar;
  if(!rules.some(rule=>rule.id===selectedPresetId))selectedPresetId=null;
  const app=document.querySelector('.app');
  app.classList.toggle('has-quick-presets',calendarBar);
- app.classList.toggle('has-master-filters',masterBar);
- bar.classList.toggle('master-filter-bar',masterBar);
- bar.setAttribute('aria-label',masterBar?'料理の絞り込み':'予定のクイック登録プリセット');
+ app.classList.toggle('has-master-filters',filterBar);
+ bar.classList.toggle('master-filter-bar',filterBar);
+ bar.classList.toggle('shopping-filter-bar',shoppingBar);
+ bar.setAttribute('aria-label',masterBar?'料理の絞り込み':shoppingBar?'買い物の状態別表示':'予定のクイック登録プリセット');
  bar.hidden=!shown;
  if(!shown){bar.innerHTML='';return;}
- if(masterBar){
-  const markup=masterFilterButtons();
+ if(filterBar){
+  const markup=masterBar?masterFilterButtons():shoppingFilterButtons();
   if(bar.innerHTML!==markup)bar.innerHTML=markup;
   return;
  }
@@ -364,9 +367,17 @@ function shoppingRow(item){
   ${detail?`<small class="shopping-item-source">${esc(detail)}</small>`:''}
  </li>`;
 }
+function shoppingFilterButtons(){
+ return [
+  ['未購入','pending'],
+  ['購入済','bought'],
+  ['除外','excluded']
+ ].map(([label,value])=>button(label,'filter-shopping','master-filter-button'+(shoppingFilter===value?' selected':''),`data-shopping-filter="${value}" aria-pressed="${shoppingFilter===value}"`)).join('');
+}
 function shoppingScreen(){
  const view=shoppingData();
- const rows=items=>items.map(shoppingRow).join('');
+ const items=shoppingFilter==='bought'?view.bought:shoppingFilter==='excluded'?view.excluded:view.pending;
+ const emptyMessage=shoppingFilter==='bought'?'購入済みの材料はありません。':shoppingFilter==='excluded'?'除外した材料はありません。':view.items.length?'未購入の材料はありません。':'料理タブで「買う」を押して材料を追加できます。';
  return `<section class="screen shopping-screen" aria-label="買い物">
   <div class="shopping-toolbar">
    <label class="shopping-servings">人数 <input id="shopping-servings" type="number" min="1" max="30" step="1" value="${view.servings}" aria-label="買い物に必要な人数"> 人分</label>
@@ -374,15 +385,9 @@ function shoppingScreen(){
    ${button('未購入をコピー','shopping-copy','mini')}
    ${button('チェック解除','shopping-clear-checks','mini',view.bought.length?'':'disabled')}
   </div>
-  <div class="shopping-summary">${view.pending.length}件 未購入 <span aria-hidden="true">·</span> ${view.bought.length}件 購入済み ${view.excluded.length?`<span aria-hidden="true">·</span> ${view.excluded.length}件 除外`:''}</div>
   <div class="shopping-list card scroll">
-
-   ${!view.items.length?'<p class="hint shopping-guidance">料理タブの「買う」から材料を追加できます。選択中の料理は料理タブ下部の「買い物」で確認できます。</p>':''}
-   <h3>買うもの</h3><ul class="shopping-items">${rows(view.pending)||'<li class="shopping-empty">未購入の品目はありません。</li>'}</ul>
-   ${view.bought.length?`<h3>購入済み</h3><ul class="shopping-items">${rows(view.bought)}</ul>`:''}
-   ${view.excluded.length?`<details class="shopping-excluded"><summary>除外した品目（${view.excluded.length}件）</summary><ul class="shopping-items">${rows(view.excluded)}</ul></details>`:''}
+   <ul class="shopping-items">${items.map(shoppingRow).join('')||`<li class="shopping-empty">${emptyMessage}</li>`}</ul>
   </div>
-  <p class="hint shopping-note">「買う」で選択した料理の1人前の材料を人数分に合算しています。在庫のある品目は「除外」、購入した品目はチェックしてください。</p>
  </section>`;
 }
 function editShoppingManual(id=''){
@@ -1332,6 +1337,7 @@ const actions={
  'confirm-category':()=>{const name=$('#category-new').value.trim();if(!name)throw Error('分類名を入力してください。');if(state.categories.some(c=>c.name===name))throw Error('同じ名前の分類があります。');const id='c'+uid().slice(0,10);state.categories.push({id,name});state.rules.counts[id]=0;persist();closeModal();render();},
  'remove-category':b=>{const id=b.dataset.category;if(id==='main')throw Error('主菜は削除できません。');if(editor?.dishes?.some(d=>d.category===id))throw Error('この分類を使っている入力途中の実績があります。先に保存または破棄してください。');state.categories=state.categories.filter(c=>c.id!==id);state.draft=state.draft.map(day=>({...day,dishes:day.dishes.filter(d=>d.category!==id)}));delete state.rules.counts[id];delete state.categoryCalendars[id];persist();render();notify('分類を削除しました。Googleカレンダーの予定は削除していません。');},
  'shopping-open-master':()=>openMasterTab(),
+ 'filter-shopping':b=>{const target=b.dataset.shoppingFilter;if(!['pending','bought','excluded'].includes(target))return;shoppingFilter=target;render();const list=$('#main .shopping-list');if(list)list.scrollTop=0;},
  'buy-master':buyMasterDish,
  'shopping-add':()=>editShoppingManual(),
  'shopping-edit':b=>editShoppingManual(b.dataset.id),
