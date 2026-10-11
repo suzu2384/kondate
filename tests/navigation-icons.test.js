@@ -9,7 +9,7 @@ const cache=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
 for(const [tab,filename] of [
  ['calendar','calendar-days.svg'],
  ['generate','chef-hat.svg'],
- ['master','book-open.svg'],
+ ['master','cooking-pot.svg'],
  ['photo','utensils.svg'],
  ['settings','settings.svg']
 ]){
