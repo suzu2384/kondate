@@ -6,22 +6,21 @@ const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 const cache=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
 
-for(const [tab,filename] of [
- ['calendar','calendar-days.svg'],
- ['generate','chef-hat.svg'],
- ['master','cooking-pot.svg'],
- ['photo','utensils.svg'],
- ['settings','settings.svg']
+for(const [tab,path] of [
+ ['calendar','icons/tabs/calendar-days.svg'],
+ ['generate','icons/tabs/chef-hat.svg'],
+ ['master','icons/tabs/cooking-pot.svg'],
+ ['shopping','icons/presets/shopping_cart_2_fill.svg'],
+ ['settings','icons/tabs/settings.svg']
 ]){
- test(`tab ${tab} loads ${filename} with themed mask and offline precache`,()=>{
+ test(`tab ${tab} loads ${path} with themed mask and offline precache`,()=>{
   assert.ok(html.includes(`data-tab="${tab}"`));
   assert.ok(html.includes(`class="nav-icon nav-icon-${tab}"`));
-  assert.ok(css.includes(`icons/tabs/${filename}`));
-  assert.ok(cache.includes(`icons/tabs/${filename}`));
-  const svg=readFileSync(new URL(`../icons/tabs/${filename}`,import.meta.url),'utf8');
+  assert.ok(css.includes(path));
+  assert.ok(cache.includes(path));
+  const svg=readFileSync(new URL('../'+path,import.meta.url),'utf8');
   assert.match(svg,/^<svg /);
   assert.match(svg,/viewBox="0 0 24 24"/);
-  assert.match(svg,/stroke="currentColor"/);
  });
 }
 test('navigation icons use theme text colors for their vector masks',()=>{
