@@ -1,3 +1,5 @@
+/** Background of the KonDate home icon (icons/icon.svg). */
+export const APP_CHROME_COLOR='#FBF8F4';
 export const colors={red:{name:'赤',light:'#9a4545',dark:'#ecaaaa'},yellow:{name:'黄',light:'#776016',dark:'#e2cd7d'},green:{name:'緑',light:'#436e57',dark:'#a4d3b3'},cyan:{name:'シアン',light:'#256c76',dark:'#8fd3dc'},blue:{name:'青',light:'#4167a1',dark:'#abc8f1'},magenta:{name:'マゼンタ',light:'#875081',dark:'#dcafda'},mono:{name:'無彩色',light:'#525b61',dark:'#c4cbd0'}};
 // Shared accessible accent colors; light and dark use independently tuned surface palettes.
 export function applyTheme({color='green',mode='auto'}={}){
@@ -19,5 +21,5 @@ export function applyTheme({color='green',mode='auto'}={}){
  for(const [key,value] of Object.entries(vars))document.documentElement.style.setProperty('--'+key,value);
  document.documentElement.style.colorScheme=dark?'dark':'light';
  document.documentElement.dataset.themeMode=dark?'dark':'light';
- const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=vars.bg;
+ const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=APP_CHROME_COLOR;
 }
