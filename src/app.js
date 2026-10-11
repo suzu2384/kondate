@@ -383,7 +383,6 @@ function shoppingScreen(){
    <label class="shopping-servings">人数 <input id="shopping-servings" type="number" min="1" max="30" step="1" value="${view.servings}" aria-label="買い物に必要な人数"> 人分</label>
    ${button('＋ 品目追加','shopping-add','mini primary')}
    ${button('未購入をコピー','shopping-copy','mini')}
-   ${button('チェック解除','shopping-clear-checks','mini',view.bought.length?'':'disabled')}
   </div>
   <div class="shopping-list card scroll">
    <ul class="shopping-items">${items.map(shoppingRow).join('')||`<li class="shopping-empty">${emptyMessage}</li>`}</ul>
@@ -1365,10 +1364,6 @@ const actions={
   persist();render();
  },
  'shopping-restore':b=>{delete state.shopping.excluded[b.dataset.id];persist();render();},
- 'shopping-clear-checks':()=>{
-  if(!window.confirm('購入済みのチェックをすべて解除しますか？'))return;
-  state.shopping.checked={};persist();render();
- },
  'shopping-copy':copyShoppingList,
  'drive-sync-now':async()=>{
   if(!drive.autoEnabled)throw Error('この端末のDrive自動同期を有効にしてください。');
