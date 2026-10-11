@@ -11,7 +11,7 @@ test('month calendar has no redundant view/history/master toolbar, with master e
  assert.match(calendar,/screen calendar-screen/);
  assert.match(calendar,/month-grid/);
  assert.doesNotMatch(calendar,/view-history|view-month|calendar-toolbar|料理マスター|履歴一覧/);
- const generator=app.slice(app.indexOf('function generateScreen()'),app.indexOf('function photoScreen()'));
+ const generator=app.slice(app.indexOf('function generateScreen()'),app.indexOf('function shoppingData()'));
  assert.doesNotMatch(generator,/料理マスター/);
  assert.match(app,/function masterScreen\(\)/);
  assert.doesNotMatch(app,/button\('料理マスターを開く','master','full'\)/);
