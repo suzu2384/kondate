@@ -120,18 +120,19 @@ test('selected dishes roundtrip in local settings and Drive backup',()=>{
  assert.throws(()=>readDriveSnapshot(bad,recipient,()=>{}),/重複/);
 });
 
-test('Buy action and selected recipe list replace automatic-plan shopping and missing warnings',()=>{
+test('shopping tab displays ingredient checklist, while 料理 tab manages shopping dishes',()=>{
  const html=read('index.html'),app=read('src/app.js'),css=read('style.css');
  assert.match(html,/data-tab="shopping"/);
- assert.match(app,/'buy-master'/);
- assert.match(app,/function buyMasterDish\(/);
  assert.match(app,/'buy-master':buyMasterDish/);
  assert.match(app,/editMaster\(existing\?\.key\|\|null,\{buy:true/);
  assert.match(app,/if\(buy&&ingredients\.length\)state\.shopping\.selected=addShoppingDish/);
- assert.match(app,/const selected=view\.selected\.length/);
- assert.match(app,/shopping-remove-dish/);
- assert.match(app,/shopping-edit-dish/);
+ const masterScreen=app.slice(app.indexOf('function masterScreen()'),app.indexOf('function refreshMasterRows()'));
+ assert.match(masterScreen,/filterButton\('買い物','shopping'\)/);
+ assert.match(app,/masterFilterItems\(master\(\),state\.draft,masterFilter,data\(\)\.aliases,state\.shopping\.selected\)/);
+ const shoppingScreen=app.slice(app.indexOf('function shoppingScreen()'),app.indexOf('function editShoppingManual('));
+ assert.doesNotMatch(shoppingScreen,/買い物対象の料理|shopping-selected|shopping-remove-dish|shopping-edit-dish/);
+ assert.match(shoppingScreen,/未購入をコピー/);
+ assert.match(app,/state\.shopping\.selected\.filter\(selected=>/);
  assert.doesNotMatch(app,/材料未登録の料理（|const missing=view\.missing/);
- assert.doesNotMatch(app,/shoppingItems\(\{draft:state\.draft/);
- assert.match(css,/\.shopping-selected\{/);
+ assert.match(css,/\.master-screen \.master-filter-button\.selected/);
 });
