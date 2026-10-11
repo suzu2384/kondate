@@ -896,7 +896,6 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .master-ingredients{display:flex;flex-direction:column;gap:8px;min-width:0;border-top:1px solid var(--line);padding-top:12px}
 .master-ingredients-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .master-ingredients-head strong{font-size:14px}
-.master-ingredients-head small{font-size:11px;color:var(--muted)}
 #master-ingredients{display:flex;flex-direction:column;gap:6px;min-width:0}
 .master-ingredient-row{display:grid;grid-template-columns:minmax(85px,1fr) minmax(55px,80px) minmax(90px,110px) 34px;gap:5px;align-items:center;min-width:0}
 .master-ingredient-row input,.master-ingredient-row select{width:100%;min-width:0;min-height:35px;font-size:13px;padding:5px 7px}
@@ -908,4 +907,19 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .master-ingredient-row{grid-template-columns:minmax(80px,1fr) 58px 78px 30px;gap:3px}
  .master-ingredient-row input,.master-ingredient-row select{padding:4px;font-size:12px}
  .master-ingredient-row .master-ingredient-remove{width:30px}
+}
+
+/* v1.9.1 — the meal/category filters stay directly above the status bar. */
+.master-screen{gap:7px}
+.master-screen .master-list-wrap{min-height:0;flex:1 1 auto}
+.master-screen .master-filter-bar{
+ order:3;flex:0 0 auto;min-height:42px;max-width:100%;
+ margin-top:auto;padding:6px 4px 4px;
+ border-top:1px solid var(--line);
+ background:var(--surface);
+ scrollbar-width:thin;
+}
+@media(max-width:760px){
+ .master-screen{gap:5px;padding-bottom:0}
+ .master-screen .master-filter-bar{min-height:39px;padding:4px 2px 2px}
 }
