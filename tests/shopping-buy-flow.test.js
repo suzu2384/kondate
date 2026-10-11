@@ -57,7 +57,9 @@ test('After Buy, confirming a nonempty ingredient editor saves recipe and select
  assert.deepEqual(Array.from(h.state.shopping.selected),['肉じゃが']);
  assert.equal(h.data.metadata['肉じゃが'].ingredients[0].baseQuantity,15);
  h.view.buyMasterDish({dataset:{name:'肉じゃが',key:'肉じゃが',category:'main'}});
- assert.deepEqual(Array.from(h.state.shopping.selected),['肉じゃが']);
+ assert.deepEqual(Array.from(h.state.shopping.selected),[],'Pressing 追加済 removes the recipe instead of navigating');
+ h.view.buyMasterDish({dataset:{name:'肉じゃが',key:'肉じゃが',category:'main'}});
+ assert.deepEqual(Array.from(h.state.shopping.selected),['肉じゃが'],'Pressing 買う re-adds the saved recipe');
 });
 
 test('Buy a generated dish not yet in master: editor uses dish name and registers ingredients',()=>{
