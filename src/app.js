@@ -23,13 +23,15 @@ import {AI_PUBLIC_CONFIG} from './ai-config.js';
 import {normalizeStatusNotice,selectStatusNotice,generationFailureNotice,generationIssuesNotice,STATUS_REMEDIES} from './status-notice.js';
 import {catalog} from './catalog.js';
 import {recipeSearchUrl} from './recipe-search.js';
-import {INGREDIENT_UNITS,validateIngredients,MAX_INGREDIENTS} from './ingredients.js';
+import {INGREDIENT_UNITS,validateIngredients,MAX_INGREDIENTS,normalizeIngredient} from './ingredients.js';
+import {DEFAULT_SHOPPING_SERVINGS,shoppingSettings,shoppingItems,validateShoppingSettings} from './shopping.js';
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
-const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,...loaded};
+const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,manual:[],checked:{},excluded:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,...loaded};
 state.rules={...defaultRules,...loaded.rules,counts:{...defaultRules.counts,...loaded.rules?.counts}};
 state.rules.days=normalizeGenerationDays(state.rules.days);
+state.shopping=shoppingSettings(state.shopping);
 state.menuGenerationMode=state.menuGenerationMode==='ai'?'ai':'rules';
 state.categoryCalendars=migrateCategoryCalendars(state.categories,loaded.categoryCalendars,state.calendarId);
 // Legacy standard-calendar setting has been migrated to Main.
@@ -112,7 +114,7 @@ const NEW_CALENDAR_VALUE='__kondate_create_calendar__';
 let calendarCreationBusy=false;
 let presetEditDraft=null,presetEditOriginalId=null;
 let aiGenerating=false;
-let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',masterFilter='all',photoURL=null,photoFile=null;
+let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',masterFilter='all';
 let calendarTouchStart=null,ignoreDateClickUntil=0,selectedPresetId=null;
 let calendarSwipeSettling=false,calendarSwipeToken=0,calendarSwipeTimer=null,calendarSwipeAnimation=null;
 const scopeKeyFor=id=>calendarKey(GOOGLE_CLIENT_ID,id);
@@ -174,6 +176,7 @@ function render(){
  const previousScroll=tab==='settings'?$('#main .settings-grid')?.scrollTop:null;
  const previousMasterScroll=tab==='master'?$('#main .master-list-wrap')?.scrollTop:null;
  const previousMasterFilterScroll=tab==='master'?$('#main .master-filter-bar')?.scrollLeft:null;
+ const previousShoppingScroll=tab==='shopping'?$('#main .shopping-list')?.scrollTop:null;
  applyTheme(state.theme);
  updateConnection();
  document.querySelectorAll('[data-tab]').forEach(b=>{if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
@@ -181,7 +184,7 @@ function render(){
  if(tab==='calendar'&&renderedViewTab==='calendar'&&renderedCalendarMonth===monthKey&&$('#main .month-grid')){
   patchCalendarCells();
  }else{
-  $('#main').innerHTML=({calendar:calendarScreen,generate:generateScreen,master:masterScreen,photo:photoScreen,settings:settingsScreen}[tab])();
+  $('#main').innerHTML=({calendar:calendarScreen,generate:generateScreen,master:masterScreen,shopping:shoppingScreen,settings:settingsScreen}[tab])();
   renderedViewTab=tab;
   renderedCalendarMonth=tab==='calendar'?monthKey:'';
  }
@@ -190,6 +193,7 @@ function render(){
  if(previousScroll!=null){const list=$('#main .settings-grid');if(list)list.scrollTop=previousScroll;}
  if(previousMasterScroll!=null){const list=$('#main .master-list-wrap');if(list)list.scrollTop=previousMasterScroll;}
  if(previousMasterFilterScroll!=null){const filters=$('#main .master-filter-bar');if(filters)filters.scrollLeft=previousMasterFilterScroll;}
+ if(previousShoppingScroll!=null){const list=$('#main .shopping-list');if(list)list.scrollTop=previousShoppingScroll;}
 }
 // The production build embeds the paths from the bundled MingCute SVG assets.
 // Using real SVG paths gives a precise hairline stroke, unlike a drop shadow.
@@ -317,7 +321,61 @@ function generateScreen(){
  </div>
  </section>`;
 }
-function photoScreen(){return `<section class="screen"><div class="photo-layout"><div class="photo-zone card">${photoURL?`<img src="${photoURL}" alt="選択した食事の写真">`:'<div class="empty-symbol">▣</div>'}<h2>${photoURL?'写真を選択しました':'今日の食卓を一枚'}</h2><p>写真解析はAI接続後に利用できます。現在は手入力で記録できます。</p><div class="toolbar">${button('写真を選択','pick-photo')}${button('手入力','new-record','primary')}</div><input type="file" class="hidden-input" id="photo-file" accept="image/*">${ai.canAnalyzePhoto?button('写真を解析','analyze-photo','primary',photoFile?'':'disabled'):''}<span class="hint">確認するまで写真は外部へ送信されません。</span></div><div class="photo-help card"><span class="tag neutral">${ai.available?'AI接続済み':'AI未設定'}</span><h2 style="margin-top:20px">手入力でも、同じように。</h2><p class="muted">過去の料理から選ぶだけでも記録できます。新しい料理は、そのまま名前を入力してください。</p><ol><li>料理名と種類を入力</li><li>調理日を確認</li><li>カレンダーへ登録</li></ol><p class="hint">写真はこの画面を離れると再表示されない場合があります。写真自体は端末の下書きに保存しません。</p></div></div></section>`;}
+function shoppingData(){return shoppingItems({draft:state.draft,master:master(),aliases:data().aliases,shopping:state.shopping});}
+function shoppingRow(item){
+ const name=esc(item.name),detail=item.kind==='manual'?'手動追加':(item.sourceNames.length?item.sourceNames.join('・'):'');
+ return `<li class="shopping-item ${item.checked?'is-bought':''} ${item.excluded?'is-excluded':''}">
+  ${!item.excluded?`<label class="shopping-check"><input type="checkbox" data-shopping-check="${esc(item.id)}" aria-label="${name}を購入済みにする" ${item.checked?'checked':''}><span class="shopping-item-name">${name}</span></label>`:`<span class="shopping-item-name">${name}</span>`}
+  <span class="shopping-item-quantity">${esc(item.display)}</span>
+  <div class="shopping-item-actions">
+   ${item.kind==='manual'?button('編集','shopping-edit','shopping-plain-button',`data-id="${esc(item.id)}" aria-label="${name}を編集"`):''}
+   ${item.kind==='manual'?button('削除','shopping-delete','shopping-plain-button',`data-id="${esc(item.id)}" aria-label="${name}を削除"`):''}
+   ${button(item.excluded?'戻す':'除外',item.excluded?'shopping-restore':'shopping-exclude','shopping-plain-button',`data-id="${esc(item.id)}" aria-label="${name}を${item.excluded?'買い物リストへ戻す':'買い物対象から除外'}"`)}
+  </div>
+  ${detail?`<small class="shopping-item-source">${esc(detail)}</small>`:''}
+ </li>`;
+}
+function shoppingScreen(){
+ const view=shoppingData();
+ const rows=items=>items.map(shoppingRow).join('');
+ const missing=view.missing.length?`<details class="shopping-missing" open><summary>材料未登録の料理（${view.missing.length}品）</summary><p class="hint">材料が未登録の料理は買い物量に含まれません。料理タブで材料を登録してください。</p><ul>${view.missing.map(d=>`<li>${esc(d.name)}（${d.days.join('・')}日目）</li>`).join('')}</ul>${button('料理タブで確認','shopping-open-master','mini')}</details>`:'';
+ return `<section class="screen shopping-screen" aria-label="買い物">
+  <div class="shopping-toolbar">
+   <label class="shopping-servings">人数 <input id="shopping-servings" type="number" min="1" max="30" step="1" value="${view.servings}" aria-label="買い物に必要な人数"> 人分</label>
+   ${button('＋ 品目追加','shopping-add','mini primary')}
+   ${button('未購入をコピー','shopping-copy','mini')}
+   ${button('チェック解除','shopping-clear-checks','mini',view.bought.length?'':'disabled')}
+  </div>
+  <div class="shopping-summary">${view.pending.length}件 未購入 <span aria-hidden="true">·</span> ${view.bought.length}件 購入済み ${view.excluded.length?`<span aria-hidden="true">·</span> ${view.excluded.length}件 除外`:''}</div>
+  ${missing}
+  <div class="shopping-list card scroll">
+   ${!state.draft.length?'<p class="hint shopping-guidance">献立がありません。献立を生成すると、登録済みの材料から必要量を自動計算します。</p>':''}
+   <h3>買うもの</h3><ul class="shopping-items">${rows(view.pending)||'<li class="shopping-empty">未購入の品目はありません。</li>'}</ul>
+   ${view.bought.length?`<h3>購入済み</h3><ul class="shopping-items">${rows(view.bought)}</ul>`:''}
+   ${view.excluded.length?`<details class="shopping-excluded"><summary>除外した品目（${view.excluded.length}件）</summary><ul class="shopping-items">${rows(view.excluded)}</ul></details>`:''}
+  </div>
+  <p class="hint shopping-note">調味料も含めて表示します。在庫があるものは「除外」、買ったものはチェックしてください。数量は献立にある料理の1人前の材料を人数分に合算しています。</p>
+ </section>`;
+}
+function editShoppingManual(id=''){
+ const found=id?state.shopping.manual.find(item=>'manual:'+item.id===id):null;
+ if(id&&!found)throw Error('買い物の品目が見つかりません。');
+ const item=found||{name:'',quantity:1,unit:'個'};
+ modal(found?'品目を編集':'買い物に品目を追加',`
+  <label class="field"><span>品目名</span><input id="shopping-name" maxlength="80" value="${esc(item.name)}" placeholder="例：牛乳"></label>
+  <label class="field"><span>必要な数量</span><input id="shopping-quantity" inputmode="decimal" value="${esc(item.quantity??'')}" placeholder="例：1、1/2"></label>
+  <label class="field"><span>単位</span><select id="shopping-unit">${INGREDIENT_UNITS.map(u=>`<option value="${u}" ${u===item.unit?'selected':''}>${u}</option>`).join('')}</select></label>
+  <p class="hint">この品目は買い物リストにだけ追加され、料理マスターの材料には登録されません。</p>`,
+  button('キャンセル','close-dialog')+button('保存','shopping-save','primary',`data-id="${esc(id)}"`));
+}
+async function copyShoppingList(){
+ const view=shoppingData();
+ if(!view.pending.length)throw Error('コピーする未購入の品目がありません。');
+ const content=['買い物リスト（'+view.servings+'人分）',...view.pending.map(item=>'□ '+item.name+'：'+item.display)].join('\\n');
+ if(!navigator.clipboard?.writeText){modal('買い物リストをコピー',`<textarea id="shopping-copy-text" rows="12" readonly>${esc(content)}</textarea>`,button('閉じる','close-dialog'));$('#shopping-copy-text')?.select();return;}
+ try{await navigator.clipboard.writeText(content);notify('未購入の品目をクリップボードにコピーしました。');}
+ catch{modal('買い物リストをコピー',`<textarea id="shopping-copy-text" rows="12" readonly>${esc(content)}</textarea>`,button('閉じる','close-dialog'));$('#shopping-copy-text')?.select();}
+}
 function rulesFields(){return `<div class="check-row"><input type="checkbox" id="rule-preferOld" ${state.rules.preferOld?'checked':''}><label for="rule-preferOld">しばらく作っていない料理を優先</label><input aria-label="優先する未調理日数" id="rule-oldDays" type="number" min="1" max="365" value="${state.rules.oldDays}"><span>日</span></div><div class="check-row"><input type="checkbox" id="rule-excludeRecent" ${state.rules.excludeRecent?'checked':''}><label for="rule-excludeRecent">直近の実績を除外</label><input aria-label="除外日数" id="rule-recentDays" type="number" min="1" max="365" value="${state.rules.recentDays}"><span>日</span></div>${[['unique','同じ献立内で料理を重複させない'],['balance','食材・調理法・ジャンルの偏りを抑える'],['newMain','未調理の主菜を1品以上加える']].map(([k,label])=>`<div class="check-row"><input type="checkbox" id="rule-${k}" ${state.rules[k]?'checked':''}><label for="rule-${k}">${label}</label></div>`).join('')}<h3>1日あたりの品数</h3>${state.categories.map(c=>`<div class="check-row"><label for="count-${c.id}">${esc(c.name)}</label><input type="number" min="0" max="5" id="count-${c.id}" value="${state.rules.counts[c.id]||0}"></div>`).join('')}<p class="hint">既存料理の食材・調理法は「料理マスター」で補えます。属性不明の料理には偏り評価が働きません。「未調理」は取得した履歴の範囲で判定します。</p>`;}
 function categoryCalendarSettings(){
  return '<h3>分類別カレンダー</h3><p>分類ごとにGoogleカレンダーを指定します。未設定の分類には書き込みません。同じカレンダーを複数の分類に割り当てられます。</p>'+
