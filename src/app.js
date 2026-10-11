@@ -684,12 +684,13 @@ function ingredientRow(item={},i=0){
   ${button('×','remove-master-ingredient','mini master-ingredient-remove',`data-index="${i}" aria-label="${i+1}番目の材料を削除"`)}
  </div>`;
 }
-function readIngredientRows(){
- return [...document.querySelectorAll('#master-ingredients [data-ingredient-row]')].map(row=>({
+function readIngredientRows(includeEmpty=false){
+ const rows=[...document.querySelectorAll('#master-ingredients [data-ingredient-row]')].map(row=>({
   name:row.querySelector('[data-ingredient-name]').value.trim(),
   quantity:row.querySelector('[data-ingredient-quantity]').value.trim(),
   unit:row.querySelector('[data-ingredient-unit]').value
- })).filter(item=>item.name||item.quantity);
+ }));
+ return includeEmpty?rows:rows.filter(item=>item.name||item.quantity);
 }
 function redrawIngredientRows(items){
  const list=$('#master-ingredients');
@@ -1232,7 +1233,7 @@ const actions={
  'save-plan-dish':()=>{const {dayIndex,dishIndex}=editingPlan;const name=$('#plan-name').value.trim(),existing=master().find(d=>normalize(d.name)===normalize(name));const d=validateDishes([{...existing,name,category:$('#plan-category').value}])[0];d.isNew=d.category==='main'&&(!existing||!Number(existing.count));d.locked=dishIndex!==null?state.draft[dayIndex].dishes[dishIndex].locked:false;if(dishIndex===null)state.draft[dayIndex].dishes.push(d);else state.draft[dayIndex].dishes[dishIndex]=d;closeModal();checkDraft();},
  'delete-plan-dish':()=>{state.draft[editingPlan.dayIndex].dishes.splice(editingPlan.dishIndex,1);closeModal();checkDraft();},
  'day-up':b=>{const i=Number(b.dataset.day);[state.draft[i-1],state.draft[i]]=[state.draft[i],state.draft[i-1]];persist();render();},'day-down':b=>{const i=Number(b.dataset.day);[state.draft[i+1],state.draft[i]]=[state.draft[i],state.draft[i+1]];persist();render();},
- 'record-day':b=>openRecord(null,{dishes:state.draft[b.dataset.day].dishes,date:today()}),master:()=>{closeModal();openMasterTab();},'filter-master':b=>{const target=b.dataset.masterFilter;if(!['all','plan',...state.categories.map(c=>'category:'+c.id)].includes(target))return;if(target==='plan'&&!hasPlannedDishes(state.draft))return;masterFilter=target;render();const list=$('#main .master-list-wrap');if(list)list.scrollTop=0;},'edit-master':b=>editMaster(b.dataset.key),'add-master':()=>editMaster(),'save-master':saveMaster,'add-master-ingredient':()=>{const rows=readIngredientRows();if(rows.length>=MAX_INGREDIENTS)throw Error('材料は最大60件まで登録できます。');rows.push({name:'',quantity:'',unit:'g'});redrawIngredientRows(rows);$('#master-ingredients [data-ingredient-name]:last-of-type')?.focus();},'remove-master-ingredient':b=>{const rows=readIngredientRows();rows.splice(Number(b.dataset.index),1);redrawIngredientRows(rows);},'generate-master-ingredients':generateMasterIngredients,
+ 'record-day':b=>openRecord(null,{dishes:state.draft[b.dataset.day].dishes,date:today()}),master:()=>{closeModal();openMasterTab();},'filter-master':b=>{const target=b.dataset.masterFilter;if(!['all','plan',...state.categories.map(c=>'category:'+c.id)].includes(target))return;if(target==='plan'&&!hasPlannedDishes(state.draft))return;masterFilter=target;render();const list=$('#main .master-list-wrap');if(list)list.scrollTop=0;},'edit-master':b=>editMaster(b.dataset.key),'add-master':()=>editMaster(),'save-master':saveMaster,'add-master-ingredient':()=>{const rows=readIngredientRows(true);if(rows.length>=MAX_INGREDIENTS)throw Error('材料は最大60件まで登録できます。');rows.push({name:'',quantity:'',unit:'g'});redrawIngredientRows(rows);$('#master-ingredients')?.lastElementChild?.querySelector('[data-ingredient-name]')?.focus();},'remove-master-ingredient':b=>{const rows=readIngredientRows(true);rows.splice(Number(b.dataset.index),1);redrawIngredientRows(rows);},'generate-master-ingredients':generateMasterIngredients,
  'add-category':()=>modal('分類を追加','<label class="field"><span>分類名</span><input id="category-new" placeholder="ごはん・麺など" maxlength="20"></label>',button('追加','confirm-category','primary')),
  'confirm-category':()=>{const name=$('#category-new').value.trim();if(!name)throw Error('分類名を入力してください。');if(state.categories.some(c=>c.name===name))throw Error('同じ名前の分類があります。');const id='c'+uid().slice(0,10);state.categories.push({id,name});state.rules.counts[id]=0;persist();closeModal();render();},
  'remove-category':b=>{const id=b.dataset.category;if(id==='main')throw Error('主菜は削除できません。');if(editor?.dishes?.some(d=>d.category===id))throw Error('この分類を使っている入力途中の実績があります。先に保存または破棄してください。');state.categories=state.categories.filter(c=>c.id!==id);state.draft=state.draft.map(day=>({...day,dishes:day.dishes.filter(d=>d.category!==id)}));delete state.rules.counts[id];delete state.categoryCalendars[id];persist();render();notify('分類を削除しました。Googleカレンダーの予定は削除していません。');},
