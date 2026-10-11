@@ -819,8 +819,8 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 
 /* v1.6.0 — meal master is a full-height fifth tab, not a modal list. */
 .tabs button .nav-icon-master{
- -webkit-mask-image:url('./icons/tabs/book-open.svg');
- mask-image:url('./icons/tabs/book-open.svg');
+ -webkit-mask-image:url('./icons/tabs/cooking-pot.svg');
+ mask-image:url('./icons/tabs/cooking-pot.svg');
 }
 .tabs button .tab-label{font-size:13px;line-height:1.2;white-space:nowrap}
 .master-screen{min-width:0;min-height:0;gap:10px}
@@ -853,3 +853,14 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .master-table td:last-child button{min-height:34px;padding:5px 8px}
  .master-description{font-size:10px}
 }
+
+
+/* v1.6.1 — explicit dismissal keeps high-priority messages readable. */
+#notice-dismiss.status-dismiss{
+ display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 22px;width:22px;height:20px;min-height:20px;
+ border:1px solid currentColor;border-radius:5px;background:transparent;
+ color:inherit;padding:0;font-size:16px;line-height:1;
+}
+#notice-dismiss.status-dismiss[hidden]{display:none}
+#notice-dismiss.status-dismiss:hover{background:transparent;opacity:.75}
