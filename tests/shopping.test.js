@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {shoppingItems,shoppingSettings,quantityLabel,validateShoppingSettings,DEFAULT_SHOPPING_SERVINGS,addShoppingDish,removeShoppingDish} from '../src/shopping.js';
+import {shoppingItems,shoppingSettings,quantityLabel,validateShoppingSettings,DEFAULT_SHOPPING_SERVINGS,MAX_SHOPPING_SERVINGS,addShoppingDish,removeShoppingDish} from '../src/shopping.js';
 import {storedState} from '../src/storage.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from '../src/drive-backup.js';
 
@@ -135,4 +135,22 @@ test('shopping tab displays ingredient checklist, while 料理 tab manages shopp
  assert.match(app,/state\.shopping\.selected\.filter\(selected=>/);
  assert.doesNotMatch(app,/材料未登録の料理（|const missing=view\.missing/);
  assert.match(css,/#quick-preset-bar\.master-filter-bar \.master-filter-button\.selected/);
+});
+
+test('new shopping defaults to one, but existing saved servings remain unchanged',()=>{
+ assert.equal(DEFAULT_SHOPPING_SERVINGS,1);
+ assert.equal(MAX_SHOPPING_SERVINGS,30);
+ assert.equal(shoppingSettings().servings,1);
+ assert.equal(shoppingSettings({}).servings,1);
+ assert.equal(shoppingSettings({servings:0}).servings,1);
+ assert.equal(shoppingSettings({servings:31}).servings,1);
+ assert.equal(shoppingSettings({servings:5}).servings,5);
+ assert.equal(shoppingSettings({servings:30}).servings,30);
+ assert.equal(shoppingItems({master:base,shopping:{selected:['肉じゃが']}}).servings,1);
+ assert.equal(shoppingItems({master:base,shopping:{selected:['肉じゃが']}}).items.find(i=>i.name==='醤油').display,'15 ml');
+ for(const n of [1,5,30]){
+  const state={shopping:{servings:n,selected:[],manual:[],checked:{},excluded:{}},scopes:{}};
+  assert.equal(storedState(state).shopping.servings,n);
+  assert.equal(createDriveSnapshot(state).settings.shopping.servings,n);
+ }
 });
