@@ -912,16 +912,8 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 /* v1.9.1 — the meal/category filters stay directly above the status bar. */
 .master-screen{gap:7px}
 .master-screen .master-list-wrap{min-height:0;flex:1 1 auto}
-.master-screen .master-filter-bar{
- order:3;flex:0 0 auto;min-height:42px;max-width:100%;
- margin-top:auto;padding:6px 4px 4px;
- border-top:1px solid var(--line);
- background:var(--surface);
- scrollbar-width:thin;
-}
 @media(max-width:760px){
  .master-screen{gap:5px;padding-bottom:0}
- .master-screen .master-filter-bar{min-height:39px;padding:4px 2px 2px}
 }
 
 /* v2.0.0 — compact, usable shopping checklist with permanent progress. */
@@ -990,13 +982,13 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 
 /* v1.12.0 — meal filters match calendar's framed quick-preset buttons. */
-.master-screen .master-filter-bar{
+#quick-preset-bar.master-filter-bar{
  gap:5px;
  border-top:0;
  background:transparent;
  padding:3px 4px 5px;
 }
-.master-screen .master-filter-button{
+#quick-preset-bar.master-filter-bar .master-filter-button{
  flex:0 0 auto;
  min-height:33px;
  height:33px;
@@ -1013,8 +1005,8 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  text-decoration:none;
  white-space:nowrap;
 }
-.master-screen .master-filter-button.selected,
-.master-screen .master-filter-button[aria-pressed="true"]{
+#quick-preset-bar.master-filter-bar .master-filter-button.selected,
+#quick-preset-bar.master-filter-bar .master-filter-button[aria-pressed="true"]{
  border:2px solid var(--accent);
  background:var(--tint);
  color:var(--accent);
@@ -1022,17 +1014,37 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  font-weight:750;
  text-decoration:none;
 }
-.master-screen .master-filter-button:hover:not([aria-pressed="true"]){
+#quick-preset-bar.master-filter-bar .master-filter-button:hover:not([aria-pressed="true"]){
  background:var(--tint);
 }
-.master-screen .master-filter-button:focus-visible{
+#quick-preset-bar.master-filter-bar .master-filter-button:focus-visible{
  outline:2px solid var(--accent);
  outline-offset:2px;
 }
 @media(max-width:760px){
- .master-screen .master-filter-bar{gap:5px;padding:2px 3px 3px}
- .master-screen .master-filter-button{
+ #quick-preset-bar.master-filter-bar{gap:5px;padding:2px 3px 3px}
+ #quick-preset-bar.master-filter-bar .master-filter-button{
   min-height:33px;height:33px;min-width:36px;
   padding:2px 9px;font-size:11px;
  }
+}
+
+/* v1.12.1 — use the SAME fixed toolbar row as calendar preset icons.
+   The border is owned by #quick-preset-bar, not each recipe's list card. */
+.app.has-master-filters{grid-template-rows:54px minmax(0,1fr) 40px 22px 58px}
+.app.has-master-filters .app-header{grid-row:1}
+.app.has-master-filters #main{grid-row:2}
+.app.has-master-filters #quick-preset-bar{grid-row:3}
+.app.has-master-filters #status-bar{grid-row:4}
+.app.has-master-filters .tabs{grid-row:5}
+#quick-preset-bar.master-filter-bar{
+ width:100%;min-width:0;height:40px;min-height:40px;
+ flex:0 0 auto;align-items:center;gap:5px;
+ padding:2px 8px;border-top:1px solid var(--line);
+ overflow-x:auto;overflow-y:hidden;
+ background:transparent;white-space:nowrap;
+}
+@media(max-width:760px){
+ .app.has-master-filters{grid-template-rows:49px minmax(0,1fr) 38px 24px calc(54px + env(safe-area-inset-bottom))}
+ #quick-preset-bar.master-filter-bar{height:38px;min-height:38px;padding:2px 8px}
 }
