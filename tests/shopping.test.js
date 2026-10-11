@@ -27,7 +27,7 @@ test('shopping defaults to five servings and aggregates planned dishes across da
  assert.equal(view.missing[1].name,'未登録料理');
  assert.equal(item('醤油').display,'200 ml'); // (15 + 10 + 15) × 5
  assert.equal(item('玉ねぎ').display,'5 個'); // (0.25 + 0.5 + 0.25) × 5
- assert.equal(item('牛肉').display,'1.1 kg'==='1.1 kg'?'1100 g':''); // 2 × 60 g plus 100 g, times 5
+ assert.equal(item('牛肉').display,'1100 g'); // 2 × 60 g plus 100 g, times 5
  assert.equal(item('砂糖').display,'10 ml');
  assert.ok(item('醤油').sourceNames.includes('肉じゃが'));
  assert.ok(item('醤油').sourceNames.includes('鶏の照り焼き'));
