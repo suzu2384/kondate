@@ -41,6 +41,19 @@ test('AI / rules selection is persisted and the phone layout keeps all controls 
  assert.doesNotMatch(app,/let aiGenerating=false,menuGenerationMode=/);
  assert.match(drive,/,'menuGenerationMode','theme'/);
  assert.match(css,/\.generation-screen \.generation-controls #generate-mode\{[\s\S]*?min-width:150px;max-width:none/);
- assert.match(css,/@media\(max-width:520px\)\{[\s\S]*?grid-template-columns:max-content minmax\(0,1fr\) max-content/);
+ assert.match(css,/@media\(max-width:520px\)\{[\s\S]*?display:flex;flex-wrap:nowrap;align-items:center/);
+ const phoneControls=css.match(/@media\(max-width:520px\)\{[\s\S]*?\.generation-screen \.generation-controls\{([^}]*)\}/)?.[1]||'';
+ assert.doesNotMatch(phoneControls,/display:grid|grid-template-columns|flex-wrap:wrap/);
+ assert.match(css,/\.generation-screen \.generation-controls #generate-mode\{\s*flex:0 0 132px;width:132px;min-width:132px;max-width:132px/);
+ assert.match(css,/\.generation-screen \.generation-submit-button\{[\s\S]*?margin-left:auto/);
+ assert.match(css,/\.generation-screen \.generation-rule-button\{[\s\S]*?font-size:12px/);
  assert.match(css,/\.generation-screen \.generation-submit-button:disabled\{opacity:\.45;filter:none\}/);
+});
+
+test('generator controls are ordered for a single mobile row',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const fragment=app.slice(app.indexOf('function generateScreen(){'),app.indexOf('function photoScreen(){'));
+ const parts=['id="days"','id="generate-mode"',"button('ルール調整'","button('生成'"];
+ let last=-1;
+ for(const item of parts){const index=fragment.indexOf(item);assert.ok(index>last,item+' must follow the previous control');last=index;}
 });

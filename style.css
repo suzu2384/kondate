@@ -764,16 +764,27 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 .generation-screen .generation-submit-button:disabled{opacity:.45;filter:none}
 @media(max-width:520px){
+ /* Keep all four controls on one row, including narrow phones. */
  .generation-screen .generation-controls{
-  display:grid;grid-template-columns:max-content minmax(0,1fr) max-content;
-  column-gap:6px;row-gap:4px;
+  display:flex;flex-wrap:nowrap;align-items:center;gap:3px;padding:0 4px;
  }
- .generation-screen .generation-controls label{grid-column:1;grid-row:1}
+ .generation-screen .generation-controls label{
+  flex:0 0 auto;white-space:nowrap;gap:2px;font-size:11px;
+ }
+ .generation-screen .generation-controls #days{
+  width:38px;min-width:38px;min-height:34px;padding:3px 1px;font-size:16px;
+ }
  .generation-screen .generation-controls #generate-mode{
-  grid-column:2 / 4;grid-row:1;width:100%;min-width:0;max-width:none;
+  flex:0 0 132px;width:132px;min-width:132px;max-width:132px;
+  min-height:34px;padding:3px 4px;font-size:16px;
  }
- .generation-screen .generation-rule-button{grid-column:1 / 3;grid-row:2;justify-self:start}
- .generation-screen .generation-submit-button{grid-column:3;grid-row:2;justify-self:end;margin-left:0}
+ .generation-screen .generation-rule-button{
+  flex:0 0 auto;white-space:nowrap;min-height:34px;padding:4px 5px;font-size:12px;
+ }
+ .generation-screen .generation-submit-button{
+  flex:0 0 auto;min-width:38px;min-height:34px;padding:4px;
+  font-size:12px;margin-left:auto;
+ }
 }
 
 /* v1.4.4: reusable actionable details for compact status-bar notices. */
