@@ -50,12 +50,19 @@ test('PWA theme-color matches actual SVG icon background in metadata, manifest, 
  assert.match(themes,/setFaviconBackground\(chromeColor\)/);
 });
 
-test('category selector is text-only while the selected item stays identifiable',()=>{
- const rules=css.slice(css.indexOf('/* v1.9.2 —'));
- assert.ok(rules.length>500,'Expected text-only overrides for recipe filters');
- assert.match(rules,/\.master-screen \.master-filter-button,[\s\S]*?border:0;/);
- assert.match(rules,/background:transparent;/);
- assert.match(rules,/\.master-screen \.master-filter-button\.selected,[\s\S]*?text-decoration:underline;/);
- assert.match(rules,/\.master-screen \.master-filter-button:hover,[\s\S]*?background:transparent;/);
- assert.match(rules,/\.master-screen \.master-filter-bar\{\s*border-top:0;/);
+test('recipe filters match the calendar quick-preset framed-button appearance',()=>{
+ const quick=css.match(/\.quick-preset\{[^}]+\}/)?.[0]||'';
+ const selectedQuick=css.match(/\.quick-preset\.active,\.quick-preset\[aria-pressed="true"\]\{[^}]+\}/)?.[0]||'';
+ assert.match(quick,/min-height:33px;height:33px/);
+ assert.match(quick,/border-radius:8px/);
+ assert.match(quick,/border:1px solid var\(--line\)/);
+ assert.match(selectedQuick,/border:2px solid var\(--accent\)/);
+ const rules=css.slice(css.indexOf('/* v1.12.0 —'));
+ assert.match(rules,/\.master-screen \.master-filter-button\{[\s\S]*?min-height:33px/);
+ assert.match(rules,/border:1px solid var\(--line\)/);
+ assert.match(rules,/border-radius:8px/);
+ assert.match(rules,/background:var\(--surface\)/);
+ assert.match(rules,/\.master-screen \.master-filter-button\.selected,[\s\S]*?border:2px solid var\(--accent\)/);
+ assert.match(rules,/box-shadow:inset 0 0 0 1px var\(--accent\)/);
+ assert.match(rules,/\.master-screen \.master-filter-button:focus-visible/);
 });
