@@ -371,7 +371,7 @@ function editShoppingManual(id=''){
 async function copyShoppingList(){
  const view=shoppingData();
  if(!view.pending.length)throw Error('コピーする未購入の品目がありません。');
- const content=['買い物リスト（'+view.servings+'人分）',...view.pending.map(item=>'□ '+item.name+'：'+item.display)].join('\\n');
+ const content=['買い物リスト（'+view.servings+'人分）',...view.pending.map(item=>'□ '+item.name+'：'+item.display)].join('\n');
  if(!navigator.clipboard?.writeText){modal('買い物リストをコピー',`<textarea id="shopping-copy-text" rows="12" readonly>${esc(content)}</textarea>`,button('閉じる','close-dialog'));$('#shopping-copy-text')?.select();return;}
  try{await navigator.clipboard.writeText(content);notify('未購入の品目をクリップボードにコピーしました。');}
  catch{modal('買い物リストをコピー',`<textarea id="shopping-copy-text" rows="12" readonly>${esc(content)}</textarea>`,button('閉じる','close-dialog'));$('#shopping-copy-text')?.select();}
