@@ -9,6 +9,9 @@ permissions:
   id-token: write
 env:
   GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
+  KONDATE_AI_FIREBASE_CONFIG: ${{ vars.KONDATE_AI_FIREBASE_CONFIG }}
+  KONDATE_AI_APP_CHECK_SITE_KEY: ${{ vars.KONDATE_AI_APP_CHECK_SITE_KEY }}
+  KONDATE_AI_SPARK_VERIFIED: ${{ vars.KONDATE_AI_SPARK_VERIFIED }}
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -90,7 +93,14 @@ jobs:
                   `## KonDate ${tag}`,
                   '',
                   '### このバージョンの変更',
-                  ...(version === '1.3.66' ? [
+                  ...(version === '1.3.67' ? [
+                    '- AI献立生成のFirebase AI Logic接続機能を実装（初期設定が揃うまでは無効）',
+                    '- Sparkプランの請求先未リンク確認を有効化の必須条件として設定',
+                    '- 料理候補・調理日・条件だけを送る省データ方式とAI結果検証を追加',
+                    '- App Check必須・無料モデル固定・端末側利用回数制限を追加',
+                    '- 将来の利用者自身のAPI契約向けにAIプロバイダーを独立化',
+                    '- AI利用不可時にも従来のルールベース献立生成を維持',
+                  ] : version === '1.3.66' ? [
                     '- タブ名を「献立生成」から「献立」、「実績登録」から「記録」に短縮',
                     '- ヘッダーから手動カレンダー更新ボタンを削除（自動更新と設定画面の再取得は維持）',
                     '- 献立画面の「料理マスター」ボタンを削除し、設定画面からの管理機能は維持',

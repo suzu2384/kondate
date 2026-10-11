@@ -18,6 +18,8 @@ import {dishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {searchPlaces,filterPlaceCandidates,LOCATION_ATTRIBUTION} from './place-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
 import {AIService} from './ai.js';
+import {createAIProvider} from './ai-provider.js';
+import {AI_PUBLIC_CONFIG} from './ai-config.js';
 import {catalog} from './catalog.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
@@ -32,7 +34,7 @@ state.iconRules=normalizePresetRules(loaded.iconRules);
 const presetQueue=new PresetWriteQueue(globalThis.localStorage,()=>uid());
 let presetFlushing=false,presetFlushPromise=null;
 state.calendarRefreshMinutes=normalizeCalendarRefreshMinutes(state.calendarRefreshMinutes);
-const api=new CalendarClient(),ai=new AIService(),drive=new DriveSettingsClient();
+const api=new CalendarClient(),ai=new AIService(createAIProvider(AI_PUBLIC_CONFIG)),drive=new DriveSettingsClient();
 const restoredGoogleSession=api.restoreSession(GOOGLE_CLIENT_ID);
 const restoredDriveSession=drive.restoreAuto(GOOGLE_CLIENT_ID);
 const DRIVE_REVISION='kondate.drive-auto-revision.v1';
@@ -98,6 +100,7 @@ function showStatus(){
 const NEW_CALENDAR_VALUE='__kondate_create_calendar__';
 let calendarCreationBusy=false;
 let presetEditDraft=null,presetEditOriginalId=null;
+let aiGenerating=false,menuGenerationMode='rules';
 let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',photoURL=null,photoFile=null;
 let calendarTouchStart=null,ignoreDateClickUntil=0,selectedPresetId=null;
 let calendarSwipeSettling=false,calendarSwipeToken=0,calendarSwipeTimer=null,calendarSwipeAnimation=null;
@@ -280,10 +283,11 @@ function generateScreen(){
  return `<section class="screen generation-screen">
  <div class="generation-controls">
   <label><input aria-label="生成日数" type="number" id="days" min="1" max="31" value="${state.rules.days}">日分</label>
-  <select aria-label="選定モード" id="generate-mode"><option value="rules">ルールベース</option value="ai" ${ai.available?'':'disabled'}>AI${ai.available?'':'（未設定）'}</option></select>
-  ${button('生成','generate','primary mini')}
+  <select aria-label="選定モード" id="generate-mode"><option value="rules" ${menuGenerationMode==='rules'?'selected':''}>ルールベース</option><option value="ai" ${ai.available?'':'disabled'} ${menuGenerationMode==='ai'?'selected':''}>AI${ai.available?'':'（未設定）'}</option></select>
+  ${button(aiGenerating?'考え中…':'生成','generate','primary mini',aiGenerating?'disabled':'')}
   ${button('ルール調整','rules','text-button mini')}
  </div>
+ ${ai.available?'<p class="hint">AIを選ぶと、料理候補・調理回数・最終調理日・生成条件のみをGoogleへ送信します。店名・他の予定は送信しません。AI献立生成は1〜14日分・この端末で1日3回までです。</p>':''}
  ${issues.length?`<div class="issues"><strong>条件に合う候補が足りない場合があります</strong><ul>${issues.map(s=>`<li>${esc(s.replace(/：([a-z0-9-]+)の/g,(_,c)=>'：'+categoryName(c)+'の'))}</li>`).join('')}</ul><p>料理を追加するか、直近の除外日数・1日あたりの品数を減らして再生成できます。重複許可は設定から明示的に変更してください。</p>${button('条件を変更','rules','mini')} ${button('料理を追加','add-master','mini')}</div>`:''}
  <div class="plan-grid compact-plan-grid scroll">
  ${state.draft.length?state.draft.map((day,i)=>`<article class="plan-card compact-plan-card card" aria-label="${i+1}日目の献立" data-dish-count="${day.dishes.length}">
@@ -299,7 +303,7 @@ function generateScreen(){
  </div>
  </section>`;
 }
-function photoScreen(){return `<section class="screen"><div class="photo-layout"><div class="photo-zone card">${photoURL?`<img src="${photoURL}" alt="選択した食事の写真">`:'<div class="empty-symbol">▣</div>'}<h2>${photoURL?'写真を選択しました':'今日の食卓を一枚'}</h2><p>写真解析はAI接続後に利用できます。現在は手入力で記録できます。</p><div class="toolbar">${button('写真を選択','pick-photo')}${button('手入力','new-record','primary')}</div><input type="file" class="hidden-input" id="photo-file" accept="image/*">${ai.available?button('写真を解析','analyze-photo','primary',photoFile?'':'disabled'):''}<span class="hint">確認するまで写真は外部へ送信されません。</span></div><div class="photo-help card"><span class="tag neutral">${ai.available?'AI接続済み':'AI未設定'}</span><h2 style="margin-top:20px">手入力でも、同じように。</h2><p class="muted">過去の料理から選ぶだけでも記録できます。新しい料理は、そのまま名前を入力してください。</p><ol><li>料理名と種類を入力</li><li>調理日を確認</li><li>カレンダーへ登録</li></ol><p class="hint">写真はこの画面を離れると再表示されない場合があります。写真自体は端末の下書きに保存しません。</p></div></div></section>`;}
+function photoScreen(){return `<section class="screen"><div class="photo-layout"><div class="photo-zone card">${photoURL?`<img src="${photoURL}" alt="選択した食事の写真">`:'<div class="empty-symbol">▣</div>'}<h2>${photoURL?'写真を選択しました':'今日の食卓を一枚'}</h2><p>写真解析はAI接続後に利用できます。現在は手入力で記録できます。</p><div class="toolbar">${button('写真を選択','pick-photo')}${button('手入力','new-record','primary')}</div><input type="file" class="hidden-input" id="photo-file" accept="image/*">${ai.canAnalyzePhoto?button('写真を解析','analyze-photo','primary',photoFile?'':'disabled'):''}<span class="hint">確認するまで写真は外部へ送信されません。</span></div><div class="photo-help card"><span class="tag neutral">${ai.available?'AI接続済み':'AI未設定'}</span><h2 style="margin-top:20px">手入力でも、同じように。</h2><p class="muted">過去の料理から選ぶだけでも記録できます。新しい料理は、そのまま名前を入力してください。</p><ol><li>料理名と種類を入力</li><li>調理日を確認</li><li>カレンダーへ登録</li></ol><p class="hint">写真はこの画面を離れると再表示されない場合があります。写真自体は端末の下書きに保存しません。</p></div></div></section>`;}
 function rulesFields(){return `<div class="check-row"><input type="checkbox" id="rule-preferOld" ${state.rules.preferOld?'checked':''}><label for="rule-preferOld">しばらく作っていない料理を優先</label><input aria-label="優先する未調理日数" id="rule-oldDays" type="number" min="1" max="365" value="${state.rules.oldDays}"><span>日</span></div><div class="check-row"><input type="checkbox" id="rule-excludeRecent" ${state.rules.excludeRecent?'checked':''}><label for="rule-excludeRecent">直近の実績を除外</label><input aria-label="除外日数" id="rule-recentDays" type="number" min="1" max="365" value="${state.rules.recentDays}"><span>日</span></div>${[['unique','同じ献立内で料理を重複させない'],['balance','食材・調理法・ジャンルの偏りを抑える'],['newMain','未調理の主菜を1品以上加える']].map(([k,label])=>`<div class="check-row"><input type="checkbox" id="rule-${k}" ${state.rules[k]?'checked':''}><label for="rule-${k}">${label}</label></div>`).join('')}<h3>1日あたりの品数</h3>${state.categories.map(c=>`<div class="check-row"><label for="count-${c.id}">${esc(c.name)}</label><input type="number" min="0" max="5" id="count-${c.id}" value="${state.rules.counts[c.id]||0}"></div>`).join('')}<p class="hint">既存料理の食材・調理法は「料理マスター」で補えます。属性不明の料理には偏り評価が働きません。「未調理」は取得した履歴の範囲で判定します。</p>`;}
 function categoryCalendarSettings(){
  return '<h3>分類別カレンダー</h3><p>分類ごとにGoogleカレンダーを指定します。未設定の分類には書き込みません。同じカレンダーを複数の分類に割り当てられます。</p>'+
@@ -1050,7 +1054,27 @@ const actions={
  disconnect:()=>{calendarAutoReady=false;api.disconnect();currentNotice='';calendars=[];calendarLoadError='';for(const bucket of Object.values(state.scopes)){bucket.events=[];bucket.lastSync=null;}render();notify('Googleとの接続を解除しました。端末の下書きは残しています。');},sync,
  theme:b=>{state.theme.color=b.dataset.color;persist();render();},
  rules:()=>modal('献立生成ルール',rulesFields(),button('完了','close-dialog','primary')),
- generate:async()=>{const requested=Number($('#days')?.value||state.rules.days);if(!Number.isInteger(requested)||requested<1||requested>31)throw Error('日数は1〜31日で指定してください。');if(state.draft.slice(requested).some(day=>day.dishes.some(d=>d.locked)))throw Error('減らす日数の範囲に固定した料理があります。固定を解除するか、生成日数を戻してください。');state.rules.days=requested;if(!Object.values(state.rules.counts).some(n=>n>0))throw Error('1日あたりの品数を1以上にしてください。');for(const day of state.draft)for(const d of day.dishes)d.name=resolveName(d.name,data().aliases);const result=$('#generate-mode')?.value==='ai'?{plan:await ai.generate({master:master(),rules:state.rules,previous:state.draft}),issues:[]}:generate(master(),state.rules,state.draft);state.draft=result.plan;issues=result.issues;persist();render();notify('献立案を作りました。カレンダーにはまだ登録していません。');},
+ generate:async()=>{
+  if(aiGenerating)return;
+  const requested=Number($('#days')?.value||state.rules.days);
+  if(!Number.isInteger(requested)||requested<1||requested>31)throw Error('日数は1〜31日で指定してください。');
+  if(state.draft.slice(requested).some(day=>day.dishes.some(d=>d.locked)))throw Error('減らす日数の範囲に固定した料理があります。固定を解除するか、生成日数を戻してください。');
+  const aiMode=($('#generate-mode')?.value||menuGenerationMode)==='ai';
+  state.rules.days=requested;
+  for(const day of state.draft)for(const d of day.dishes)d.name=resolveName(d.name,data().aliases);
+  if(aiMode){
+   if(!ai.available)throw Error('AIはまだ利用できません。通常の献立生成を選んでください。');
+   aiGenerating=true;render();
+   try{
+    const plan=await ai.generate({master:master(),rules:state.rules,previous:state.draft});
+    state.draft=plan;issues=[];persist();notify('AIが献立を提案しました。カレンダーにはまだ登録していません。');
+   }finally{aiGenerating=false;render();}
+  }else{
+   const result=generate(master(),state.rules,state.draft);
+   state.draft=result.plan;issues=result.issues;persist();render();
+   notify('献立案を作りました。カレンダーにはまだ登録していません。');
+  }
+ },
  reroll:b=>{const i=Number(b.dataset.day),j=Number(b.dataset.dish);if(state.draft[i]?.dishes[j]?.locked)state.draft[i].dishes[j]={...state.draft[i].dishes[j],locked:false};const result=reroll(master(),state.rules,state.draft,i,j);state.draft[i].dishes[j]=result.dish;issues=result.issues;persist();render();},
  'edit-plan-dish':b=>editPlanDish(Number(b.dataset.day),Number(b.dataset.dish)),'add-plan-dish':b=>editPlanDish(Number(b.dataset.day)),
  'save-plan-dish':()=>{const {dayIndex,dishIndex}=editingPlan;const name=$('#plan-name').value.trim(),existing=master().find(d=>normalize(d.name)===normalize(name));const d=validateDishes([{...existing,name,category:$('#plan-category').value}])[0];d.locked=dishIndex!==null?state.draft[dayIndex].dishes[dishIndex].locked:false;if(dishIndex===null)state.draft[dayIndex].dishes.push(d);else state.draft[dayIndex].dishes[dishIndex]=d;closeModal();checkDraft();},
@@ -1417,6 +1441,7 @@ document.addEventListener('keydown',e=>{
  }
 });
 document.addEventListener('change',async e=>{const el=e.target;try{
+ if(el.id==='generate-mode'){menuGenerationMode=el.value;return;}
  if(el.id==='drive-auto'){
   if(!el.checked){
    drive.disableAuto();driveAutoReady=false;driveSyncStatus='';
