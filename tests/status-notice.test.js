@@ -4,7 +4,7 @@ import {normalizeStatusNotice,generationFailureNotice,generationIssuesNotice,STA
 
 test('status notice accepts legacy strings and structured descriptions safely',()=>{
  assert.deepEqual(normalizeStatusNotice('保存しました'),{
-  summary:'保存しました',detail:'',guidance:'',actions:[]
+  summary:'保存しました',detail:'',guidance:'',actions:[],severity:'info'
  });
  const result=normalizeStatusNotice({
   summary:'失敗',detail:'詳細 <script>',guidance:'操作してください',
@@ -53,9 +53,10 @@ test('rule-based generation with partial results reports details rather than suc
  assert.match(note.detail,/未調理の主菜/);
  assert.match(note.guidance,/ルール調整|料理マスター/);
  assert.deepEqual(note.actions,['rules','master']);
+ assert.equal(note.severity,'error');
  assert.equal(generationIssuesNotice([]),null);
  const validation=generationIssuesNotice(['カレーが重複しています。']);
- assert.match(validation.summary,/確認事項/);
+ assert.equal(validation.severity,'error');
  assert.match(validation.detail,/カレーが重複/);
 });
 
