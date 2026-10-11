@@ -86,7 +86,7 @@ jobs:
                   `## KonDate ${tag}`,
                   '',
                   '### このバージョンの変更',
-                  ...(version === '1.14.0' ? [
+                  ...(version === '1.13.2' ? [
                     '- AIの献立生成で古い調理履歴ばかりを優先する偏りを緩和',
                     '- 調理頻度の高い定番、適度に期間が空いた料理、久しぶりの料理をバランスよく提案するよう指示を改善',
                     '- 古い料理の優先設定ONでもそればかりに偏らず、OFFなら最終調理日の古さを優先しない',
@@ -634,6 +634,30 @@ jobs:
               }
             }
             core.notice(`Release available: ${release.html_url}`);
+            // The AI prompt adjustment corrected existing behavior; it was not a
+            // new feature. Remove only the erroneously numbered release and tag,
+            // after the corrected v1.13.2 release was successfully published.
+            if (version === '1.13.2') {
+              const obsoleteTag='v1.14.0';
+              try {
+                const obsolete=(await github.rest.repos.getReleaseByTag({
+                  owner,repo,tag:obsoleteTag
+                })).data;
+                if (!obsolete.body?.includes('AIの献立生成で古い調理履歴ばかりを優先する偏りを緩和')) {
+                  throw new Error('Unexpected v1.14.0 contents: refusing to delete release.');
+                }
+                await github.rest.repos.deleteRelease({owner,repo,release_id:obsolete.id});
+                core.notice('Removed incorrectly numbered v1.14.0 release.');
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              try {
+                await github.rest.git.deleteRef({owner,repo,ref:'tags/v1.14.0'});
+                core.notice('Removed incorrectly numbered v1.14.0 tag.');
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
             // Correct the mistaken major-version release only AFTER v1.10.0 is available.
             if (version === '1.10.0') {
               try {
