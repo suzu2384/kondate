@@ -40,14 +40,22 @@ export function createMenuRequest(context){
   chosen.push({name:d.name,category:d.category,count:0,lastDate:null,protein:'不明',method:'不明',genre:'不明'});
   names.add(normalize(d.name));
  }
+ // A draft is a recent *proposal*, not cooking history. Use it only as a soft
+ // diversification hint. Locked dishes must always be carried over unchanged.
+ const previousSuggested=[...new Set(previous.flatMap(day=>(day?.dishes||[])
+  .filter(d=>d&&!d.locked&&typeof d.name==='string')
+  .map(d=>d.name.trim()).filter(Boolean)))].slice(0,120);
  const prompt=[
   '日本語の家庭料理の献立を提案してください。提供データを踏まえ、JSONのみを返してください。',
   '形式: {"days":[{"dishes":[{"name":"料理名","category":"分類ID","new":true}]}]}。new:trueはAIが新規提案する主菜だけ。他の料理ではnewを省略。',
   `最重要: 生成する日数は必ず${days}日です。JSONのdays配列には${days}個の要素を順番に入れてください。省略・追加は禁止です。各要素が1日分です。`,
   '厳守: daysの件数は指定日数、各日の分類別品数はcountsと完全一致。原則としてnameはcandidatesまたはlockedにある正確な料理名を使用。',
   '厳守: lockedの料理は同じ日の献立に必ず残す。uniqueがtrueなら全日を通して重複禁止。',
-  'excludeRecentがtrueならlastDateがrecentDays日以内の料理は避ける（lockedは例外）。',
-  'preferOldがtrueなら長期間調理していない料理を優先。balanceがtrueなら食材と調理法の偏りを抑える。',
+  'excludeRecentがtrueならlastDateがrecentDays日以内の料理は避ける（lockedは例外）。これは必須条件。falseなら直近の料理も候補にできる。',
+  '献立の品質: lastDateが最も古い料理や調理回数count=0の料理ばかりを並べない。利用可能な候補から、調理回数countが多い定番料理、ほどよく期間が空いた料理、久しぶりの料理を混ぜる。古さだけで採用順位を決めない。',
+  'preferOld=trueの場合、oldDays日以上作っていない料理も献立の一部で優先する。ただしそれだけで大半を占めないようにし、定番や中間的な頻度の料理も選ぶ。preferOld=falseなら古さを優先条件にしない。',
+  'balance=trueなら主な食材・調理法・ジャンル・調理間隔を分散する。同じ料理が少数の古い履歴に集中せず、家庭の普段の献立として自然な組み合わせにする。',
+  'previousSuggestedは前回の生成案であり、調理した履歴ではない。再生成時はpreviousSuggestedの非固定料理をできるだけ再使用せず、違う候補を提案する。ただし候補不足なら再利用してよい。lockedは絶対に維持する。',
   ...(rules.newMain?[
    'newMain=trueの場合、candidates・lockedにない新しい家庭料理の主菜を必ずちょうど1品提案し、その料理だけnew:trueとする。新しい主菜の名前は100文字以内で、既存候補と同名にしない。主菜以外や2品目以降に新しい料理を作らない。',
    '新しい主菜には任意でprotein（肉/魚/野菜・豆/卵/不明）、method（焼く/煮る/炒める/揚げる/蒸す/ゆでる/和える/不明）、genre（和食/洋食/中華/その他/不明）を付けてよい。'
@@ -57,7 +65,7 @@ export function createMenuRequest(context){
    recentDays:Number(rules.recentDays)||7,preferOld:!!rules.preferOld,
    balance:!!rules.balance,newMain:!!rules.newMain,
    referenceDate:new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Tokyo'}),
-   candidates:chosen,locked})
+   candidates:chosen,locked,previousSuggested})
  ].join('\n');
  return {prompt,candidates:chosen};
 }
