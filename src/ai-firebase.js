@@ -1,4 +1,5 @@
 import {createMenuRequest,parseMenuResponse} from './ai-menu.js';
+import {createIngredientRequest,parseIngredientResponse} from './ai-ingredients.js';
 
 // Google-hosted Firebase SDK: loaded only after a person chooses AI generation.
 async function loadFirebaseSDK(){
@@ -63,6 +64,28 @@ export function createFirebaseAIProvider(config,{loadSDK=loadFirebaseSDK}={}){
     }catch(error){
      if(attempt===1)throw Error(`AIの再生成後も条件を満たせませんでした。${error.message}`);
      firstError=error;
+    }
+   }
+  },
+  async generateIngredients(dishName){
+   const {prompt}=createIngredientRequest(dishName);
+   const model=await getModel();
+   let previousError=null;
+   for(let attempt=0;attempt<2;attempt++){
+    let responseText;
+    try{
+     const retry=previousError?'\n前回の材料の回答は無効でした（'+previousError.message+'）。指定形式のJSONのみで正しい材料を返してください。':'';
+     responseText=(await model.generateContent(prompt+retry))?.response?.text();
+    }catch(error){
+     const details=String(error?.message||'');
+     if(/429|quota|RESOURCE_EXHAUSTED|rate.limit/i.test(details))throw Error('AIの無料利用枠または回数制限に達しました。時間を置いてから再試行してください。');
+     if(/app.check|recaptcha|permission.denied|403/i.test(details))throw Error('AIの不正利用防止認証に失敗しました。通信環境を確認してください。');
+     throw Error('AIから材料を取得できませんでした。通信環境を確認してください。');
+    }
+    try{return parseIngredientResponse(responseText);}
+    catch(error){
+     if(attempt===1)throw Error('AIから有効な材料データを取得できませんでした。'+error.message);
+     previousError=error;
     }
    }
   }
