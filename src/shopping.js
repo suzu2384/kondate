@@ -18,6 +18,7 @@ export function shoppingSettings(input={}){
  return {
   servings:Number.isInteger(servings)&&servings>=1&&servings<=30?servings:DEFAULT_SHOPPING_SERVINGS,
   manual:Array.isArray(value.manual)?value.manual.filter(item=>item&&typeof item==='object').slice(0,200):[],
+  selected:Array.isArray(value.selected)?value.selected.filter(name=>typeof name==='string'&&name.trim()).slice(0,200):[],
   checked:{...plainObject(value.checked)},
   excluded:{...plainObject(value.excluded)}
  };
@@ -29,28 +30,29 @@ export function quantityLabel(item){
  // fractional produce up to whole items or confusing g and ml.
  return String(q)+' '+item.baseUnit;
 }
-export function shoppingItems({draft=[],master=[],aliases:mealAliases={},shopping={}}={}){
+/** Selection is explicit, persisted independently of the generated menu. */
+export function addShoppingDish(selected,name){
+ const dish=String(name||'').trim();
+ if(!dish||dish.length>100)throw Error('料理名が不正です。');
+ const current=Array.isArray(selected)?selected:[];
+ return current.some(n=>normalize(n)===normalize(dish))?[...current]:[...current,dish];
+}
+export function removeShoppingDish(selected,name){
+ return (Array.isArray(selected)?selected:[]).filter(n=>normalize(n)!==normalize(name));
+}
+export function shoppingItems({master=[],aliases:mealAliases={},shopping={}}={}){
  const settings=shoppingSettings(shopping);
  const known=new Map(master.map(item=>[item.key||normalize(item.name),item]));
- const aggregated=new Map(),missing=new Map();
- for(const [dayIndex,day] of (Array.isArray(draft)?draft:[]).entries())for(const dish of (day?.dishes||[])){
-  const name=String(dish?.name||'').trim();
-  if(!name)continue;
+ const aggregated=new Map(),selected=[];
+ for(const name of settings.selected){
   const matched=known.get(normalize(resolveName(name,mealAliases)));
-  if(!Array.isArray(matched?.ingredients)||!matched.ingredients.length){
-   const key=normalize(name);
-   if(!missing.has(key))missing.set(key,{name,days:[]});
-   missing.get(key).days.push(dayIndex+1);
-   continue;
-  }
-  // A partial or outdated ingredient record should not produce false totals.
-  let ingredients;
-  try{ingredients=matched.ingredients.map(normalizeIngredient);}catch{
-   const key=normalize(name);
-   if(!missing.has(key))missing.set(key,{name,days:[]});
-   missing.get(key).days.push(dayIndex+1);
-   continue;
-  }
+  let ingredients=[];
+  try {
+   if(Array.isArray(matched?.ingredients))ingredients=matched.ingredients.map(normalizeIngredient);
+  }catch {ingredients=[];}
+  const available=ingredients.length>0;
+  selected.push({name:matched?.name||name,selectedName:name,available});
+  if(!available)continue;
   for(const item of ingredients){
    const group=itemKey(item.name,item.baseUnit),key='auto:'+group;
    if(!aggregated.has(group))aggregated.set(group,{
@@ -60,7 +62,7 @@ export function shoppingItems({draft=[],master=[],aliases:mealAliases={},shoppin
    const entry=aggregated.get(group);
    if(item.baseQuantity===null)entry.baseQuantity=null;
    else if(entry.baseQuantity!==null)entry.baseQuantity=rounded(entry.baseQuantity+item.baseQuantity*settings.servings);
-   entry.sourceNames.add(name);
+   entry.sourceNames.add(matched.name);
   }
  }
  const automatic=[...aggregated.values()].map(item=>({...item,sourceNames:[...item.sourceNames]}));
@@ -79,7 +81,7 @@ export function shoppingItems({draft=[],master=[],aliases:mealAliases={},shoppin
  };
  const items=[...automatic,...manual].map(decorate)
   .sort((a,b)=>a.name.localeCompare(b.name,'ja')||a.baseUnit.localeCompare(b.baseUnit,'ja'));
- return {items,missing:[...missing.values()],servings:settings.servings,
+ return {items,selected,servings:settings.servings,
   pending:items.filter(x=>!x.checked&&!x.excluded),
   bought:items.filter(x=>x.checked&&!x.excluded),
   excluded:items.filter(x=>x.excluded)};
@@ -87,6 +89,15 @@ export function shoppingItems({draft=[],master=[],aliases:mealAliases={},shoppin
 export function validateShoppingSettings(settings){
  const raw=plainObject(settings);
  if(raw.servings!==undefined&&(!Number.isInteger(Number(raw.servings))||Number(raw.servings)<1||Number(raw.servings)>30))throw Error('買い物人数は1〜30人で指定してください。');
+ if(raw.selected!==undefined){
+  if(!Array.isArray(raw.selected)||raw.selected.length>200)throw Error('買い物対象の料理は最大200品です。');
+  const seen=new Set();
+  for(const name of raw.selected){
+   if(typeof name!=='string'||!name.trim()||name.length>100||/[\\x00-\\x1f\\x7f]/.test(name)||seen.has(normalize(name)))
+    throw Error('買い物対象の料理が不正または重複しています。');
+   seen.add(normalize(name));
+  }
+ }
  if(raw.manual!==undefined){
   if(!Array.isArray(raw.manual)||raw.manual.length>200)throw Error('手動追加できる品目は最大200件です。');
   const ids=new Set();
