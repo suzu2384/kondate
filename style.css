@@ -923,3 +923,38 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .master-screen{gap:5px;padding-bottom:0}
  .master-screen .master-filter-bar{min-height:39px;padding:4px 2px 2px}
 }
+
+/* v1.9.2 — text-only recipe filter controls, without pills or outlines. */
+.master-screen .master-filter-bar{
+ border-top:0;
+ background:transparent;
+}
+.master-screen .master-filter-button,
+.master-screen .master-filter-button.selected,
+.master-screen .master-filter-button[aria-pressed="true"]{
+ min-height:36px;
+ padding:6px 10px;
+ border:0;
+ border-radius:0;
+ background:transparent;
+ box-shadow:none;
+ color:var(--muted);
+ font-weight:600;
+ text-decoration:none;
+}
+.master-screen .master-filter-button.selected,
+.master-screen .master-filter-button[aria-pressed="true"]{
+ color:var(--accent);
+ font-weight:750;
+ text-decoration:underline;
+ text-decoration-thickness:2px;
+ text-underline-offset:6px;
+}
+.master-screen .master-filter-button:hover,
+.master-screen .master-filter-button:active,
+.master-screen .master-filter-button.selected:hover{
+ background:transparent;
+}
+@media(max-width:760px){
+ .master-screen .master-filter-button{padding:6px 8px;min-height:34px}
+}
