@@ -10,11 +10,15 @@ export const STATUS_REMEDIES=Object.freeze({
  'use-rules':'ルールベースに切替'
 });
 const clean=value=>String(value??'').trim();
+// info: ordinary notice; warning: requirements met but attention is needed;
+// error: requested action or generation requirements were not fulfilled.
+const levels=new Set(['info','warning','error']);
 export function normalizeStatusNotice(value){
- if(typeof value==='string')return {summary:value,detail:'',guidance:'',actions:[]};
+ if(typeof value==='string')return {summary:value,detail:'',guidance:'',actions:[],severity:'info'};
  const note=value&&typeof value==='object'?value:{};
  return {
   summary:clean(note.summary),
+  severity:levels.has(note.severity)?note.severity:'info',
   detail:clean(note.detail),
   guidance:clean(note.guidance),
   actions:[...new Set(Array.isArray(note.actions)?note.actions:[])].filter(key=>Object.hasOwn(STATUS_REMEDIES,key))
@@ -69,7 +73,7 @@ export function generationFailureNotice(error,mode='rules'){
   guidance='返答の形式が不正か、通信・AI処理に問題があった可能性があります。もう一度試すか、ルールベースで生成してください。';
   actions=['use-rules'];
  }
- return normalizeStatusNotice({summary,detail,guidance,actions});
+ return normalizeStatusNotice({summary,detail,guidance,actions,severity:'error'});
 }
 
 /**
@@ -77,13 +81,16 @@ export function generationFailureNotice(error,mode='rules'){
  * validation issues without throwing. Surface these through the same status
  * workflow used for thrown AI errors.
  */
-export function generationIssuesNotice(issues){
+export function generationIssuesNotice(issues,{requirementsMet}={}){
  const details=[...new Set((Array.isArray(issues)?issues:[]).map(clean).filter(Boolean))];
  if(!details.length)return null;
  const shortage=details.some(item=>/候補が\d+品不足|未調理の主菜がありません/.test(item));
  const fixed=details.some(item=>/固定|重複/.test(item));
+ const violated=details.some(item=>/不足|未調理|重複|直近|固定|新しい主菜|一致しません/.test(item));
+ const severity=requirementsMet===false||violated?'error':'warning';
  return normalizeStatusNotice({
-  summary:shortage?'献立の料理候補が不足しています':'生成した献立に確認事項があります',
+  severity,
+  summary:shortage?'献立の料理候補が不足しています':severity==='error'?'生成条件を満たせませんでした':'生成した献立に確認事項があります',
   detail:details.join('\n'),
   guidance:fixed
    ?'固定した料理や重複の条件を確認してください。ルールを見直すか、料理マスターに候補を追加できます。'
