@@ -1,4 +1,5 @@
 import {validateDishes} from './model.js';
+import {validateIngredients} from './ingredients.js';
 export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','iconRules','calendarRefreshMinutes','draft'];
 const FORMAT='kondate-drive-settings-v2';
 const copy=x=>structuredClone(x);
@@ -33,6 +34,7 @@ export function readDriveSnapshot(raw,state,validateImport){
     throw Error('料理マスターのデータが不正です。');
    if(v.manual.length>2000)throw Error('料理マスターの件数が多すぎます。');
    for(const dish of v.manual)validateDishes([dish]);
+   for(const entry of Object.values(v.metadata))if(entry?.ingredients!==undefined)validateIngredients(entry.ingredients);
    master[key]=copy(v);
   }
  }
