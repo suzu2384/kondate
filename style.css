@@ -824,9 +824,6 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 .tabs button .tab-label{font-size:13px;line-height:1.2;white-space:nowrap}
 .master-screen{min-width:0;min-height:0;gap:10px}
-.master-screen-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex:0 0 auto}
-.master-screen-head h2{margin:0;font-size:18px}
-.master-screen-head .hint{margin:0;white-space:nowrap}
 .master-screen .master-toolbar{display:flex;gap:8px;margin:0;flex:0 0 auto;min-width:0}
 .master-screen .master-toolbar input{flex:1 1 auto;width:auto;min-width:0}
 .master-screen .master-toolbar button{flex:0 0 auto;white-space:nowrap}
@@ -843,21 +840,18 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .master-recipe-search:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 .master-actions .mini{min-height:36px;padding:7px 12px;font-size:12px;white-space:nowrap}
 .master-empty{text-align:center;color:var(--muted);padding:26px 10px}
-.master-description{flex:0 0 auto;margin:0;line-height:1.5}
 @media(max-width:760px){
  .tabs{gap:0}
  .tabs button{flex:1 1 20%;width:20%;min-width:0;padding:4px 1px;gap:3px;font-size:10px}
  .tabs button .nav-icon{width:22px;height:22px}
  .tabs button .tab-label{font-size:9px;letter-spacing:-.025em}
  .master-screen{padding:8px 6px 3px;gap:8px}
- .master-screen-head h2{font-size:16px}
  .master-list-wrap{padding:0 4px;border-radius:10px}
  .master-entry{padding:10px 6px;gap:6px}
  .master-dish-name{font-size:13px}
  .master-dish-meta{font-size:10px}
  .master-actions{gap:5px}
  .master-recipe-search,.master-actions .mini{min-height:36px;padding:6px 9px;font-size:11px}
- .master-description{font-size:10px}
 }
 
 
@@ -870,3 +864,30 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 #notice-dismiss.status-dismiss[hidden]{display:none}
 #notice-dismiss.status-dismiss:hover{background:transparent;opacity:.75}
+
+/* v1.8.0 — generated menu, each configured category, and full dish library. */
+.master-filter-bar{
+ display:flex;align-items:center;gap:7px;flex:0 0 auto;
+ min-width:0;overflow-x:auto;overflow-y:hidden;white-space:nowrap;
+ scrollbar-width:thin;padding:1px 1px 5px;
+ overscroll-behavior-x:contain;
+}
+.master-filter-button{
+ flex:0 0 auto;min-height:34px;padding:5px 14px;border-radius:999px;
+ border:1px solid var(--line);background:var(--surface);
+ color:var(--text);font-size:12px;font-weight:600;white-space:nowrap;
+}
+.master-filter-button.selected,
+.master-filter-button[aria-pressed="true"]{
+ background:var(--tint);color:var(--accent);border-color:var(--accent);
+ font-weight:750;
+}
+.master-filter-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.master-screen .master-toolbar .master-count{
+ flex:0 0 auto;white-space:nowrap;font-size:11px;
+}
+@media(max-width:760px){
+ .master-filter-bar{gap:5px;padding-bottom:3px}
+ .master-filter-button{font-size:11px;min-height:32px;padding:5px 11px}
+ .master-screen .master-toolbar .master-count{font-size:10px}
+}
