@@ -138,7 +138,7 @@ test('preset toolbar skips unset destination calendars and hides when there are 
  const bar=app.slice(app.indexOf('function renderPresetBar(){'),app.indexOf('function prepareGoogleIdentity(){'));
  assert.match(bar,/rule\.keyword\|\|''\)\.trim\(\)\&\&String\(rule\.calendarId\|\|''\)\.trim\(\)/);
  assert.match(bar,/const calendarBar=tab==='calendar'&&rules\.length>0/);
- assert.match(bar,/const shown=masterBar\|\|calendarBar/);
+ assert.match(bar,/const shown=filterBar\|\|calendarBar/);
  assert.match(bar,/app\.classList\.toggle\('has-quick-presets',calendarBar\)/);
  assert.match(bar,/if\(!rules\.some\(rule=>rule\.id===selectedPresetId\)\)selectedPresetId=null/);
  assert.match(bar,/bar\.hidden=!shown/);
