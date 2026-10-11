@@ -12,8 +12,9 @@ let requestedColor='',appliedColor='';
 /** Fetch the original icon only once; ignore stale theme-switch responses. */
 export async function setFaviconBackground(color){
  const link=document.querySelector('link[rel="icon"][type="image/svg+xml"]');
- if(!link||appliedColor===color)return;
+ if(!link)return;
  requestedColor=color;
+ if(appliedColor===color)return;
  if(!sourcePromise){
   const original=link.getAttribute('href');
   sourcePromise=fetch(original).then(response=>{
