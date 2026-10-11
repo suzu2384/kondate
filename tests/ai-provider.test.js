@@ -27,7 +27,8 @@ test('only minimal meal names and metadata are sent, not Calendar raw events, lo
  assert.match(request.prompt,/カレー|肉じゃが/);
  assert.doesNotMatch(request.prompt,/自宅|個人の予定|accessToken|token|location|raw/);
  assert.match(request.prompt,/locked/);
- assert.throws(()=>createMenuRequest({...base,rules:{...base.rules,days:15}}),/14日/);
+ assert.doesNotThrow(()=>createMenuRequest({...base,rules:{...base.rules,days:15}}));
+ assert.throws(()=>createMenuRequest({...base,rules:{...base.rules,days:16}}),/15日/);
 });
 test('AI output is normalized against known candidates and preserved day ids',async()=>{
  const text=JSON.stringify({days:[{dishes:[{name:'カレー',category:'main'}]},{dishes:[{name:'肉じゃが',category:'main'}]}]});
@@ -67,7 +68,7 @@ test('unconfigured public build contains no shared Firebase credentials',()=>{
 test('shared generation stays disabled until explicitly configured and the free model is pinned',()=>{
  const pkg=JSON.parse(readFileSync(new URL('../package.json',import.meta.url),'utf8'));
  const build=readFileSync(new URL('../scripts/build.js',import.meta.url),'utf8');
- assert.equal(pkg.version,'1.4.0');
+ assert.equal(pkg.version,'1.4.1');
  assert.match(build,/KONDATE_AI_SPARK_VERIFIED/);
  assert.match(build,/mode:'disabled'/);
  assert.match(build,/model:'gemini-3.5-flash-lite'/);

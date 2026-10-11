@@ -1,14 +1,14 @@
-import {normalize} from './model.js';
+import {MAX_GENERATION_DAYS,normalize} from './model.js';
 
 // Never send raw Calendar events, locations, other calendars, or OAuth credentials to AI.
-export const AI_MAX_DAYS=14;
+export const AI_MAX_DAYS=MAX_GENERATION_DAYS;
 export const AI_MODEL_CANDIDATE_LIMIT=160;
 
 export function createMenuRequest(context){
  const {master=[],rules={},previous=[]}=context||{};
  const days=Number(rules.days);
  if(!Number.isInteger(days)||days<1||days>AI_MAX_DAYS)
-  throw Error('AIで作れる献立は1〜14日分です。15日以上は通常の献立生成を使ってください。');
+  throw Error('AIで作れる献立は1〜15日分です。生成日数を調整してください。');
  const counts=Object.fromEntries(Object.entries(rules.counts||{}).filter(([,n])=>Number.isInteger(n)&&n>0));
  const required=Object.values(counts).reduce((a,b)=>a+b,0)*days;
  if(required===0||required>120)throw Error('AIの献立に指定した品数が多すぎます。日数または品数を調整してください。');
