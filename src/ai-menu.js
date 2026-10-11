@@ -43,7 +43,8 @@ export function createMenuRequest(context){
  const prompt=[
   '日本語の家庭料理の献立を提案してください。提供データを踏まえ、JSONのみを返してください。',
   '形式: {"days":[{"dishes":[{"name":"料理名","category":"分類ID","new":true}]}]}。new:trueはAIが新規提案する主菜だけ。他の料理ではnewを省略。',
-  '厳守: daysの件数はdays、各日の分類別品数はcountsと完全一致。原則としてnameはcandidatesまたはlockedにある正確な料理名を使用。',
+  `最重要: 生成する日数は必ず${days}日です。JSONのdays配列には${days}個の要素を順番に入れてください。省略・追加は禁止です。各要素が1日分です。`,
+  '厳守: daysの件数は指定日数、各日の分類別品数はcountsと完全一致。原則としてnameはcandidatesまたはlockedにある正確な料理名を使用。',
   '厳守: lockedの料理は同じ日の献立に必ず残す。uniqueがtrueなら全日を通して重複禁止。',
   'excludeRecentがtrueならlastDateがrecentDays日以内の料理は避ける（lockedは例外）。',
   'preferOldがtrueなら長期間調理していない料理を優先。balanceがtrueなら食材と調理法の偏りを抑える。',
@@ -65,8 +66,11 @@ export function parseMenuResponse(text,context){
  if(typeof text!=='string'||text.length>60000)throw Error('AIから有効な献立データを受け取れませんでした。');
  let output;
  try{output=JSON.parse(text);}catch{throw Error('AIの返答がJSON形式ではありません。再度お試しください。');}
- if(!output||!Array.isArray(output.days)||output.days.length!==context.rules.days)
-  throw Error('AIが指定日数と異なる献立を返しました。');
+ const requested=context.rules.days;
+ if(!output||!Array.isArray(output.days))
+  throw Error(`AIの返答にdays配列がありません（要求${requested}日）。`);
+ if(output.days.length!==requested)
+  throw Error(`AIが指定日数と異なる献立を返しました（要求${requested}日・返答${output.days.length}日）。`);
  const {candidates}=createMenuRequest(context);
  const byName=new Map(candidates.map(d=>[normalize(d.name),d]));
  // Validate novel main dishes against the entire master, not only the 160 sent candidates.
@@ -88,7 +92,7 @@ export function parseMenuResponse(text,context){
      if(matched.category!==d.category||d.new===true)
       throw Error('AIが登録候補の料理名・分類を正しく返しませんでした。');
      return {name:matched.name,category:matched.category,protein:matched.protein,
-      method:matched.method,genre:matched.genre,locked:false};
+      method:matched.method,genre:matched.genre,locked:false,isNew:false};
     }
     // Only one explicitly marked main may be invented. Other categories stay constrained.
     if(!context.rules.newMain||d?.category!=='main'||d.new!==true)
@@ -97,7 +101,7 @@ export function parseMenuResponse(text,context){
      throw Error('AIが新しい主菜を正しく提案できませんでした。再度お試しください。');
     const field=kind=>metadata[kind].has(d[kind])?d[kind]:'不明';
     return {name,category:'main',protein:field('protein'),method:field('method'),
-     genre:field('genre'),locked:false};
+     genre:field('genre'),locked:false,isNew:true};
    })
   };
  });
