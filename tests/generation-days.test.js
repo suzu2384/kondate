@@ -30,3 +30,17 @@ test('generation controls use a 1-15 select shared by both generation modes',()=
  assert.match(app,/requested>MAX_GENERATION_DAYS/);
  assert.match(app,/el\.id==='days'\)\{state\.rules\.days=normalizeGenerationDays\(el\.value\)/);
 });
+
+test('AI / rules selection is persisted and the phone layout keeps all controls readable',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
+ const drive=readFileSync(new URL('../src/drive-backup.js',import.meta.url),'utf8');
+ assert.match(app,/menuGenerationMode:'rules'/);
+ assert.match(app,/state\.menuGenerationMode=state\.menuGenerationMode==='ai'\?'ai':'rules'/);
+ assert.match(app,/if\(el\.id==='generate-mode'\)\{state\.menuGenerationMode=[^\n]+persist\(\);return;/);
+ assert.doesNotMatch(app,/let aiGenerating=false,menuGenerationMode=/);
+ assert.match(drive,/,'menuGenerationMode','theme'/);
+ assert.match(css,/\.generation-screen \.generation-controls #generate-mode\{[\s\S]*?min-width:150px;max-width:none/);
+ assert.match(css,/@media\(max-width:520px\)\{[\s\S]*?grid-template-columns:max-content minmax\(0,1fr\) max-content/);
+ assert.match(css,/\.generation-screen \.generation-submit-button:disabled\{opacity:\.45;filter:none\}/);
+});

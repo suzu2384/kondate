@@ -1,5 +1,5 @@
 import {validateDishes} from './model.js';
-export const SETTINGS=['timeZone','from','categories','rules','theme','seedEnabled','categoryCalendars','extraCalendarIds','iconRules','calendarRefreshMinutes','draft'];
+export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','iconRules','calendarRefreshMinutes','draft'];
 const FORMAT='kondate-drive-settings-v2';
 const copy=x=>structuredClone(x);
 export function createDriveSnapshot(state){

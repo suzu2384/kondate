@@ -5,7 +5,7 @@ import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from '../src
 function state(){
  return {
   timeZone:'Asia/Tokyo',from:'2024-01-01',categories:[{id:'main',name:'主菜'}],
-  rules:{days:7,counts:{main:1}},theme:{color:'green',mode:'auto'},
+  rules:{days:7,counts:{main:1}},menuGenerationMode:'ai',theme:{color:'green',mode:'auto'},
   seedEnabled:true,categoryCalendars:{main:'family@example.com'},
   extraCalendarIds:[],iconRules:[],calendarRefreshMinutes:15,draft:[{dishes:[{name:'カレー',category:'main'}]}],
   scopes:{'client|family@example.com':{
@@ -24,6 +24,7 @@ test('backup contains settings, draft and user master edits but no calendar even
  assert.equal(snapshot.format,'kondate-drive-settings-v2');
  assert.deepEqual(snapshot.settings.categoryCalendars,{main:'family@example.com'});
  assert.equal(snapshot.settings.calendarRefreshMinutes,15);
+ assert.equal(snapshot.settings.menuGenerationMode,'ai');
  assert.equal(snapshot.settings.draft[0].dishes[0].name,'カレー');
  assert.equal(snapshot.master['client|family@example.com'].manual[0].name,'自家製スープ');
  for(const forbidden of ['actual-meal','personal history','accepted','lastSync','never-send','browser-only','clientId'])
@@ -45,6 +46,7 @@ test('valid backup restores safely, clears cached events and leaves local accoun
  assert.equal(checked,true);
  restoreDriveSnapshot(onNewDevice,preview);
  assert.equal(onNewDevice.theme.color,'green');
+ assert.equal(onNewDevice.menuGenerationMode,'ai');
  assert.equal(onNewDevice.calendarRefreshMinutes,15);
  assert.equal(onNewDevice.draft[0].dishes[0].name,'カレー');
  assert.equal(onNewDevice.scopes['client|family@example.com'].manual[0].name,'自家製スープ');

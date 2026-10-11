@@ -6,12 +6,12 @@ const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 const match=source.match(/function generateScreen\(\)\{([\s\S]*?)\n\}\nfunction photoScreen\(/);
 assert.ok(match,'generator screen template is available');
-const view=new Function('state','ai','issues','button','esc','categoryName','empty','menuGenerationMode','aiGenerating','MAX_GENERATION_DAYS',match[1]);
+const view=new Function('state','ai','issues','button','esc','categoryName','empty','aiGenerating','MAX_GENERATION_DAYS',match[1]);
 const button=(text,action,cls='',attrs='')=>'<button class="'+cls+'" data-action="'+action+'" '+attrs+'>'+text+'</button>';
 const escape=v=>String(v);
-function screen(days){
- const state={rules:{days:days.length},draft:days.map(dishes=>({dishes}))};
- return view(state,{available:false},[],button,escape,c=>({main:'主菜',side:'副菜'}[c]||c),()=>'<div>empty</div>','rules',false,MAX_GENERATION_DAYS);
+function screen(days,mode='rules',generating=false){
+ const state={rules:{days:days.length},menuGenerationMode:mode,draft:days.map(dishes=>({dishes}))};
+ return view(state,{available:mode==='ai'},[],button,escape,c=>({main:'主菜',side:'副菜'}[c]||c),()=>'<div>empty</div>',generating,MAX_GENERATION_DAYS);
 }
 test('one Main dish per day generates exactly seven compact rows',()=>{
  const html=screen(Array.from({length:7},(_,i)=>[{category:'main',name:'料理'+i,locked:i===0}]));
@@ -71,4 +71,15 @@ test('two dishes per day use compact height budget and the day label is vertical
  // plus 6 inter-card gaps. Leaves room for controls even on small displays.
  const sevenDaysMax=7*(2*29+4)+6*3;
  assert.ok(sevenDaysMax<=460,'seven days of two dishes fit a small phone content budget');
+});
+
+test('generation mode stays selected and generating retains a fixed-size label',()=>{
+ const html=screen([[]],'ai');
+ assert.match(html,/<option value="ai"[^>]*selected[^>]*>AI<\/option>/);
+ assert.match(html,/data-action="rules"/);
+ assert.match(html,/data-action="generate"/);
+ assert.ok(html.indexOf('data-action="rules"')<html.indexOf('data-action="generate"'));
+ const busy=screen([[]],'ai',true);
+ assert.match(busy,/data-action="generate"[^>]*disabled aria-busy="true"[^>]*>生成<\/button>/);
+ assert.doesNotMatch(busy,/考え中/);
 });

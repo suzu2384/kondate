@@ -23,9 +23,10 @@ import {AI_PUBLIC_CONFIG} from './ai-config.js';
 import {catalog} from './catalog.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
-const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],seedEnabled:true,calendarRefreshMinutes:5,...loaded};
+const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,...loaded};
 state.rules={...defaultRules,...loaded.rules,counts:{...defaultRules.counts,...loaded.rules?.counts}};
 state.rules.days=normalizeGenerationDays(state.rules.days);
+state.menuGenerationMode=state.menuGenerationMode==='ai'?'ai':'rules';
 state.categoryCalendars=migrateCategoryCalendars(state.categories,loaded.categoryCalendars,state.calendarId);
 // Legacy standard-calendar setting has been migrated to Main.
 state.calendarId='';state.calendarName='';
@@ -36,6 +37,7 @@ const presetQueue=new PresetWriteQueue(globalThis.localStorage,()=>uid());
 let presetFlushing=false,presetFlushPromise=null;
 state.calendarRefreshMinutes=normalizeCalendarRefreshMinutes(state.calendarRefreshMinutes);
 const api=new CalendarClient(),ai=new AIService(createAIProvider(AI_PUBLIC_CONFIG)),drive=new DriveSettingsClient();
+if(!ai.available)state.menuGenerationMode='rules';
 const restoredGoogleSession=api.restoreSession(GOOGLE_CLIENT_ID);
 const restoredDriveSession=drive.restoreAuto(GOOGLE_CLIENT_ID);
 const DRIVE_REVISION='kondate.drive-auto-revision.v1';
@@ -101,7 +103,7 @@ function showStatus(){
 const NEW_CALENDAR_VALUE='__kondate_create_calendar__';
 let calendarCreationBusy=false;
 let presetEditDraft=null,presetEditOriginalId=null;
-let aiGenerating=false,menuGenerationMode='rules';
+let aiGenerating=false;
 let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',photoURL=null,photoFile=null;
 let calendarTouchStart=null,ignoreDateClickUntil=0,selectedPresetId=null;
 let calendarSwipeSettling=false,calendarSwipeToken=0,calendarSwipeTimer=null,calendarSwipeAnimation=null;
@@ -284,9 +286,9 @@ function generateScreen(){
  return `<section class="screen generation-screen">
  <div class="generation-controls">
   <label><select aria-label="生成日数" id="days">${Array.from({length:MAX_GENERATION_DAYS},(_,i)=>`<option value="${i+1}" ${state.rules.days===i+1?'selected':''}>${i+1}</option>`).join('')}</select>日分</label>
-  <select aria-label="選定モード" id="generate-mode"><option value="rules" ${menuGenerationMode==='rules'?'selected':''}>ルールベース</option><option value="ai" ${ai.available?'':'disabled'} ${menuGenerationMode==='ai'?'selected':''}>AI${ai.available?'':'（未設定）'}</option></select>
-  ${button(aiGenerating?'考え中…':'生成','generate','primary mini',aiGenerating?'disabled':'')}
-  ${button('ルール調整','rules','text-button mini')}
+  <select aria-label="選定モード" id="generate-mode"><option value="rules" ${state.menuGenerationMode==='rules'?'selected':''}>ルールベース</option><option value="ai" ${ai.available?'':'disabled'} ${state.menuGenerationMode==='ai'?'selected':''}>AI${ai.available?'':'（未設定）'}</option></select>
+  ${button('ルール調整','rules','text-button mini generation-rule-button')}
+  ${button('生成','generate','primary mini generation-submit-button',aiGenerating?'disabled aria-busy="true"':'')}
  </div>
  ${issues.length?`<div class="issues"><strong>条件に合う候補が足りない場合があります</strong><ul>${issues.map(s=>`<li>${esc(s.replace(/：([a-z0-9-]+)の/g,(_,c)=>'：'+categoryName(c)+'の'))}</li>`).join('')}</ul><p>料理を追加するか、直近の除外日数・1日あたりの品数を減らして再生成できます。重複許可は設定から明示的に変更してください。</p>${button('条件を変更','rules','mini')} ${button('料理を追加','add-master','mini')}</div>`:''}
  <div class="plan-grid compact-plan-grid scroll">
@@ -707,7 +709,7 @@ async function applyRemoteSettings(remoteVersion,remoteSnapshot){
  const saved=readDriveSnapshot(remoteSnapshot,state,validateImport);
  const wasBooting=driveAutoBooting;driveAutoBooting=true;
  try{
-  restoreDriveSnapshot(state,saved);state.rules.days=normalizeGenerationDays(state.rules.days);state.iconRules=normalizePresetRules(state.iconRules);
+  restoreDriveSnapshot(state,saved);state.rules.days=normalizeGenerationDays(state.rules.days);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
   persist();
@@ -1059,7 +1061,7 @@ const actions={
   const requested=Number($('#days')?.value||state.rules.days);
   if(!Number.isInteger(requested)||requested<1||requested>MAX_GENERATION_DAYS)throw Error('日数は1〜15日で指定してください。');
   if(state.draft.slice(requested).some(day=>day.dishes.some(d=>d.locked)))throw Error('減らす日数の範囲に固定した料理があります。固定を解除するか、生成日数を戻してください。');
-  const aiMode=($('#generate-mode')?.value||menuGenerationMode)==='ai';
+  const aiMode=($('#generate-mode')?.value||state.menuGenerationMode)==='ai';
   state.rules.days=requested;
   for(const day of state.draft)for(const d of day.dishes)d.name=resolveName(d.name,data().aliases);
   if(aiMode){
@@ -1136,7 +1138,7 @@ const actions={
  },
  'confirm-drive-load':async()=>{
   if(!driveImported)throw Error('復元する設定がありません。');
-  restoreDriveSnapshot(state,driveImported);state.rules.days=normalizeGenerationDays(state.rules.days);state.iconRules=normalizePresetRules(state.iconRules);
+  restoreDriveSnapshot(state,driveImported);state.rules.days=normalizeGenerationDays(state.rules.days);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
   driveImported=null;
@@ -1186,7 +1188,7 @@ const actions={
    persist();render();
   },
   export:exportState,import:()=>$('#import-file').click(),
- 'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.rules.days=normalizeGenerationDays(state.rules.days);state.iconRules=normalizePresetRules(state.iconRules);state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
+ 'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.rules.days=normalizeGenerationDays(state.rules.days);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
 };
 async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))return;await actions[action]?.(b);}catch(error){if($('#dialog').open&&$('#dialog-error'))$('#dialog-error').textContent=error.message;else notify(error.message);updateConnection();}}
 
@@ -1441,7 +1443,7 @@ document.addEventListener('keydown',e=>{
  }
 });
 document.addEventListener('change',async e=>{const el=e.target;try{
- if(el.id==='generate-mode'){menuGenerationMode=el.value;return;}
+ if(el.id==='generate-mode'){state.menuGenerationMode=el.value==='ai'&&ai.available?'ai':'rules';el.value=state.menuGenerationMode;persist();return;}
  if(el.id==='drive-auto'){
   if(!el.checked){
    drive.disableAuto();driveAutoReady=false;driveSyncStatus='';
@@ -1498,6 +1500,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
 function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array.isArray(p.state.categories)||!Array.isArray(p.state.draft)||!p.state.rules||!p.state.scopes)throw Error('KonDateの設定ファイルではありません。');if(!['timeZone','from'].every(k=>typeof p.state[k]==='string')||!/^\d{4}-\d{2}-\d{2}$/.test(p.state.from)||!['oldDays','recentDays'].every(k=>Number.isInteger(p.state.rules[k])&&p.state.rules[k]>=1&&p.state.rules[k]<=365)||!['preferOld','excludeRecent','unique','balance','newMain'].every(k=>typeof p.state.rules[k]==='boolean'))throw Error('設定値の形式が不正です。');if(JSON.stringify(p).includes('"__proto__"'))throw Error('設定ファイルが不正です。');if(!p.state.categories.every(c=>/^[a-z][a-z0-9-]*$/.test(c.id)&&typeof c.name==='string'&&c.name.length<=20)||!p.state.categories.some(c=>c.id==='main'))throw Error('分類の設定が不正です。');if(p.state.categoryCalendars&&(!Object.values(p.state.categoryCalendars).every(v=>typeof v==='string')||!Object.keys(p.state.categoryCalendars).every(k=>/^[a-z][a-z0-9-]*$/.test(k))))throw Error('分類別カレンダーの設定が不正です。');if(p.state.extraCalendarIds&&(!Array.isArray(p.state.extraCalendarIds)||!p.state.extraCalendarIds.every(x=>typeof x==='string')))throw Error('表示カレンダーの設定が不正です。');
  if(p.state.iconRules&&(!Array.isArray(p.state.iconRules)||!p.state.iconRules.every(r=>typeof r.id==='string'&&/^[0-9a-f]{10}$/.test(r.id)&&typeof r.keyword==='string'&&r.keyword.length<=80&&isSupportedIcon(r.icon)&&(r.color===undefined||/^#[0-9a-f]{6}$/i.test(r.color))&&(r.memo===undefined||(typeof r.memo==='string'&&r.memo.length<=2000))&&(r.calendarId===undefined||(typeof r.calendarId==='string'&&r.calendarId.length<=512)))))throw Error('アイコンルールが不正です。');
  if(p.state.calendarRefreshMinutes!==undefined&&!CALENDAR_REFRESH_MINUTES.includes(p.state.calendarRefreshMinutes))throw Error('カレンダーの自動更新間隔が不正です。');
+ if(p.state.menuGenerationMode!==undefined&&!['rules','ai'].includes(p.state.menuGenerationMode))throw Error('献立生成モードが不正です。');
  if(!Number.isInteger(p.state.rules.days)||p.state.rules.days<1||p.state.rules.days>31||!Object.values(p.state.rules.counts).every(n=>Number.isInteger(n)&&n>=0&&n<=5)||!colors[p.state.theme?.color]||!['light','dark','auto'].includes(p.state.theme?.mode))throw Error('生成ルールまたはテーマが不正です。');for(const day of p.state.draft)if(day.dishes.length)validateDishes(day.dishes);for(const s of Object.values(p.state.scopes))if(!Array.isArray(s.events)||!s.legacy||!s.aliases||!s.metadata||!Array.isArray(s.manual))throw Error('履歴データが不正です。');}
 window.addEventListener('storage-failed',()=>notify('端末への保存に失敗しました。空き容量・ブラウザ設定を確認し、編集中の内容を書き出してください。'));
 window.addEventListener('online',()=>{notify('接続が戻りました。');void flushPendingPresets();void autoRefreshCalendar();});
