@@ -670,7 +670,7 @@ function masterScreen(){
 function refreshMasterRows(){
  const items=masterItems(),rows=$('#master-rows');
  if(rows)rows.innerHTML=masterRows(items);
- const count=$('#master-count');if(count)count.textContent=`${items.length}件表示`;
+ const count=$('#master-count');if(count)count.textContent=`${items.length}件`;
 }
 let editingMaster=null,editingPlan=null;
 function editMaster(key=null){editingMaster=key;const d=master().find(d=>d.key===key)||{name:'',category:'main',protein:'不明',method:'不明',genre:'不明',dates:[]};modal(key?'料理の情報':'料理を追加',`<label class="field"><span>料理名（変更で表記を統一）</span><input id="master-name" value="${esc(d.name)}" maxlength="100" list="dish-options"></label><datalist id="dish-options">${master().map(d=>`<option value="${esc(d.name)}">`).join('')}</datalist><label class="field"><span>分類</span><select id="master-category">${categoryOptions(d.category)}</select></label>${[['protein','主な食材',['不明','肉','魚','野菜・豆','卵']],['method','調理法',['不明','焼く','煮る','炒める','揚げる','蒸す','ゆでる','和える']],['genre','ジャンル',['不明','和食','洋食','中華','その他']]].map(([k,label,values])=>`<label class="field"><span>${label}</span><select id="master-${k}">${values.map(v=>`<option ${d[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')}${d.dates.length?`<details><summary>過去の調理日（${d.count}回）</summary><p class="hint">${d.dates.join(' / ')}</p></details>`:''}<p class="hint">同じ名前へ変更すると、調理履歴を統合して表示します。</p>`,button('キャンセル','close-dialog')+button('保存','save-master','primary'));}
