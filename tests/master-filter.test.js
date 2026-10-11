@@ -28,7 +28,7 @@ const ctx={
  initialMasterFilter,
 };
 const source=app.slice(app.indexOf('function masterItems()'),app.indexOf('let editingMaster=null'));
-const functions=runInNewContext(source+';({masterItems,masterRows,masterScreen,openMasterTab,refreshMasterRows})',ctx);
+const functions=runInNewContext(source+';({masterItems,masterRows,masterScreen,masterFilterButtons,openMasterTab,refreshMasterRows})',ctx);
 
 test('generated menu is shown only when named dishes have been prepared',()=>{
  assert.equal(hasPlannedDishes([]),false);
@@ -80,19 +80,21 @@ test('master tab opens in generated menu, or all if nothing generated',()=>{
 
 test('master screen removes title/explanation and dynamically shows configured filters',()=>{
  ctx.state.draft=draft;ctx.masterFilter='plan';
- const html=functions.masterScreen();
+ const html=functions.masterFilterButtons();
  assert.match(html,/data-master-filter="plan" aria-pressed="true">献立<\/button>/);
  assert.match(html,/data-master-filter="shopping" aria-pressed="false">買い物<\/button>/);
  assert.match(html,/data-master-filter="category:main" aria-pressed="false">主菜<\/button>/);
  assert.match(html,/data-master-filter="category:soup" aria-pressed="false">汁物<\/button>/);
  assert.match(html,/data-master-filter="category:side" aria-pressed="false">副菜<\/button>/);
  assert.match(html,/data-master-filter="all" aria-pressed="false">すべて<\/button>/);
+ assert.doesNotMatch(functions.masterScreen(),/master-filter-bar|data-master-filter/);
+ assert.match(app,/bar\.classList\.toggle\('master-filter-bar',masterBar\)/);
  assert.doesNotMatch(html,/<h2>料理マスター<\/h2>/);
  assert.doesNotMatch(html,/最終調理日の新しい順。料理の表記や属性の変更/);
  const p=html.indexOf('data-master-filter="plan"'),shopping=html.indexOf('data-master-filter="shopping"'),m=html.indexOf('data-master-filter="category:main"'),all=html.indexOf('data-master-filter="all"');
  assert.ok(p<shopping&&shopping<m&&m<all);
  ctx.state.draft=[];ctx.masterFilter='plan';
- const empty=functions.masterScreen();
+ const empty=functions.masterFilterButtons();
  assert.doesNotMatch(empty,/>献立<\/button>/);
  assert.match(empty,/data-master-filter="all" aria-pressed="true"/);
  assert.equal(ctx.masterFilter,'all');
@@ -104,7 +106,7 @@ test('navigation and CSS keep filter row accessible and preserve scrolling',()=>
  assert.match(app,/'filter-master':b=>/);
  assert.match(app,/previousMasterFilterScroll/);
  assert.match(css,/\.master-filter-bar\{[\s\S]*?overflow-x:auto/);
- assert.match(css,/\.master-filter-button\.selected/);
+ assert.match(css,/#quick-preset-bar\.master-filter-bar \.master-filter-button\.selected/);
 });
 
 test('Buy appears for every dish, including unregistered generated-menu dishes',()=>{
@@ -126,7 +128,7 @@ test('shopping filter contains only explicitly chosen dishes in selection order'
  assert.deepEqual(Array.from(selected.map(d=>d.name)),['ハンバーグ','肉じゃが']);
  assert.strictEqual(selected[0],cooked[2]);
  assert.strictEqual(selected[1],cooked[0]);
- assert.match(functions.masterScreen(),/data-master-filter="shopping" aria-pressed="true">買い物<\/button>/);
+ assert.match(functions.masterFilterButtons(),/data-master-filter="shopping" aria-pressed="true">買い物<\/button>/);
  ctx.state.draft=[];
  assert.match(functions.masterScreen(),/data-master-filter="shopping" aria-pressed="true">買い物<\/button>/);
  ctx.state.shopping.selected=[];
