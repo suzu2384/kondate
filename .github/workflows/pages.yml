@@ -86,7 +86,7 @@ jobs:
                   `## KonDate ${tag}`,
                   '',
                   '### このバージョンの変更',
-                  ...(version === '2.0.0' ? [
+                  ...(version === '1.10.0' ? [
                     '- 下部の記録タブを買い物タブに置き換え、実績の登録・編集はカレンダーから引き続き利用可能',
                     '- 献立に含まれる全料理の登録済み材料を人数分に換算し、同じ材料・単位系を合算した買い物リストを表示',
                     '- 人数の変更、購入済みチェック、在庫などの除外・復帰、手動品目の追加・編集・削除、未購入リストのコピーに対応',
@@ -601,3 +601,23 @@ jobs:
               }
             }
             core.notice(`Release available: ${release.html_url}`);
+            // Correct the mistaken major-version release only AFTER v1.10.0 is available.
+            if (version === '1.10.0') {
+              try {
+                const mistaken=(await github.rest.repos.getReleaseByTag({owner,repo,tag:'v2.0.0'})).data;
+                // Do not delete another release unless it is exactly this mistaken shopping version.
+                if (!mistaken.body?.includes('下部の記録タブを買い物タブに置き換え')) {
+                  throw new Error('Unexpected v2.0.0 content; refusing to delete the release.');
+                }
+                await github.rest.repos.deleteRelease({owner,repo,release_id:mistaken.id});
+                core.notice('Removed mistakenly numbered v2.0.0 release.');
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+              try {
+                await github.rest.git.deleteRef({owner,repo,ref:'tags/v2.0.0'});
+                core.notice('Removed mistakenly numbered v2.0.0 tag.');
+              } catch (error) {
+                if (error.status !== 404) throw error;
+              }
+            }
