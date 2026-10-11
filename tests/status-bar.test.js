@@ -130,6 +130,7 @@ test('status bar offers explicit dismissal, while navigation cannot discard warn
  assert.match(app,/if\(dismiss\)dismiss.hidden=!message\|\|warning\|\|driveWarning/);
  assert.match(css,/#notice-dismiss\.status-dismiss\[hidden\]\{display:none\}/);
  assert.match(css,/#notice-dismiss\.status-dismiss\{[\s\S]*?height:20px;min-height:20px/);
- assert.match(app,/tab=tabButton.dataset.tab;notify\(''\);render\(\)/);
+ assert.match(app,/if\(next==='master'&&tab!=='master'\)\{openMasterTab\(\);\}/);
+ assert.match(app,/notify\(''\);if\(tab==='settings'\)prepareGoogleIdentity\(\)/);
  assert.match(app,/selectStatusNotice\(currentNoticeData,message\)/);
 });
