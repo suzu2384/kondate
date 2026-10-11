@@ -23,6 +23,7 @@ import {AI_PUBLIC_CONFIG} from './ai-config.js';
 import {normalizeStatusNotice,selectStatusNotice,generationFailureNotice,generationIssuesNotice,STATUS_REMEDIES} from './status-notice.js';
 import {catalog} from './catalog.js';
 import {recipeSearchUrl} from './recipe-search.js';
+import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
 const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,...loaded};
@@ -110,7 +111,7 @@ const NEW_CALENDAR_VALUE='__kondate_create_calendar__';
 let calendarCreationBusy=false;
 let presetEditDraft=null,presetEditOriginalId=null;
 let aiGenerating=false;
-let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',photoURL=null,photoFile=null;
+let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',masterFilter='all',photoURL=null,photoFile=null;
 let calendarTouchStart=null,ignoreDateClickUntil=0,selectedPresetId=null;
 let calendarSwipeSettling=false,calendarSwipeToken=0,calendarSwipeTimer=null,calendarSwipeAnimation=null;
 const scopeKeyFor=id=>calendarKey(GOOGLE_CLIENT_ID,id);
@@ -171,6 +172,7 @@ function render(){
  // Rebuilding #main on every edit briefly clears all SVG masks and focus state.
  const previousScroll=tab==='settings'?$('#main .settings-grid')?.scrollTop:null;
  const previousMasterScroll=tab==='master'?$('#main .master-list-wrap')?.scrollTop:null;
+ const previousMasterFilterScroll=tab==='master'?$('#main .master-filter-bar')?.scrollLeft:null;
  applyTheme(state.theme);
  updateConnection();
  document.querySelectorAll('[data-tab]').forEach(b=>{if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
@@ -186,6 +188,7 @@ function render(){
  showStatus();
  if(previousScroll!=null){const list=$('#main .settings-grid');if(list)list.scrollTop=previousScroll;}
  if(previousMasterScroll!=null){const list=$('#main .master-list-wrap');if(list)list.scrollTop=previousMasterScroll;}
+ if(previousMasterFilterScroll!=null){const filters=$('#main .master-filter-bar');if(filters)filters.scrollLeft=previousMasterFilterScroll;}
 }
 // The production build embeds the paths from the bundled MingCute SVG assets.
 // Using real SVG paths gives a precise hairline stroke, unlike a drop shadow.
@@ -635,7 +638,8 @@ async function saveRecord(){
  }finally{busy=false;updateConnection();if(editor)drawRecord();}
 }
 
-function masterItems(){return master().filter(d=>normalize(d.name).includes(normalize(masterQuery)));}
+function masterItems(){return masterFilterItems(master(),state.draft,masterFilter,data().aliases).filter(d=>normalize(d.name).includes(normalize(masterQuery)));}
+function openMasterTab(){masterFilter=initialMasterFilter(state.draft);masterQuery='';tab='master';render();}
 function masterRows(items){
  return items.map(d=>`<li class="master-entry">
   <div class="master-dish-info">
@@ -644,17 +648,23 @@ function masterRows(items){
   </div>
   <div class="master-actions">
    <a class="master-recipe-search" href="${esc(recipeSearchUrl(d.name))}" target="_blank" rel="noopener noreferrer" aria-label="${esc(d.name)}のレシピを検索">検索</a>
-   ${button('編集','edit-master','mini',`data-key="${esc(d.key)}"`)}
+   ${button('編集','edit-master','mini',`data-key="${esc(d.key)}"${d.unregistered?' disabled aria-label="マスター未登録のため編集できません"':''}`)}
   </div>
  </li>`).join('')||'<li class="master-empty">該当する料理はありません。</li>';
 }
 function masterScreen(){
+ const hasPlan=hasPlannedDishes(state.draft);
+ if((masterFilter==='plan'&&!hasPlan)||(masterFilter.startsWith('category:')&&!state.categories.some(c=>'category:'+c.id===masterFilter)))masterFilter='all';
  const items=masterItems();
- return `<section class="screen master-screen" aria-label="料理マスター">
-  <div class="master-screen-head"><h2>料理マスター</h2><span class="hint" id="master-count">${items.length}件表示</span></div>
-  <div class="master-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off">${button('＋ 新規','add-master','primary')}</div>
+ const filterButton=(label,value)=>button(esc(label),'filter-master','master-filter-button'+(masterFilter===value?' selected':''),`data-master-filter="${esc(value)}" aria-pressed="${masterFilter===value}"`);
+ return `<section class="screen master-screen" aria-label="料理">
+  <nav class="master-filter-bar" aria-label="料理の絞り込み">
+   ${hasPlan?filterButton('献立','plan'):''}
+   ${state.categories.map(c=>filterButton(c.name,'category:'+c.id)).join('')}
+   ${filterButton('すべて','all')}
+  </nav>
+  <div class="master-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}</div>
   <div class="master-list-wrap card scroll"><ul class="master-list" id="master-rows">${masterRows(items)}</ul></div>
-  <p class="hint master-description">最終調理日の新しい順。料理の表記や属性の変更はこの端末に保存され、過去の予定は変更されません。</p>
  </section>`;
 }
 function refreshMasterRows(){
@@ -1059,7 +1069,7 @@ const actions={
  'dismiss-notice':dismissNotice,
  'notice-rules':()=>{closeModal();tab='generate';render();actions.rules();},
  'notice-settings':()=>{closeModal();tab='settings';notify('');render();prepareGoogleIdentity();},
- 'notice-master':()=>{closeModal();tab='master';render();},
+ 'notice-master':()=>{closeModal();openMasterTab();},
  'notice-use-rules':()=>{closeModal();state.menuGenerationMode='rules';persist();tab='generate';render();notify('ルールベースに切り替えました。生成ボタンで献立を作れます。');},
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
  'open-extra-calendars':()=>openExtraCalendarPicker(),
@@ -1142,7 +1152,7 @@ const actions={
  'save-plan-dish':()=>{const {dayIndex,dishIndex}=editingPlan;const name=$('#plan-name').value.trim(),existing=master().find(d=>normalize(d.name)===normalize(name));const d=validateDishes([{...existing,name,category:$('#plan-category').value}])[0];d.isNew=d.category==='main'&&(!existing||!Number(existing.count));d.locked=dishIndex!==null?state.draft[dayIndex].dishes[dishIndex].locked:false;if(dishIndex===null)state.draft[dayIndex].dishes.push(d);else state.draft[dayIndex].dishes[dishIndex]=d;closeModal();checkDraft();},
  'delete-plan-dish':()=>{state.draft[editingPlan.dayIndex].dishes.splice(editingPlan.dishIndex,1);closeModal();checkDraft();},
  'day-up':b=>{const i=Number(b.dataset.day);[state.draft[i-1],state.draft[i]]=[state.draft[i],state.draft[i-1]];persist();render();},'day-down':b=>{const i=Number(b.dataset.day);[state.draft[i+1],state.draft[i]]=[state.draft[i],state.draft[i+1]];persist();render();},
- 'record-day':b=>openRecord(null,{dishes:state.draft[b.dataset.day].dishes,date:today()}),master:()=>{closeModal();tab='master';render();},'edit-master':b=>editMaster(b.dataset.key),'add-master':()=>editMaster(),'save-master':saveMaster,
+ 'record-day':b=>openRecord(null,{dishes:state.draft[b.dataset.day].dishes,date:today()}),master:()=>{closeModal();openMasterTab();},'filter-master':b=>{const target=b.dataset.masterFilter;if(!['all','plan',...state.categories.map(c=>'category:'+c.id)].includes(target))return;if(target==='plan'&&!hasPlannedDishes(state.draft))return;masterFilter=target;render();const list=$('#main .master-list-wrap');if(list)list.scrollTop=0;},'edit-master':b=>editMaster(b.dataset.key),'add-master':()=>editMaster(),'save-master':saveMaster,
  'add-category':()=>modal('分類を追加','<label class="field"><span>分類名</span><input id="category-new" placeholder="ごはん・麺など" maxlength="20"></label>',button('追加','confirm-category','primary')),
  'confirm-category':()=>{const name=$('#category-new').value.trim();if(!name)throw Error('分類名を入力してください。');if(state.categories.some(c=>c.name===name))throw Error('同じ名前の分類があります。');const id='c'+uid().slice(0,10);state.categories.push({id,name});state.rules.counts[id]=0;persist();closeModal();render();},
  'remove-category':b=>{const id=b.dataset.category;if(id==='main')throw Error('主菜は削除できません。');if(editor?.dishes?.some(d=>d.category===id))throw Error('この分類を使っている入力途中の実績があります。先に保存または破棄してください。');state.categories=state.categories.filter(c=>c.id!==id);state.draft=state.draft.map(day=>({...day,dishes:day.dishes.filter(d=>d.category!==id)}));delete state.rules.counts[id];delete state.categoryCalendars[id];persist();render();notify('分類を削除しました。Googleカレンダーの予定は削除していません。');},
@@ -1387,7 +1397,7 @@ document.addEventListener('click',e=>{
  }
  if(Date.now()<suppressPresetClickUntil&&e.target.closest?.('.icon-preset-row')){e.preventDefault();return;}
  const tabButton=e.target.closest('[data-tab]');
- if(tabButton){cancelCalendarSwipe();tab=tabButton.dataset.tab;notify('');render();if(tab==='settings')prepareGoogleIdentity();return;}
+ if(tabButton){cancelCalendarSwipe();const next=tabButton.dataset.tab;if(next==='master'&&tab!=='master'){openMasterTab();}else{tab=next;render();}notify('');if(tab==='settings')prepareGoogleIdentity();return;}
  const b=e.target.closest('[data-action]');
  if(!b)return;
  // iOS may synthesize a click after touchend even when the grid was swiped.
