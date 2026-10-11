@@ -14,7 +14,7 @@ const clean=value=>String(value??'').trim();
 // error: requested action or generation requirements were not fulfilled.
 const levels=new Set(['info','warning','error']);
 export function normalizeStatusNotice(value){
- if(typeof value==='string')return {summary:value,detail:'',guidance:'',actions:[],severity:'info'};
+ if(typeof value==='string')return {summary:clean(value),detail:'',guidance:'',actions:[],severity:'info'};
  const note=value&&typeof value==='object'?value:{};
  return {
   summary:clean(note.summary),
