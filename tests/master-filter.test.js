@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
-import {normalize} from '../src/model.js';
+import {normalize,resolveName} from '../src/model.js';
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from '../src/master-filter.js';
 import {recipeSearchUrl} from '../src/recipe-search.js';
 
@@ -21,8 +21,8 @@ const draft=[
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const button=(label,action,cls='',attrs='')=>`<button class="${cls}" data-action="${action}" ${attrs}>${label}</button>`;
 const ctx={
- state:{draft,categories:[{id:'main',name:'主菜'},{id:'soup',name:'汁物'},{id:'side',name:'副菜'}]},
- hasPlannedDishes,masterFilterItems,master:()=>cooked,data:()=>({aliases:{}}),normalize,
+ state:{draft,shopping:{selected:[]},categories:[{id:'main',name:'主菜'},{id:'soup',name:'汁物'},{id:'side',name:'副菜'}]},
+ hasPlannedDishes,masterFilterItems,master:()=>cooked,data:()=>({aliases:{}}),normalize,resolveName,
  esc,button,categoryName:id=>({main:'主菜',soup:'汁物',side:'副菜'})[id],recipeSearchUrl,
  masterFilter:'plan',masterQuery:'',tab:'calendar',render:()=>{},
  initialMasterFilter,
@@ -104,4 +104,16 @@ test('navigation and CSS keep filter row accessible and preserve scrolling',()=>
  assert.match(app,/previousMasterFilterScroll/);
  assert.match(css,/\.master-filter-bar\{[\s\S]*?overflow-x:auto/);
  assert.match(css,/\.master-filter-button\.selected/);
+});
+
+test('Buy appears for every dish, including unregistered generated-menu dishes',()=>{
+ ctx.state.draft=draft;ctx.masterFilter='plan';ctx.state.shopping.selected=[];
+ const markup=functions.masterRows(masterFilterItems(cooked,draft,'plan'));
+ const entries=markup.split('class="master-entry"').slice(1);
+ assert.equal(entries.length,4);
+ assert.ok(entries.every(row=>row.includes('data-action="buy-master"')));
+ assert.match(entries[1],/data-action="buy-master"[^>]*data-name="創作スープ"/);
+ assert.match(entries[1],/data-action="edit-master"[^>]*disabled/);
+ ctx.state.shopping.selected=['ハンバーグ'];
+ assert.match(functions.masterRows([cooked[2]]),/data-action="buy-master"[^>]*aria-pressed="true"/);
 });
