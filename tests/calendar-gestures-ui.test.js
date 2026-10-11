@@ -159,11 +159,11 @@ test('tab captions are concise and header sync plus generator master buttons are
  const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
  assert.match(html,/data-tab="calendar"[^<]*><span[^>]*><\/span>カレンダー<\/button>/);
  assert.match(html,/data-tab="generate"[^<]*><span[^>]*><\/span>献立<\/button>/);
- assert.match(html,/data-tab="photo"[^<]*><span[^>]*><\/span>記録<\/button>/);
+ assert.match(html,/data-tab="shopping"[^<]*><span[^>]*><\/span>買い物<\/button>/);
  assert.match(html,/data-tab="settings"[^<]*><span[^>]*><\/span>設定<\/button>/);
  assert.doesNotMatch(html,/id="sync"|献立生成<\/button>|実績登録<\/button>/);
  assert.doesNotMatch(app,/\$\('#sync'\)/);
- const generator=app.slice(app.indexOf('function generateScreen()'),app.indexOf('function photoScreen()'));
+ const generator=app.slice(app.indexOf('function generateScreen()'),app.indexOf('function shoppingData()'));
  assert.doesNotMatch(generator,/料理マスター|data-action="master"/);
  assert.match(html,/data-tab="master" aria-label="料理"[^>]*><span[^>]*><\/span><span class="tab-label">料理<\/span><\/button>/);
  assert.match(app,/function masterScreen\(\)/);
