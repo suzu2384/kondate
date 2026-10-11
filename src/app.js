@@ -24,11 +24,11 @@ import {normalizeStatusNotice,selectStatusNotice,generationFailureNotice,generat
 import {catalog} from './catalog.js';
 import {recipeSearchUrl} from './recipe-search.js';
 import {INGREDIENT_UNITS,validateIngredients,MAX_INGREDIENTS,normalizeIngredient} from './ingredients.js';
-import {DEFAULT_SHOPPING_SERVINGS,shoppingSettings,shoppingItems,validateShoppingSettings} from './shopping.js';
+import {DEFAULT_SHOPPING_SERVINGS,shoppingSettings,shoppingItems,validateShoppingSettings,addShoppingDish,removeShoppingDish} from './shopping.js';
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
-const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,manual:[],checked:{},excluded:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,...loaded};
+const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,...loaded};
 state.rules={...defaultRules,...loaded.rules,counts:{...defaultRules.counts,...loaded.rules?.counts}};
 state.rules.days=normalizeGenerationDays(state.rules.days);
 state.shopping=shoppingSettings(state.shopping);
@@ -321,7 +321,21 @@ function generateScreen(){
  </div>
  </section>`;
 }
-function shoppingData(){return shoppingItems({draft:state.draft,master:master(),aliases:data().aliases,shopping:state.shopping});}
+function buyMasterDish(b){
+ const name=String(b.dataset.name||'').trim(),key=String(b.dataset.key||'').trim();
+ const existing=master().find(d=>d.key===key&&key)||master().find(d=>normalize(resolveName(d.name,data().aliases))===normalize(resolveName(name,data().aliases)));
+ if(!name)throw Error('料理名を確認できません。');
+ if(isShoppingMasterSelected({name})){tab='shopping';render();return;}
+ if(!Array.isArray(existing?.ingredients)||!existing.ingredients.length){
+  editMaster(existing?.key||null,{buy:true,fallback:{name,category:b.dataset.category||'main'}});
+  return;
+ }
+ // Never add an invalid recipe silently.
+ validateIngredients(existing.ingredients);
+ state.shopping.selected=addShoppingDish(state.shopping.selected,existing.name);
+ persist();render();notify('「'+existing.name+'」を買い物リストに追加しました。');
+}
+function shoppingData(){return shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});}
 function shoppingRow(item){
  const name=esc(item.name),detail=item.kind==='manual'?'手動追加':(item.sourceNames.length?item.sourceNames.join('・'):'');
  return `<li class="shopping-item ${item.checked?'is-bought':''} ${item.excluded?'is-excluded':''}">
@@ -338,7 +352,7 @@ function shoppingRow(item){
 function shoppingScreen(){
  const view=shoppingData();
  const rows=items=>items.map(shoppingRow).join('');
- const missing=view.missing.length?`<details class="shopping-missing" open><summary>材料未登録の料理（${view.missing.length}品）</summary><p class="hint">材料が未登録の料理は買い物量に含まれません。料理タブで材料を登録してください。</p><ul>${view.missing.map(d=>`<li>${esc(d.name)}（${d.days.join('・')}日目）</li>`).join('')}</ul>${button('料理タブで確認','shopping-open-master','mini')}</details>`:'';
+ const selected=view.selected.length?`<details class="shopping-selected" open><summary>買い物対象の料理（${view.selected.length}品）</summary><ul>${view.selected.map(d=>`<li><span>${esc(d.name)}</span><div>${button('材料','shopping-edit-dish','shopping-plain-button',`data-name="${esc(d.selectedName)}" aria-label="${esc(d.name)}の材料を編集"`)}${button('外す','shopping-remove-dish','shopping-plain-button',`data-name="${esc(d.selectedName)}" aria-label="${esc(d.name)}を買い物対象から外す"`)}</div></li>`).join('')}</ul></details>`:'<p class="hint shopping-selected-empty">料理タブの「買う」を押すと、その料理の材料がここに追加されます。</p>';
  return `<section class="screen shopping-screen" aria-label="買い物">
   <div class="shopping-toolbar">
    <label class="shopping-servings">人数 <input id="shopping-servings" type="number" min="1" max="30" step="1" value="${view.servings}" aria-label="買い物に必要な人数"> 人分</label>
@@ -347,14 +361,14 @@ function shoppingScreen(){
    ${button('チェック解除','shopping-clear-checks','mini',view.bought.length?'':'disabled')}
   </div>
   <div class="shopping-summary">${view.pending.length}件 未購入 <span aria-hidden="true">·</span> ${view.bought.length}件 購入済み ${view.excluded.length?`<span aria-hidden="true">·</span> ${view.excluded.length}件 除外`:''}</div>
-  ${missing}
+  ${selected}
   <div class="shopping-list card scroll">
-   ${!state.draft.length?'<p class="hint shopping-guidance">献立がありません。献立を生成すると、登録済みの材料から必要量を自動計算します。</p>':''}
+
    <h3>買うもの</h3><ul class="shopping-items">${rows(view.pending)||'<li class="shopping-empty">未購入の品目はありません。</li>'}</ul>
    ${view.bought.length?`<h3>購入済み</h3><ul class="shopping-items">${rows(view.bought)}</ul>`:''}
    ${view.excluded.length?`<details class="shopping-excluded"><summary>除外した品目（${view.excluded.length}件）</summary><ul class="shopping-items">${rows(view.excluded)}</ul></details>`:''}
   </div>
-  <p class="hint shopping-note">調味料も含めて表示します。在庫があるものは「除外」、買ったものはチェックしてください。数量は献立にある料理の1人前の材料を人数分に合算しています。</p>
+  <p class="hint shopping-note">「買う」で選択した料理の1人前の材料を人数分に合算しています。在庫のある品目は「除外」、購入した品目はチェックしてください。</p>
  </section>`;
 }
 function editShoppingManual(id=''){
@@ -699,6 +713,7 @@ async function saveRecord(){
 
 function masterItems(){return masterFilterItems(master(),state.draft,masterFilter,data().aliases).filter(d=>normalize(d.name).includes(normalize(masterQuery)));}
 function openMasterTab(){masterFilter=initialMasterFilter(state.draft);masterQuery='';tab='master';render();}
+function isShoppingMasterSelected(dish){return state.shopping.selected.some(name=>normalize(resolveName(name,data().aliases))===normalize(resolveName(dish.name,data().aliases)));}
 function masterRows(items){
  return items.map(d=>`<li class="master-entry">
   <div class="master-dish-info">
@@ -707,6 +722,7 @@ function masterRows(items){
   </div>
   <div class="master-actions">
    <a class="master-recipe-search" href="${esc(recipeSearchUrl(d.name))}" target="_blank" rel="noopener noreferrer" aria-label="${esc(d.name)}のレシピを検索">検索</a>
+   ${button(isShoppingMasterSelected(d)?'追加済':'買う','buy-master','mini master-buy'+(isShoppingMasterSelected(d)?' selected':''),`data-name="${esc(d.name)}" data-key="${esc(d.key||'')}" data-category="${esc(d.category||'main')}" aria-pressed="${isShoppingMasterSelected(d)}"`) }
    ${button('編集','edit-master','mini',`data-key="${esc(d.key)}"${d.unregistered?' disabled aria-label="マスター未登録のため編集できません"':''}`)}
   </div>
  </li>`).join('')||'<li class="master-empty">該当する料理はありません。</li>';
@@ -731,7 +747,7 @@ function refreshMasterRows(){
  if(rows)rows.innerHTML=masterRows(items);
  const count=$('#master-count');if(count)count.textContent=`${items.length}件`;
 }
-let editingMaster=null,editingPlan=null;
+let editingMaster=null,editingPlan=null,pendingMasterBuy=false;
 function ingredientRow(item={},i=0){
  const amount=item.quantity==null?'':String(item.quantity);
  const unit=item.unit||'g';
@@ -755,11 +771,12 @@ function redrawIngredientRows(items){
  if(!list)return;
  list.innerHTML=items.map((ingredient,i)=>ingredientRow(ingredient,i)).join('');
 }
-function editMaster(key=null){
+function editMaster(key=null,{buy=false,fallback=null}={}){
  editingMaster=key;
- const d=master().find(d=>d.key===key)||{name:'',category:'main',protein:'不明',method:'不明',genre:'不明',dates:[],ingredients:[]};
+ pendingMasterBuy=buy;
+ const d=master().find(d=>d.key===key)||{name:fallback?.name||'',category:fallback?.category||'main',protein:'不明',method:'不明',genre:'不明',dates:[],count:0,ingredients:[]};
  const existing=Array.isArray(d.ingredients)?d.ingredients:[];
- modal(key?'料理の情報':'料理を追加',
+ modal(buy?'材料を登録して買い物に追加':key?'料理の情報':'料理を追加',
   `<label class="field"><span>料理名（変更で表記を統一）</span><input id="master-name" value="${esc(d.name)}" maxlength="100" list="dish-options"></label>
   <datalist id="dish-options">${master().map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
   <label class="field"><span>分類</span><select id="master-category">${categoryOptions(d.category)}</select></label>
@@ -774,8 +791,8 @@ function editMaster(key=null){
    <p class="hint">数量は1/2や0.5でも入力できます。大さじ・小さじ・kg・Lは保存時に計算用の量へ変換します。材料は保存前に修正できます。${ai.available?'AI生成は推定値です。保存前に内容を確認してください。':'AIでの生成はAI接続が有効な場合に利用できます。'}</p>
   </section>
   ${d.dates.length?`<details><summary>過去の調理日（${d.count}回）</summary><p class="hint">${d.dates.join(' / ')}</p></details>`:''}
-  <p class="hint">同じ名前へ変更すると、調理履歴を統合して表示します。</p>`,
-  button('キャンセル','close-dialog')+button('保存','save-master','primary'));
+  <p class="hint">同じ名前へ変更すると、調理履歴を統合して表示します。</p>${buy?'<p class="hint">材料を1件以上保存すると買い物リストへ追加します。空欄のまま保存した場合は追加されません。</p>':''}`, 
+  button('キャンセル','close-dialog')+button(buy?'確定':'保存','save-master','primary'));
 }
 function saveMaster(){
  const dish=validateDishes([{name:$('#master-name').value,category:$('#master-category').value,protein:$('#master-protein').value,method:$('#master-method').value,genre:$('#master-genre').value}])[0];
@@ -788,7 +805,11 @@ function saveMaster(){
  const old=data().metadata[editingMaster]||{},previous=data().metadata[key]||{};
  data().metadata[key]={...old,...previous,category:dish.category,protein:dish.protein,method:dish.method,genre:dish.genre,ingredients};
  if(!editingMaster||!master().some(d=>d.key===key))data().manual.push(dish);
- persist();closeModal();render();notify('料理マスターを更新しました。');
+ const buy=pendingMasterBuy;
+ if(buy&&ingredients.length)state.shopping.selected=addShoppingDish(state.shopping.selected,dish.name);
+ if(!ingredients.length)state.shopping.selected=state.shopping.selected.filter(name=>normalize(resolveName(name,data().aliases))!==key);
+ pendingMasterBuy=false;
+ persist();closeModal();render();notify(buy?(ingredients.length?'材料を保存し、買い物リストに料理を追加しました。':'材料がないため料理だけを保存し、買い物リストには追加していません。'):'料理マスターを更新しました。');
 }
 async function generateMasterIngredients(){
  const list=$('#master-ingredients'),name=$('#master-name')?.value.trim();
@@ -1294,6 +1315,9 @@ const actions={
  'confirm-category':()=>{const name=$('#category-new').value.trim();if(!name)throw Error('分類名を入力してください。');if(state.categories.some(c=>c.name===name))throw Error('同じ名前の分類があります。');const id='c'+uid().slice(0,10);state.categories.push({id,name});state.rules.counts[id]=0;persist();closeModal();render();},
  'remove-category':b=>{const id=b.dataset.category;if(id==='main')throw Error('主菜は削除できません。');if(editor?.dishes?.some(d=>d.category===id))throw Error('この分類を使っている入力途中の実績があります。先に保存または破棄してください。');state.categories=state.categories.filter(c=>c.id!==id);state.draft=state.draft.map(day=>({...day,dishes:day.dishes.filter(d=>d.category!==id)}));delete state.rules.counts[id];delete state.categoryCalendars[id];persist();render();notify('分類を削除しました。Googleカレンダーの予定は削除していません。');},
  'shopping-open-master':()=>openMasterTab(),
+ 'buy-master':buyMasterDish,
+ 'shopping-remove-dish':b=>{state.shopping.selected=removeShoppingDish(state.shopping.selected,b.dataset.name);persist();render();},
+ 'shopping-edit-dish':b=>{const name=b.dataset.name;const found=master().find(d=>normalize(resolveName(d.name,data().aliases))===normalize(resolveName(name,data().aliases)));if(!found)throw Error('対象の料理が見つかりません。');editMaster(found.key);},
  'shopping-add':()=>editShoppingManual(),
  'shopping-edit':b=>editShoppingManual(b.dataset.id),
  'shopping-save':b=>{
