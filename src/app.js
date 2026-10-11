@@ -898,7 +898,7 @@ async function applyRemoteSettings(remoteVersion,remoteSnapshot){
  const saved=readDriveSnapshot(remoteSnapshot,state,validateImport);
  const wasBooting=driveAutoBooting;driveAutoBooting=true;
  try{
-  restoreDriveSnapshot(state,saved);state.rules.days=normalizeGenerationDays(state.rules.days);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);
+  restoreDriveSnapshot(state,saved);state.rules.days=normalizeGenerationDays(state.rules.days);state.shopping=shoppingSettings(state.shopping);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
   persist();
@@ -1293,8 +1293,38 @@ const actions={
  'add-category':()=>modal('分類を追加','<label class="field"><span>分類名</span><input id="category-new" placeholder="ごはん・麺など" maxlength="20"></label>',button('追加','confirm-category','primary')),
  'confirm-category':()=>{const name=$('#category-new').value.trim();if(!name)throw Error('分類名を入力してください。');if(state.categories.some(c=>c.name===name))throw Error('同じ名前の分類があります。');const id='c'+uid().slice(0,10);state.categories.push({id,name});state.rules.counts[id]=0;persist();closeModal();render();},
  'remove-category':b=>{const id=b.dataset.category;if(id==='main')throw Error('主菜は削除できません。');if(editor?.dishes?.some(d=>d.category===id))throw Error('この分類を使っている入力途中の実績があります。先に保存または破棄してください。');state.categories=state.categories.filter(c=>c.id!==id);state.draft=state.draft.map(day=>({...day,dishes:day.dishes.filter(d=>d.category!==id)}));delete state.rules.counts[id];delete state.categoryCalendars[id];persist();render();notify('分類を削除しました。Googleカレンダーの予定は削除していません。');},
- 'pick-photo':()=>$('#photo-file').click(),
- 'analyze-photo':async()=>{const dishes=await ai.analyzePhoto(photoFile);openRecord(null,{dishes});notify('写真の推定結果です。料理名と分類を確認してから登録してください。');},
+ 'shopping-open-master':()=>openMasterTab(),
+ 'shopping-add':()=>editShoppingManual(),
+ 'shopping-edit':b=>editShoppingManual(b.dataset.id),
+ 'shopping-save':b=>{
+  const name=$('#shopping-name').value,quantity=$('#shopping-quantity').value,unit=$('#shopping-unit').value;
+  const valid=normalizeIngredient({name,quantity,unit});
+  const existingId=String(b.dataset.id||'').replace(/^manual:/,'');
+  if(existingId&&!state.shopping.manual.some(item=>item.id===existingId))throw Error('編集対象の品目が見つかりません。');
+  if(!existingId&&state.shopping.manual.length>=200)throw Error('手動追加は最大200件です。');
+  const id=existingId||uid().slice(0,12);
+  const item={id,name:valid.name,quantity:valid.quantity,unit:valid.unit};
+  state.shopping.manual=existingId?state.shopping.manual.map(entry=>entry.id===id?item:entry):[...state.shopping.manual,item];
+  delete state.shopping.checked['manual:'+id];
+  persist();closeModal();render();
+ },
+ 'shopping-delete':b=>{
+  const id=b.dataset.id;
+  state.shopping.manual=state.shopping.manual.filter(item=>'manual:'+item.id!==id);
+  delete state.shopping.checked[id];delete state.shopping.excluded[id];
+  persist();render();
+ },
+ 'shopping-exclude':b=>{
+  if(!shoppingData().items.some(item=>item.id===b.dataset.id))return;
+  state.shopping.excluded[b.dataset.id]=true;
+  persist();render();
+ },
+ 'shopping-restore':b=>{delete state.shopping.excluded[b.dataset.id];persist();render();},
+ 'shopping-clear-checks':()=>{
+  if(!window.confirm('購入済みのチェックをすべて解除しますか？'))return;
+  state.shopping.checked={};persist();render();
+ },
+ 'shopping-copy':copyShoppingList,
  'drive-sync-now':async()=>{
   if(!drive.autoEnabled)throw Error('この端末のDrive自動同期を有効にしてください。');
   if(!drive.connected)return reauthenticateExpiredGoogle();
@@ -1655,6 +1685,18 @@ document.addEventListener('keydown',e=>{
  }
 });
 document.addEventListener('change',async e=>{const el=e.target;try{
+ if(el.matches('[data-shopping-check]')){
+  const item=shoppingData().items.find(item=>item.id===el.dataset.shoppingCheck);
+  if(!item||item.excluded)return;
+  if(el.checked)state.shopping.checked[item.id]=item.signature;
+  else delete state.shopping.checked[item.id];
+  persist();render();return;
+ }
+ if(el.id==='shopping-servings'){
+  const n=Number(el.value);
+  if(!Number.isInteger(n)||n<1||n>30)throw Error('買い物人数は1〜30人で指定してください。');
+  state.shopping.servings=n;persist();render();return;
+ }
  if(el.id==='generate-mode'){state.menuGenerationMode=el.value==='ai'&&ai.available?'ai':'rules';el.value=state.menuGenerationMode;persist();return;}
  if(el.id==='drive-auto'){
   if(!el.checked){
@@ -1704,12 +1746,11 @@ document.addEventListener('change',async e=>{const el=e.target;try{
  if(el.id.startsWith('count-')){state.rules.counts[el.id.slice(6)]=Math.max(0,Math.min(5,Number(el.value)||0));el.value=state.rules.counts[el.id.slice(6)];}
  if(el.dataset.categoryName){const name=el.value.trim();if(!name||state.categories.some(c=>c.id!==el.dataset.categoryName&&c.name===name))throw Error('分類名は空欄や重複にできません。');state.categories.find(c=>c.id===el.dataset.categoryName).name=name;}
  if(el.id==='days'){state.rules.days=normalizeGenerationDays(el.value);el.value=String(state.rules.days);}
- if(el.id==='photo-file'){const file=el.files[0];if(file){if(!file.type.startsWith('image/')||file.size>15*1024*1024)throw Error('15MB以下の画像を選択してください。');if(photoURL)URL.revokeObjectURL(photoURL);photoFile=file;photoURL=URL.createObjectURL(file);render();}}
  if(el.id==='import-file'){const file=el.files[0];if(file){if(file.size>10*1024*1024)throw Error('設定ファイルは10MB以下で読み込んでください。');const parsed=JSON.parse(await file.text());validateImport(parsed);imported=parsed.state;modal('設定と下書きを置き換えますか？','<p>この端末の設定・下書き・履歴キャッシュを、選択したファイルの内容に置き換えます。Googleカレンダーは変更しません。</p>',button('キャンセル','close-dialog')+button('読み込む','confirm-import','primary'));}}
  persist();updateConnection();
  if(el.id==='calendar-refresh-minutes')await autoRefreshCalendar();
  }catch(error){notify({summary:error.message,severity:'error'});}});
-function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array.isArray(p.state.categories)||!Array.isArray(p.state.draft)||!p.state.rules||!p.state.scopes)throw Error('KonDateの設定ファイルではありません。');if(!['timeZone','from'].every(k=>typeof p.state[k]==='string')||!/^\d{4}-\d{2}-\d{2}$/.test(p.state.from)||!['oldDays','recentDays'].every(k=>Number.isInteger(p.state.rules[k])&&p.state.rules[k]>=1&&p.state.rules[k]<=365)||!['preferOld','excludeRecent','unique','balance','newMain'].every(k=>typeof p.state.rules[k]==='boolean'))throw Error('設定値の形式が不正です。');if(JSON.stringify(p).includes('"__proto__"'))throw Error('設定ファイルが不正です。');if(!p.state.categories.every(c=>/^[a-z][a-z0-9-]*$/.test(c.id)&&typeof c.name==='string'&&c.name.length<=20)||!p.state.categories.some(c=>c.id==='main'))throw Error('分類の設定が不正です。');if(p.state.categoryCalendars&&(!Object.values(p.state.categoryCalendars).every(v=>typeof v==='string')||!Object.keys(p.state.categoryCalendars).every(k=>/^[a-z][a-z0-9-]*$/.test(k))))throw Error('分類別カレンダーの設定が不正です。');if(p.state.extraCalendarIds&&(!Array.isArray(p.state.extraCalendarIds)||!p.state.extraCalendarIds.every(x=>typeof x==='string')))throw Error('表示カレンダーの設定が不正です。');
+function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array.isArray(p.state.categories)||!Array.isArray(p.state.draft)||!p.state.rules||!p.state.scopes)throw Error('KonDateの設定ファイルではありません。');if(!['timeZone','from'].every(k=>typeof p.state[k]==='string')||!/^\d{4}-\d{2}-\d{2}$/.test(p.state.from)||!['oldDays','recentDays'].every(k=>Number.isInteger(p.state.rules[k])&&p.state.rules[k]>=1&&p.state.rules[k]<=365)||!['preferOld','excludeRecent','unique','balance','newMain'].every(k=>typeof p.state.rules[k]==='boolean'))throw Error('設定値の形式が不正です。');if(JSON.stringify(p).includes('"__proto__"'))throw Error('設定ファイルが不正です。');if(p.state.shopping!==undefined)validateShoppingSettings(p.state.shopping);if(!p.state.categories.every(c=>/^[a-z][a-z0-9-]*$/.test(c.id)&&typeof c.name==='string'&&c.name.length<=20)||!p.state.categories.some(c=>c.id==='main'))throw Error('分類の設定が不正です。');if(p.state.categoryCalendars&&(!Object.values(p.state.categoryCalendars).every(v=>typeof v==='string')||!Object.keys(p.state.categoryCalendars).every(k=>/^[a-z][a-z0-9-]*$/.test(k))))throw Error('分類別カレンダーの設定が不正です。');if(p.state.extraCalendarIds&&(!Array.isArray(p.state.extraCalendarIds)||!p.state.extraCalendarIds.every(x=>typeof x==='string')))throw Error('表示カレンダーの設定が不正です。');
  if(p.state.iconRules&&(!Array.isArray(p.state.iconRules)||!p.state.iconRules.every(r=>typeof r.id==='string'&&/^[0-9a-f]{10}$/.test(r.id)&&typeof r.keyword==='string'&&r.keyword.length<=80&&isSupportedIcon(r.icon)&&(r.color===undefined||/^#[0-9a-f]{6}$/i.test(r.color))&&(r.memo===undefined||(typeof r.memo==='string'&&r.memo.length<=2000))&&(r.calendarId===undefined||(typeof r.calendarId==='string'&&r.calendarId.length<=512)))))throw Error('アイコンルールが不正です。');
  if(p.state.calendarRefreshMinutes!==undefined&&!CALENDAR_REFRESH_MINUTES.includes(p.state.calendarRefreshMinutes))throw Error('カレンダーの自動更新間隔が不正です。');
  if(p.state.menuGenerationMode!==undefined&&!['rules','ai'].includes(p.state.menuGenerationMode))throw Error('献立生成モードが不正です。');
