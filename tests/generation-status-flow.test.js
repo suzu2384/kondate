@@ -55,11 +55,12 @@ test('real rules handler reports a partial-generation problem to the status bar'
  assert.match(app.messages[0].summary,/候補が不足/);
  assert.match(app.messages[0].detail,/mainの候補が1品不足/);
  assert.deepEqual(app.messages[0].actions,['rules','master']);
- assert.deepEqual(app.state.draft,result.plan);
+ assert.deepEqual(app.state.draft,[]);
+ assert.equal(app.messages[0].severity,'error');
 });
 
 test('real rules handler preserves success messaging when generation succeeds',async()=>{
- const app=harness('rules',{plan:[],issues:[]});
+ const app=harness('rules',{plan:Array.from({length:7},(_,i)=>({id:'day-'+i,dishes:[{name:'料理'+i,category:'main'}]})),issues:[]});
  await app.invoke();
  assert.equal(app.messages.length,1);
  assert.equal(app.messages[0].summary,'献立案を作りました。カレンダーにはまだ登録していません。');
