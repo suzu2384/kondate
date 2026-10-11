@@ -93,7 +93,7 @@ export function validateShoppingSettings(settings){
   if(!Array.isArray(raw.selected)||raw.selected.length>200)throw Error('買い物対象の料理は最大200品です。');
   const seen=new Set();
   for(const name of raw.selected){
-   if(typeof name!=='string'||!name.trim()||name.length>100||/[\\x00-\\x1f\\x7f]/.test(name)||seen.has(normalize(name)))
+   if(typeof name!=='string'||!name.trim()||name.length>100||[...name].some(c=>c.charCodeAt(0)<32||c.charCodeAt(0)===127)||seen.has(normalize(name)))
     throw Error('買い物対象の料理が不正または重複しています。');
    seen.add(normalize(name));
   }
