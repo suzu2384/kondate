@@ -72,7 +72,7 @@ jobs:
           npm run build
           cd dist
           zip -r ../kondate-web.zip .
-      - name: Create release when version is new
+      - name: Create or update release notes
         uses: actions/github-script@v7
         with:
           script: |
@@ -81,15 +81,8 @@ jobs:
             if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version');
             const tag = `v${version}`;
             const { owner, repo } = context.repo;
-            let release;
-            try {
-              release = (await github.rest.repos.getReleaseByTag({ owner, repo, tag })).data;
-            } catch (error) {
-              if (error.status !== 404) throw error;
-              release = (await github.rest.repos.createRelease({
-                owner, repo, tag_name: tag, target_commitish: 'main',
-                name: `KonDate ${tag}`, draft: false, prerelease: false,
-                body: [
+            const autoNotesMarker='__AUTO_GENERATED_CHANGELOG__';
+            let body=[
                   `## KonDate ${tag}`,
                   '',
                   '### このバージョンの変更',
@@ -514,15 +507,55 @@ jobs:
                     '- カレンダーを毎月7列×6行（42マス）に統一',
                     '- 前後月の日付は文字のみ薄く表示し、マスの境界線を均一化',
                   ] : [
-                    '- 変更内容はリポジトリのコミット履歴をご確認ください。',
+                    autoNotesMarker,
                   ]),
                   '',
                   '自動テスト・ビルド・GitHub Pagesデプロイが成功したバージョンです。',
                   'Google実アカウント連携・スマートフォン実機の動作確認は別途必要です。',
                   '',
                   '添付のkondate-web.zipは静的Web公開用ファイルです。ソース一式はSource codeから取得できます。'
-                ].join('\n')
+                ].join('\n');
+            if (body.includes(autoNotesMarker)) {
+              // A new version without curated notes still needs actual changes in the release.
+              const generated=(await github.rest.repos.generateReleaseNotes({
+                owner, repo, tag_name: tag, target_commitish: 'main'
+              })).data.body?.trim();
+              if (!generated) throw new Error('Release notes are empty: add explicit release details.');
+              body=body.replace(autoNotesMarker,generated);
+            }
+            let release;
+            try {
+              release = (await github.rest.repos.getReleaseByTag({ owner, repo, tag })).data;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              release = (await github.rest.repos.createRelease({
+                owner, repo, tag_name: tag, target_commitish: 'main',
+                name: `KonDate ${tag}`, draft: false, prerelease: false,
+                body,
+
               })).data;
+            }
+            // GitHub Actions can create a release before the final notes commit lands.
+            // Keep already-created releases up to date instead of treating their body as immutable.
+            if (release.body !== body) {
+              release=(await github.rest.repos.updateRelease({
+                owner, repo, release_id: release.id, body
+              })).data;
+            }
+            // Repair the earlier v1.5.1 release that received a generic message.
+            const legacyTag='v1.5.1';
+            const legacyRelease=(await github.rest.repos.getReleaseByTag({owner,repo,tag:legacyTag})).data;
+            const legacyPlaceholder='- 変更内容はリポジトリのコミット履歴をご確認ください。';
+            if (legacyRelease.body?.includes(legacyPlaceholder)) {
+              const legacyNotes=[
+                '- AI献立の指定日数を固定し、返答不一致を件数付きで診断して一度だけ再生成',
+                '- 生成要件未達を赤いエラー、再生成して完成した場合の注意を黄色い警告で表示',
+                '- 新しい主菜を強調表示し、日数不一致と通知表示の回帰テストを追加'
+              ].join('\n');
+              await github.rest.repos.updateRelease({
+                owner, repo, release_id: legacyRelease.id,
+                body: legacyRelease.body.replace(legacyPlaceholder,legacyNotes)
+              });
             }
             if (!release.assets.some(asset => asset.name === 'kondate-web.zip')) {
               // An existing version is immutable: only recover an upload for this commit.
