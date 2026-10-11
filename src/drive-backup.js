@@ -1,6 +1,7 @@
 import {validateDishes} from './model.js';
 import {validateIngredients} from './ingredients.js';
-export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','iconRules','calendarRefreshMinutes','draft'];
+import {shoppingSettings,validateShoppingSettings} from './shopping.js';
+export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','iconRules','calendarRefreshMinutes','draft','shopping'];
 const FORMAT='kondate-drive-settings-v2';
 const copy=x=>structuredClone(x);
 export function createDriveSnapshot(state){
@@ -12,7 +13,7 @@ export function createDriveSnapshot(state){
    master[key]=copy(prefs);
  }
  return {format:FORMAT,updatedAt:new Date().toISOString(),
-  settings:Object.fromEntries(SETTINGS.map(k=>[k,copy(state[k])])),
+  settings:Object.fromEntries(SETTINGS.map(k=>[k,copy(k==='shopping'?shoppingSettings(state.shopping):state[k])])),
   master};
 }
 export function readDriveSnapshot(raw,state,validateImport){
@@ -23,6 +24,7 @@ export function readDriveSnapshot(raw,state,validateImport){
  if(json.length>2000000||json.includes('"__proto__"'))
   throw Error('バックアップの形式・サイズが不正です。');
  const settings=Object.fromEntries(SETTINGS.filter(k=>Object.hasOwn(raw.settings,k)).map(k=>[k,copy(raw.settings[k])]));
+ if(settings.shopping!==undefined)validateShoppingSettings(settings.shopping);
  validateImport({format:'kondate-settings-v1',state:{...state,...settings}});
  const master={};
  if(raw.format===FORMAT){
@@ -42,6 +44,7 @@ export function readDriveSnapshot(raw,state,validateImport){
 }
 export function restoreDriveSnapshot(state,snapshot){
  for(const key of SETTINGS)if(Object.hasOwn(snapshot.settings,key))state[key]=copy(snapshot.settings[key]);
+ state.shopping=shoppingSettings(state.shopping);
  for(const [key,prefs] of Object.entries(snapshot.master)){
   state.scopes[key]={...(state.scopes[key]||{}),...copy(prefs)};
  }
