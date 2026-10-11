@@ -46,7 +46,8 @@ test('PWA theme-color matches actual SVG icon background in metadata, manifest, 
  assert.match(html,new RegExp('meta name="theme-color" content="'+background+'"'));
  assert.equal(manifest.theme_color,background);
  assert.equal(manifest.background_color,background);
- assert.match(themes,/meta\.content=APP_CHROME_COLOR/);
+ assert.match(themes,/meta\.content=chromeColor/);
+ assert.match(themes,/setFaviconBackground\(chromeColor\)/);
 });
 
 test('category selector is text-only while the selected item stays identifiable',()=>{
