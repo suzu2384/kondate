@@ -38,3 +38,22 @@ test('long items span both columns and recalculate on viewport resize',()=>{
  assert.ok(app.includes("window.addEventListener('resize',layoutPresetLegend)"));
  assert.ok(app.includes('layoutPresetLegend();'));
 });
+
+test('uploaded shapes icon replaces the legend text and is cached for PWA offline use',()=>{
+ const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
+ const svg=readFileSync(new URL('../icons/shapes.svg',import.meta.url),'utf8');
+ assert.ok(app.includes('preset-legend-symbol'));
+ assert.ok(!app.includes("button('凡例','open-preset-legend'"));
+ assert.ok(css.includes("url('./icons/shapes.svg')"));
+ assert.ok(sw.includes("'./icons/shapes.svg'"));
+ assert.match(svg,/<svg[^>]*lucide-shapes/);
+ assert.match(svg,/<rect x="3" y="14"/);
+});
+test('dialogs initially focus an inert heading rather than the close button',()=>{
+ const modal=app.slice(app.indexOf('function modal(title,body,foot='),app.indexOf('function showNoticeDetail(note){'));
+ assert.ok(modal.includes('<h2 id="dialog-title" tabindex="-1">'));
+ assert.ok(modal.includes("dialog.setAttribute('aria-labelledby','dialog-title')"));
+ assert.ok(modal.indexOf('dialog.showModal()')<modal.indexOf("$('#dialog-title')?.focus({preventScroll:true})"));
+ assert.ok(css.includes('#dialog-title:focus{outline:none}'));
+ assert.ok(modal.includes("button('×','close-dialog','icon-button'"));
+});

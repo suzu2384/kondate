@@ -1151,3 +1151,14 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .month-heading .toolbar button{min-width:28px;padding-inline:3px}
  .month-picker-trigger{font-size:14px;gap:2px;padding-inline:2px}
 }
+
+/* v1.14.6: uploaded shapes.svg legend icon and non-interactive dialog focus. */
+.preset-legend-symbol{
+ display:block;width:22px;height:22px;flex:0 0 auto;background-color:currentColor;
+ -webkit-mask:url('./icons/shapes.svg') center / contain no-repeat;
+ mask:url('./icons/shapes.svg') center / contain no-repeat;
+}
+#dialog-title:focus{outline:none}
+@media(max-width:760px){
+ .preset-legend-symbol{width:20px;height:20px}
+}
