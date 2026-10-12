@@ -47,7 +47,8 @@ test('calendar selector uses user-provided SVG with no numbered filename suffix'
 test('SVG home icon content is shifted toward the optical center',()=>{
  const svg=read('icons/icon.svg'),cache=read('sw.js');
  assert.match(svg,/transform="translate\(-5\.25 -24\.25\)"/);
- assert.match(cache,/kondate-shell-v1-14-3/);
+ const version=JSON.parse(read('package.json')).version;
+ assert.match(cache,new RegExp('kondate-shell-v'+version.replace(/\./g,'-')));
 });
 
 test('KonDate is used consistently in app-facing copy, documentation and release header',()=>{
