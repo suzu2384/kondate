@@ -21,10 +21,10 @@ const good=response([existing('カレー','main'),existing('味噌汁','soup')],
 
 test('AI prompt explicitly asks for one original main dish, with existing categories constrained',()=>{
  const {prompt}=createMenuRequest(base);
- assert.match(prompt,/newMain=trueの場合/);
- assert.match(prompt,/必ずちょうど1品提案/);
+ assert.match(prompt,/新しい主菜をちょうど1品だけ創作/);
  assert.match(prompt,/new:true/);
- assert.match(prompt,/主菜以外や2品目以降に新しい料理を作らない/);
+ assert.match(prompt,/new:true/);
+ assert.match(prompt,/その他の料理は新規作成しない/);
 });
 
 test('AI can propose a dish not in the master, without first registering it',async()=>{
@@ -75,7 +75,7 @@ test('newMain disabled retains strict registered-candidate-only validation',()=>
   [existing('カレー','main'),existing('味噌汁','soup')],
   [existing('肉じゃが','main'),existing('味噌汁','soup')]),off));
  assert.throws(()=>parseMenuResponse(good,off),/登録候補にない/);
- assert.match(createMenuRequest(off).prompt,/newMain=falseの場合は新しい料理を作らず/);
+ assert.match(createMenuRequest(off).prompt,/新しい料理は作らず/);
 });
 
 test('a novel name must not duplicate any historical candidate, even past the prompt limit',()=>{
@@ -109,7 +109,7 @@ test('an AI-original main must change when regenerated, even if other dishes cha
  const prompt=createMenuRequest(context).prompt;
  const data=JSON.parse(prompt.split('データ:\n')[1]);
  assert.deepEqual(data.recentNewMains,[oldName]);
- assert.match(prompt,/recentNewMainsにある料理名/);
+ assert.match(prompt,/recentNewMainsとは別の料理/);
  assert.throws(()=>parseMenuResponse(good,context),/前回までと同じ新しい主菜/);
  const changed=good.replace(oldName,'タラとごぼうの香味蒸し');
  assert.equal(parseMenuResponse(changed,context)[1].dishes[0].name,'タラとごぼうの香味蒸し');
