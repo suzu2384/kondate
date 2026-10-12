@@ -186,6 +186,47 @@ export function createMenuRequest(context){
  return {prompt,candidates:chosen};
 }
 
+// Reject low-variety results only when there are enough unused candidates to
+// do better. Avoid failing on a genuinely small family recipe catalog.
+export function validateMenuQuality(plan,context){
+ const rules=context?.rules||{};
+ const errors=[];
+ const locked=new Set((context.previous||[]).flatMap((day,i)=>(day?.dishes||[])
+  .filter(d=>d.locked).map(d=>i+'|'+normalize(d.name))));
+ const historic=new Set([
+  ...(Array.isArray(context.recentSuggested)?context.recentSuggested:[]),
+  ...(context.previous||[]).flatMap(day=>(day?.dishes||[])
+   .filter(d=>!d.locked&&!d.isNew).map(d=>d.name))
+ ].map(normalize));
+ const selectable=createMenuRequest(context).candidates;
+ for(const cat of Object.keys(rules.counts||{})){
+  const placed=(plan||[]).flatMap((day,i)=>(day?.dishes||[])
+   .filter(d=>d.category===cat&&!d.isNew&&!locked.has(i+'|'+normalize(d.name))));
+  if(placed.length<4||historic.size===0)continue;
+  const fresh=selectable.filter(d=>d.category===cat&&!historic.has(normalize(d.name)));
+  // A full fresh alternative must exist before enforcing regeneration variety.
+  if(fresh.length>=placed.length){
+   const repeated=placed.filter(d=>historic.has(normalize(d.name))).length;
+   if(repeated>Math.floor(placed.length*.45))
+    errors.push('AIが前回までの献立とほぼ同じ料理を選びました。別の候補から生成します。');
+  }
+ }
+ if(rules.balance){
+  const mains=(plan||[]).flatMap((day,i)=>(day?.dishes||[])
+   .filter(d=>d.category==='main'&&!locked.has(i+'|'+normalize(d.name))));
+  if(mains.length>=5){
+   const group=d=>d.protein&&d.protein!=='不明'&&d.method&&d.method!=='不明'
+    ?d.protein+'|'+d.method:'';
+   const variety=new Set(selectable.filter(d=>d.category==='main').map(group).filter(Boolean));
+   const used=new Map();
+   for(const dish of mains){const k=group(dish);if(k)used.set(k,(used.get(k)||0)+1);}
+   if(variety.size>=4&&Math.max(0,...used.values())>Math.floor(mains.length*.6))
+    errors.push('AIの主菜が同じ食材・調理法に偏っています。組み合わせを変えて再生成します。');
+  }
+ }
+ return [...new Set(errors)];
+}
+
 export function parseMenuResponse(text,context){
  if(typeof text!=='string'||text.length>60000)throw Error('AIから有効な献立データを受け取れませんでした。');
  let output;
