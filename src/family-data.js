@@ -10,7 +10,7 @@ export function masterSharedSnapshot(rows=[]){
   const key=normalize(d.name);
   if(!key)continue;
   out['dish:'+key]={name:d.name,category:d.category,protein:d.protein||'不明',
-   method:d.method||'不明',genre:d.genre||'不明',
+   method:d.method||'不明',genre:d.genre||'不明',categoryName:String(d.categoryName||d.category),
    ingredients:Array.isArray(d.ingredients)?validateIngredients(d.ingredients).map(i=>({
     name:i.name,quantity:i.quantity,unit:i.unit
    })):[]};
