@@ -297,11 +297,7 @@ async function discoverOwnedFamily(type){
   if(serial!==ownedFamilyLookupSerial)return;
   ownedFamilyMatches[type]=matches;
   ownedFamilyState[type]='ready';
-  const current=family.entry(type);
-  if(!current.owner&&current.id&&matches.some(x=>x.id===current.id)){
-   current.owner=true;family.persist();
-  }
- }catch(error){
+}catch(error){
   if(serial!==ownedFamilyLookupSerial)return;
   ownedFamilyState[type]='error';
   const container=$('#family-owned-results');
@@ -334,7 +330,7 @@ function familyDialog(type){
   (linked?button('再認証・同期','family-renew','mini','data-kind="'+type+'"'):'')+
   button('アカウントを変更','family-account-change','mini','data-kind="'+type+'"')+
   button('共有URLに参加','family-join','mini','data-kind="'+type+'"')+
-  (!linked||d.owner?button(linked?'相手を追加':'共有を開始','family-start','primary','data-kind="'+type+'"'):''));
+  button(d.owner&&linked?'相手を追加':'共有を開始','family-start','primary','data-kind="'+type+'"'));
  void discoverOwnedFamily(type);
 }
 async function copyFamilyUrl(id){
@@ -381,20 +377,33 @@ async function familyRenew(type){
 }
 async function familyStart(type){
  const current=family.entry(type);
- if(!current.id){
-  if(ownedFamilyState[type]==='searching')throw Error('既存の共有ファイルの検索が終わってから操作してください。');
-  if(ownedFamilyMatches[type].length)throw Error('自分の共有ファイルが見つかっています。先に「自分の共有として使用」で接続してください。');
-  if(ownedFamilyState[type]==='error'&&
-     !window.confirm('既存の共有ファイルを検索できませんでした。新しい共有ファイルを作成すると重複する場合があります。続行しますか？'))return;
+ if(ownedFamilyState[type]==='searching')throw Error('既存の共有ファイルの検索が終わってから操作してください。');
+ if(current.id&&current.owner){
+  const email=$('#family-share-email')?.value?.trim()||'';
+  if(!/^[-\w.+]+@[-\w.]+\.[a-z]{2,}$/i.test(email))throw Error('共有相手のメールアドレスを入力してください。');
+  await familyClient.authorize(GOOGLE_CLIENT_ID);
+  await familyClient.invite(current.id,email);
+  closeModal();render();notify('共有相手を招待しました。URLは共有画面からコピーできます。');
+  return;
  }
- if(current.id&&!current.owner)throw Error('共有相手の追加は共有ファイルの所有者が行ってください。');
+ // Starting your own share is always an explicit role switch. Discovery
+ // alone must never replace the recipient's current shared spreadsheet.
+ if(ownedFamilyMatches[type].length){
+  if(ownedFamilyMatches[type].length===1)return familyUseOwned(type,ownedFamilyMatches[type][0].id);
+  throw Error('自分の共有ファイルが複数見つかっています。「自分の共有として使用」で切り替え先を選んでください。');
+ }
+ if(current.queue.length||family.busy[type])throw Error('切り替える前に未送信の変更を同期してください。');
+ if(ownedFamilyState[type]==='error'&&
+    !window.confirm('自分の共有ファイルを検索できませんでした。新しいファイルが重複する場合があります。それでも新規作成しますか？'))return;
+ if(current.id&&!window.confirm('共有された側から共有する側に切り替えます。元の共有ファイルは削除されません。続行しますか？'))return;
  const email=$('#family-share-email')?.value?.trim()||'';
- if(!/^[-\w.+]+@[-\w.]+\.[a-z]{2,}$/i.test(email))throw Error('共有相手のメールアドレスを入力してください。');
+ if(!/^[-\w.+]+@[-\w.]+\.[a-z]{2,}$/i.test(email))throw Error('共有相手のGoogleメールアドレスを入力してから共有を開始してください。');
  const joinedOther=['master','shopping'].some(kind=>family.entry(kind).id&&!family.entry(kind).owner);
- const auth=familyClient.authorize(GOOGLE_CLIENT_ID,{join:joinedOther});await auth;
- if(current.id)await familyClient.invite(current.id,email);
- else await family.start(type,familySnapshot(type),email);
- closeModal();render();notify('招待を送信しました。共有画面の「現在のURLをコピー」でURLを相手へ送ってください。');
+ await familyClient.authorize(GOOGLE_CLIENT_ID,{join:joinedOther});
+ // Do not call start() with an already active recipient entry; preserve it
+ // until the new file is successfully created and the invitation sent.
+ await family.start(type,familySnapshot(type),email,{replace:!!current.id});
+ closeModal();render();notify('自分の共有ファイルを作成し、招待しました。URLは共有画面からコピーできます。');
 }
 async function familyJoin(type){
  const id=sharedSpreadsheetId($('#family-join-link')?.value);
