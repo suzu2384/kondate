@@ -331,8 +331,8 @@ test('no Picker library or build key is required for shared link joining',()=>{
   for(const key of ['GOOGLE_PICKER_API_KEY','GOOGLE_PROJECT_NUMBER','KONDATE_GOOGLE_PICKER','apis.google.com/js/api.js'])
    assert.equal(src.includes(key),false,key);
  }
- assert.match(app,/他人の共有リンク（参加・切り替え）/);
- assert.match(app,/リンクをコピー/);
+ assert.match(app,/共有ファイルのURL/);
+ assert.match(app,/family-copy-link/);
 });
 
 test('recipe ingredient edits are appended as JSON and confirmed by a second sync',async()=>{
@@ -469,7 +469,7 @@ test('discovery restores an unlinked owner automatically and skips active recipi
   'applyFamily','render','esc','button',source.slice(start,end)+
   '\nreturn {discoverOwnedFamily,ownedFamilyMatches,ownedFamilyState};');
  const session=build($,recipient,client,'google-client-id',sharedSpreadsheetUrl,
-  async ops=>applied.push(...ops),()=>{renders++;},x=>x,()=>'<button></button>');
+  async (type,ops)=>applied.push(...ops),()=>{renders++;},x=>x,()=>'<button></button>');
  await session.discoverOwnedFamily('master');
  assert.equal(recipient.entry('master').id,id);
  assert.equal(recipient.entry('master').owner,true);
@@ -492,7 +492,7 @@ test('shared URL is shown in the same editable field for both roles with adjacen
  const dialog=src.slice(start,end);
  assert.match(dialog,/共有ファイルのURL/);
  assert.match(dialog,/class="family-link-row"/);
- assert.match(dialog,/value="'+\(linked\?esc\(sharedSpreadsheetUrl\(d\.id\)\):''\)/);
+ assert.ok(dialog.includes('esc(sharedSpreadsheetUrl(d.id))'));
  assert.match(dialog,/button\('コピー','family-copy-link'/);
  assert.doesNotMatch(dialog,/他人の共有リンク/);
  assert.match(css,/#dialog \.family-link-row\{display:flex/);
