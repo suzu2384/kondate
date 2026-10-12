@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {generationIssuesNotice,generationFailureNotice,normalizeStatusNotice} from '../src/status-notice.js';
+import {rememberNewMainSuggestions} from '../src/ai-menu.js';
 
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const handlerMatch=app.match(/\n generate:async\(\)=>\{([\s\S]*?)\n \},\n reroll:/);
@@ -16,6 +17,7 @@ function harness(mode,generated){
   menuGenerationMode:mode,
   rules:{days:7,counts:{main:1}},
   draft:[],
+  recentNewMains:[],
  };
  const select={value:mode},days={value:'7'};
  const deps={
@@ -29,6 +31,7 @@ function harness(mode,generated){
   MAX_GENERATION_DAYS:15,
   data:()=>({aliases:{}}),
   resolveName:name=>name,
+  rememberNewMainSuggestions,
   render:()=>{},
   persist:()=>{},
   generate:()=>generated,
@@ -36,7 +39,7 @@ function harness(mode,generated){
   generationIssuesNotice,
  };
  const maker=new Function('deps',
-  'const {state,ai,$,master,MAX_GENERATION_DAYS,data,resolveName,render,persist,generate,notify,generationIssuesNotice}=deps;'+
+  'const {state,ai,$,master,MAX_GENERATION_DAYS,data,resolveName,rememberNewMainSuggestions,render,persist,generate,notify,generationIssuesNotice}=deps;'+
   'let aiGenerating=false,issues=[];return async function(){'+handlerMatch[1]+'};');
  const action=maker(deps);
  const dispatcher=new Function('actions','notify','generationFailureNotice','state','updateConnection','$',
