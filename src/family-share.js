@@ -8,11 +8,11 @@ const MARKER='kondate-shared-v1';
 const validId=id=>/^[a-zA-Z0-9_-]{15,180}$/.test(String(id||''));
 const clone=v=>JSON.parse(JSON.stringify(v));
 const equals=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
-const blank=()=>({id:'',cursor:1,queue:[],shadow:{},seen:[]});
+const blank=()=>({id:'',owner:false,cursor:1,queue:[],shadow:{},seen:[]});
 export function validateSharedOp(op,type){
  if(!op||typeof op!=='object'||typeof op.id!=='string'||!/^[\w-]{12,90}$/.test(op.id)||
   op.kind!==type||op.value===undefined||typeof op.key!=='string'||op.key.length>280||
-  !(type==='master'?op.key.startsWith('dish:'):type==='shopping'?/^(servings$|selected:|manual:|checked:|excluded:)/.test(op.key):false)||
+  !(type==='master'?op.key.startsWith('dish:'):type==='shopping'?/^(servings$|selected:|manual:|checked:|excluded:|ingredient:)/.test(op.key):false)||
   !Number.isFinite(op.at)||op.at<0||op.at>1e15||JSON.stringify(op.value)?.length>18000||
   JSON.stringify(op.value)?.includes('"__proto__"'))throw Error('共有データの形式が不正です。');
  return op;
@@ -118,7 +118,7 @@ export function readFamilySettings(storage=globalThis.localStorage){
  d=d&&typeof d==='object'?d:{};
  const r={seconds:SHOPPING_SYNC_SECONDS.includes(Number(d.seconds))?Number(d.seconds):5};
  for(const type of SHARED_KINDS){
-  const x=d[type]||{};r[type]={...blank(),id:validId(x.id)?x.id:'',
+  const x=d[type]||{};r[type]={...blank(),id:validId(x.id)?x.id:'',owner:x.owner===true,
    cursor:Number.isInteger(x.cursor)&&x.cursor>=1?x.cursor:1,
    queue:Array.isArray(x.queue)?x.queue.filter(op=>{try{validateSharedOp(op,type);return true;}catch{return false;}}).slice(0,500):[],
    shadow:x.shadow&&typeof x.shadow==='object'&&!Array.isArray(x.shadow)?x.shadow:{},
@@ -144,7 +144,7 @@ export class FamilySync{
   const ops=diffSnapshots({},current,type);
   for(let i=0;i<ops.length;i+=200)await this.client.appendRows(id,ops.slice(i,i+200).map(op=>[op.id,JSON.stringify(op)]));
   // Keep the link if invitation fails, so the initial data is not abandoned.
-  this.settings[type]={...blank(),id,cursor:2+ops.length,shadow:clone(current),seen:ops.map(op=>op.id).slice(-1500)};
+  this.settings[type]={...blank(),id,owner:true,cursor:2+ops.length,shadow:clone(current),seen:ops.map(op=>op.id).slice(-1500)};
   this.persist();
   if(email)await this.client.invite(id,email);
   return id;
