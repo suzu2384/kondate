@@ -538,3 +538,24 @@ test('active recipient cannot abandon unsent changes when starting their own sha
  assert.equal(recipient.entry('shopping').owner,false);
  assert.equal(recipient.entry('shopping').queue.length,1);
 });
+
+test('a stale owner lookup cannot replace a link join started during discovery',async()=>{
+ const app=file('src/app.js');
+ const start=app.indexOf('const ownedFamilyMatches='),end=app.indexOf('function familyDialog(type){',start);
+ const family=new FamilySync(fakeClient(),storage());
+ let finishSearch;
+ const client={async authorize(){},findOwned(){return new Promise(resolve=>{finishSearch=resolve;});}};
+ const container={dataset:{kind:'master'},textContent:''};
+ const $=selector=>selector==='#dialog'?{open:true}:selector==='#family-owned-results'?container:null;
+ const build=new Function('$','family','familyClient','GOOGLE_CLIENT_ID','sharedSpreadsheetUrl','applyFamily',
+  'render','esc','button',app.slice(start,end)+
+  '\nreturn {search:discoverOwnedFamily,cancel:()=>++ownedFamilyLookupSerial};');
+ const screen=build($,family,client,'oauth',sharedSpreadsheetUrl,async()=>{},()=>{},x=>x,()=>null);
+ const task=screen.search('master');
+ await Promise.resolve();
+ assert.equal(typeof finishSearch,'function');
+ screen.cancel();
+ finishSearch([{id:'abcdefghijklmnopqrstuvwxyz0123456',name:'KonDate 共有料理マスター'}]);
+ await task;
+ assert.equal(family.entry('master').id,'','an obsolete discovery must not alter the selected share');
+});
