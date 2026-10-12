@@ -1036,7 +1036,24 @@ async function applyRemoteSettings(remoteVersion,remoteSnapshot){
   restoreDriveSnapshot(state,saved);state.rules.days=normalizeGenerationDays(state.rules.days);state.shopping=shoppingSettings(state.shopping);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
-  persist();
+  // Private backups must not revert shared purchases or recipes. The shared
+  // operation journal (plus queued local changes) is authoritative.
+  for(const type of ['shopping','master']){
+   const entry=family.entry(type);
+   if(!entry.id)continue;
+   const operations=Object.entries(entry.shadow).map(([key,value])=>({key,value}));
+   if(type==='shopping')state.shopping=applyShoppingEvents(state.shopping,operations,true);
+   else{
+    for(const op of operations){
+     const dish=op.value;
+     if(dish&&/^[a-z][a-z0-9-]*$/.test(dish.category)&&!state.categories.some(c=>c.id===dish.category))
+      state.categories.push({id:dish.category,name:String(dish.categoryName||dish.category).slice(0,20)});
+    }
+    applyMasterEvents(data(),operations,state.categories.map(c=>c.id));
+   }
+  }
+  applyingFamily=true;
+  try{persist();}finally{applyingFamily=false;}
  }finally{driveAutoBooting=wasBooting;}
  const newerLocalChanges=await markDriveSynced(remoteVersion,remoteSnapshot);
  render();
