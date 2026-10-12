@@ -18,7 +18,7 @@ function harness(initial=[]){
  const saved={name:'肉じゃが',category:'main',key:'肉じゃが',dates:[],count:0,protein:'不明',method:'不明',genre:'不明'};
  const fields={'#master-name':{value:'肉じゃが'},'#master-category':{value:'main'},'#master-protein':{value:'肉'},'#master-method':{value:'煮る'},'#master-genre':{value:'和食'}};
  const ctx={
-  state,data:()=>data,master:()=>[{...saved,ingredients:[],...data.metadata['肉じゃが']},...data.manual.map(d=>({...d,key:normalize(d.name),dates:[],count:0,ingredients:data.metadata[normalize(d.name)]?.ingredients||[]}))],
+  state,data:()=>data,family:{entry:()=>({id:''})},editedFamilyDishes:new Set(),master:()=>[{...saved,ingredients:[],...data.metadata['肉じゃが']},...data.manual.map(d=>({...d,key:normalize(d.name),dates:[],count:0,ingredients:data.metadata[normalize(d.name)]?.ingredients||[]}))],
   normalize,resolveName,validateDishes,validateIngredients,INGREDIENT_UNITS,MAX_INGREDIENTS,addShoppingDish,
   ai:{available:false},categoryOptions:()=>'<option value="main">主菜</option>',
   esc:s=>String(s??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('"','&quot;'),
