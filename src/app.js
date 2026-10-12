@@ -398,7 +398,7 @@ function calendarScreen(){
  }).join('');
   return `<div class="month-grid ${neighbor?'month-grid-neighbor':'month-grid-current'}" ${neighbor?'aria-hidden="true" inert':''}>${cells}</div>`;
  };
- return `<section class="screen calendar-screen"><div class="calendar-layout"><div class="calendar-card card"><div class="month-heading">${button('<span class="calendar-switch-symbol" aria-hidden="true"></span>','open-extra-calendars','icon-button calendar-switch-button','aria-label="表示するカレンダーを選択" title="表示するカレンダーを選択"')}<button type="button" class="month-picker-trigger" data-action="open-month-picker" aria-label="表示年月を選択">${month.getFullYear()}年 <span>${month.getMonth()+1}月</span><span class="month-picker-chevron" aria-hidden="true">▾</span></button><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid-viewport"><div class="month-grid-track">${gridFor(moveMonth(month,-1),true)}${gridFor(month)}${gridFor(moveMonth(month,1),true)}</div></div></div><aside class="card day-panel">${dayContent(selected)}</aside></div></section>`;
+ return `<section class="screen calendar-screen"><div class="calendar-layout"><div class="calendar-card card"><div class="month-heading"><div class="calendar-heading-actions">${button('<span class="calendar-switch-symbol" aria-hidden="true"></span>','open-extra-calendars','icon-button calendar-switch-button','aria-label="表示するカレンダーを選択" title="表示するカレンダーを選択"')}${button('凡例','open-preset-legend','icon-button preset-legend-button','aria-label="プリセット一覧を表示" title="プリセット一覧を表示"')}</div><button type="button" class="month-picker-trigger" data-action="open-month-picker" aria-label="表示年月を選択">${month.getFullYear()}年 <span>${month.getMonth()+1}月</span><span class="month-picker-chevron" aria-hidden="true">▾</span></button><div class="toolbar">${button('‹','prev-month','icon-button','aria-label="前月"')}${button('今日','today','mini')}${button('›','next-month','icon-button','aria-label="翌月"')}</div></div><div class="weekdays">${'日月火水木金土'.split('').map(d=>`<span>${d}</span>`).join('')}</div><div class="month-grid-viewport"><div class="month-grid-track">${gridFor(moveMonth(month,-1),true)}${gridFor(month)}${gridFor(moveMonth(month,1),true)}</div></div></div><aside class="card day-panel">${dayContent(selected)}</aside></div></section>`;
 }
 function patchCalendarCells(){
  const list=records(),extras=extraEvents();
@@ -544,6 +544,19 @@ function rulesFields(){return `<div class="check-row"><input type="checkbox" id=
 function categoryCalendarSettings(){
  return '<h3>分類別カレンダー</h3><p>分類ごとにGoogleカレンダーを指定します。未設定の分類には書き込みません。同じカレンダーを複数の分類に割り当てられます。</p>'+
  state.categories.map(category=>`<label class="field"><span>${esc(category.name)}</span><select data-category-calendar="${esc(category.id)}"><option value="">未設定（保存先なし）</option>${calendars.filter(c=>['owner','writer'].includes(c.accessRole)).map(c=>`<option value="${esc(c.id)}" ${state.categoryCalendars[category.id]===c.id?'selected':''}>${esc(c.summary)}</option>`).join('')}${state.categoryCalendars[category.id]&&!calendars.some(c=>c.id===state.categoryCalendars[category.id])?`<option selected value="${esc(state.categoryCalendars[category.id])}">保存済みの設定（${esc(state.categoryCalendars[category.id])}）</option>`:''}</select></label>`).join('');
+}
+function openPresetLegend(){
+ const items=state.iconRules.map(rule=>{
+  const title=String(rule.keyword||'').trim(),memo=String(rule.memo||'').trim();
+  if(!title&&!memo)return '';
+  return '<div class="preset-legend-item" role="listitem">'+
+   '<span class="preset-legend-icon">'+iconMarkup(rule.icon,rule.color)+'</span>'+
+   '<span class="preset-legend-text"><strong class="preset-legend-title">'+esc(title||'（タイトルなし）')+'</strong>'+
+   (memo?'<span class="preset-legend-memo">'+esc(memo)+'</span>':'')+
+   '</span></div>';
+ }).filter(Boolean).join('');
+ modal('プリセット一覧','<div class="preset-legend-grid" role="list" aria-label="アイコンとタイトル・メモの対応">'+
+  (items||'<p class="hint preset-legend-empty">プリセットはまだありません。</p>')+'</div>');
 }
 function openExtraCalendarPicker(){
  const candidates=calendars.map(c=>`<label class="check-row"><input type="checkbox" data-extra-calendar="${esc(c.id)}" ${state.extraCalendarIds.includes(c.id)?'checked':''}><span>${esc(c.summary)}${['owner','writer'].includes(c.accessRole)?'':'（読み取り専用）'}</span></label>`).join('');
@@ -1402,6 +1415,7 @@ const actions={
  'notice-use-rules':()=>{closeModal();state.menuGenerationMode='rules';persist();tab='generate';render();notify('ルールベースに切り替えました。生成ボタンで献立を作れます。');},
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
  'open-extra-calendars':()=>openExtraCalendarPicker(),
+ 'open-preset-legend':()=>openPresetLegend(),
   'open-month-picker':()=>openMonthPicker(),
  'choose-month':b=>chooseMonthFromPicker(Number(b.dataset.month)),
  'month-year-previous':()=>{const field=$('#month-picker-year');if(field)field.value=String(Math.max(1900,(Number(field.value)||month.getFullYear())-1));},

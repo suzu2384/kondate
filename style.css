@@ -1100,3 +1100,53 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
   flex-basis:36px;width:36px;height:36px;min-width:36px;min-height:36px;padding:0;
  }
 }
+
+/* v1.14.4: calendar preset legend beside the calendar selector. */
+.month-heading .calendar-heading-actions{
+ display:flex;grid-column:1;grid-row:1;align-items:center;justify-self:start;gap:4px;min-width:0;
+}
+.month-heading .calendar-heading-actions .calendar-switch-button{grid-column:auto;grid-row:auto}
+.month-heading .calendar-heading-actions .preset-legend-button{
+ display:inline-flex;align-items:center;justify-content:center;
+ min-width:34px;height:34px;min-height:34px;padding:3px 4px;
+ font-size:11px;font-weight:700;line-height:1;white-space:nowrap;
+}
+.preset-legend-grid{
+ display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+}
+.preset-legend-item{
+ display:flex;align-items:flex-start;gap:8px;min-width:0;
+ padding:10px 8px;border:1px solid var(--line);border-radius:9px;
+ background:var(--surface);
+}
+.preset-legend-icon{
+ display:inline-flex;flex:0 0 28px;align-items:center;justify-content:center;min-height:27px;
+}
+.preset-legend-icon .preset-svg-icon{width:24px;height:24px}
+.preset-legend-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.preset-legend-title{font-size:13px;font-weight:700;line-height:1.4;overflow-wrap:anywhere}
+.preset-legend-memo{
+ color:var(--muted);font-size:12px;line-height:1.5;
+ white-space:pre-line;overflow-wrap:anywhere;
+}
+.preset-legend-empty{grid-column:1/-1}
+@media(max-width:760px){
+ .month-heading .calendar-heading-actions{gap:2px}
+ .month-heading .calendar-heading-actions .preset-legend-button{
+  min-width:32px;height:32px;min-height:32px;padding:3px 2px;font-size:10px;
+ }
+ .preset-legend-grid{gap:6px}
+ .preset-legend-item{gap:5px;padding:8px 5px}
+ .preset-legend-icon{flex-basis:23px;min-height:23px}
+ .preset-legend-icon .preset-svg-icon{width:21px;height:21px}
+ .preset-legend-title{font-size:12px}
+ .preset-legend-memo{font-size:11px}
+}
+@media(max-width:360px){
+ .month-heading .calendar-heading-actions{gap:0}
+ .month-heading .calendar-heading-actions .calendar-switch-button,
+ .month-heading .calendar-heading-actions .preset-legend-button{min-width:29px;padding-inline:3px}
+ .month-heading .toolbar{gap:0}
+ .month-heading .toolbar button{min-width:28px;padding-inline:3px}
+ .month-picker-trigger{font-size:14px;gap:2px;padding-inline:2px}
+}
