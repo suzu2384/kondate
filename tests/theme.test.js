@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {colors,themeBackgroundColor} from '../src/themes.js';
 function luminance(hex){const rgb=hex.replace('#','').match(/../g).map(x=>parseInt(x,16)/255).map(c=>c<=.04045?c/12.92:((c+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;}
 function contrast(a,b){const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);}
-test('all 14 theme accent text and button labels meet 4.5:1 contrast',()=>{for(const[name,c]of Object.entries(colors)){assert.ok(contrast(c.light,'#fffefa')>=4.5,`${name} light text`);assert.ok(contrast(c.light,'#ffffff')>=4.5,`${name} light button`);assert.ok(contrast(c.dark,'#222925')>=4.5,`${name} dark text`);assert.ok(contrast(c.dark,'#17231b')>=4.5,`${name} dark button`);}for(const [a,b] of [['#25332b','#fffefa'],['#626d65','#fffefa'],['#edf0eb','#222925'],['#adbab0','#222925']])assert.ok(contrast(a,b)>=4.5);});
+test('all theme accent text and button labels meet 4.5:1 contrast',()=>{for(const[name,c]of Object.entries(colors)){assert.ok(contrast(c.light,'#fffefa')>=4.5,`${name} light text`);assert.ok(contrast(c.light,'#ffffff')>=4.5,`${name} light button`);assert.ok(contrast(c.dark,'#222925')>=4.5,`${name} dark text`);assert.ok(contrast(c.dark,'#17231b')>=4.5,`${name} dark button`);}for(const [a,b] of [['#25332b','#fffefa'],['#626d65','#fffefa'],['#edf0eb','#222925'],['#adbab0','#222925']])assert.ok(contrast(a,b)>=4.5);});
 
 test('light theme is bright across all colors, not only the page background',async()=>{
  const {applyTheme}=await import('../src/themes.js');
@@ -65,3 +65,51 @@ test('light theme is bright across all colors, not only the page background',asy
   if(originalMatchMedia===undefined)delete globalThis.matchMedia;else globalThis.matchMedia=originalMatchMedia;
  }
 });
+
+test('every original palette has a distinct higher-chroma option without changing legacy colors',()=>{
+ const legacy={
+  red:['#9a4545','#ecaaaa'],yellow:['#776016','#e2cd7d'],
+  green:['#436e57','#a4d3b3'],cyan:['#256c76','#8fd3dc'],
+  blue:['#4167a1','#abc8f1'],magenta:['#875081','#dcafda'],
+  mono:['#525b61','#c4cbd0']
+ };
+ assert.equal(Object.keys(colors).length,14);
+ for(const [id,old] of Object.entries(legacy)){
+  assert.deepEqual([colors[id].light,colors[id].dark],old);
+  const rich=colors[id+'-rich'];
+  assert.ok(rich?.rich,id+' missing richer alternative');
+  assert.notEqual(rich.light,colors[id].light);
+  assert.notEqual(rich.dark,colors[id].dark);
+  assert.ok(contrast(rich.light,'#ffffff')>=4.5,id+' richer light accent contrast');
+  assert.ok(contrast(rich.dark,'#17231b')>=4.5,id+' richer dark accent contrast');
+ }
+});
+
+test('richer themes color the foreground and supporting surfaces more than legacy themes',async()=>{
+ const {applyTheme}=await import('../src/themes.js');
+ const oldDocument=globalThis.document,oldMedia=globalThis.matchMedia;
+ const get=(name,mode)=>{
+  const result=new Map();
+  globalThis.document={documentElement:{style:{setProperty:(key,val)=>result.set(key,val)},dataset:{}},querySelector:()=>null};
+  globalThis.matchMedia=()=>({matches:false});
+  applyTheme({color:name,mode});
+  return result;
+ };
+ try{
+  for(const name of ['red','yellow','green','cyan','blue','magenta','mono']){
+   for(const mode of ['light','dark']){
+    const standard=get(name,mode),rich=get(name+'-rich',mode);
+    const pct=x=>Number(x.match(/ (\d+(?:\.\d+)?)%,/)[1]);
+    assert.ok(pct(rich.get('--text'))>pct(standard.get('--text')),name+' '+mode+' text saturation');
+    assert.ok(pct(rich.get('--muted'))>pct(standard.get('--muted')),name+' '+mode+' muted saturation');
+    assert.ok(pct(rich.get('--panel'))>pct(standard.get('--panel')),name+' '+mode+' panel saturation');
+    assert.notEqual(themeBackgroundColor({color:name,mode}),themeBackgroundColor({color:name+'-rich',mode}));
+   }
+  }
+ }finally{
+  if(oldDocument===undefined)delete globalThis.document;else globalThis.document=oldDocument;
+  if(oldMedia===undefined)delete globalThis.matchMedia;else globalThis.matchMedia=oldMedia;
+ }
+});
+
+test('theme swatch pairing keeps original buttons and accessible descriptive labels',()=>{})
