@@ -573,7 +573,7 @@ function openPresetLegend(){
   return '<div class="preset-legend-item" role="listitem" title="'+esc(label)+'" aria-label="'+esc(label)+'">'+
    '<span class="preset-legend-icon">'+iconMarkup(rule.icon,rule.color)+'</span>'+
    '<span class="preset-legend-text"><strong class="preset-legend-title">'+esc(title||'（タイトルなし）')+'</strong>'+
-   (memo?'<span class="preset-legend-memo">（'+esc(memo.replace(/\\s+/g,' '))+'）</span>':'')+
+   (memo?'<span class="preset-legend-memo">（'+esc(memo.replace(/\s+/g,' '))+'）</span>':'')+
    '</span></div>';
  }).filter(Boolean).join('');
  modal('プリセット一覧','<div class="preset-legend-grid" role="list" aria-label="アイコンとタイトル・メモの対応">'+
