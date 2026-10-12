@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,diffSnapshots,replayOps,validateSharedOp} from '../src/family-share.js';
+import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,diffSnapshots,replayOps,validateSharedOp,describeSharedApiFailure} from '../src/family-share.js';
 import {shoppingSharedSnapshot,applyShoppingEvents,masterSharedSnapshot,applyMasterEvents} from '../src/family-data.js';
 const file=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const storage=()=>{const d=new Map();return {getItem:k=>d.get(k)||null,setItem:(k,v)=>d.set(k,v),removeItem:k=>d.delete(k)};};
@@ -152,4 +152,61 @@ test('family sharing buttons remain visible in both tab toolbars on phones',()=>
  assert.match(shopping,/\$\{button\('未購入をコピー','shopping-copy'/);
  assert.match(shopping,/\$\{button\('共有','family-dialog'.*data-kind="shopping"/);
  assert.ok(shopping.indexOf("button('共有','family-dialog'")>shopping.indexOf("button('未購入をコピー','shopping-copy'"));
+});
+
+test('Sheets 403 SERVICE_DISABLED identifies spreadsheet creation and the failing Cloud project',async()=>{
+ const client=new FamilyDriveClient(async()=>({
+  ok:false,status:403,json:async()=>({error:{code:403,status:'PERMISSION_DENIED',
+   message:'Google Sheets API has not been used in this project.',
+   details:[{'@type':'type.googleapis.com/google.rpc.ErrorInfo',reason:'SERVICE_DISABLED',
+    metadata:{service:'sheets.googleapis.com',consumer:'projects/123456789012'}}]
+  }})
+ }));
+ client.token='test-token';client.expires=Date.now()+60000;
+ await assert.rejects(client.create('master'),error=>{
+  assert.match(error.message,/共有ファイルの作成/);
+  assert.match(error.message,/Google Sheets API／HTTP 403／SERVICE_DISABLED/);
+  assert.match(error.message,/プロジェクト 123456789012/);
+  assert.match(error.message,/対象APIを有効化/);
+  assert.doesNotMatch(error.message,/test-token/);
+  return true;
+ });
+});
+
+test('403 from Drive invite is distinguished from a Sheets write error',async()=>{
+ const client=new FamilyDriveClient(async()=>({ok:false,status:403,json:async()=>({
+  error:{message:'The caller does not have permission.',status:'PERMISSION_DENIED',
+   details:[{reason:'domainPolicy'}]}
+ })}));
+ client.token='test-token';client.expires=Date.now()+60000;
+ await assert.rejects(client.invite('abcdefghijklmnop123456','relative@example.com'),error=>{
+  assert.match(error.message,/共有相手への編集権限の付与/);
+  assert.match(error.message,/Google Drive API／HTTP 403／domainPolicy/);
+  assert.match(error.message,/外部共有制限/);
+  assert.doesNotMatch(error.message,/Google Sheets APIの有効化を確認/);
+  return true;
+ });
+});
+
+test('403 OAuth scope error clears old sharing token and asks for re-consent',async()=>{
+ const client=new FamilyDriveClient(async()=>({ok:false,status:403,json:async()=>({error:{
+  message:'Request had insufficient authentication scopes.',
+  details:[{reason:'ACCESS_TOKEN_SCOPE_INSUFFICIENT'}]
+ }})}));
+ client.token='expired-scope-token';client.expires=Date.now()+60000;
+ await assert.rejects(client.sheets('/spreadsheets/abcdefghijklmnop123456/values/Ops!A:B:append',{method:'POST',body:{}}),
+  /共有データの書き込み.*ACCESS_TOKEN_SCOPE_INSUFFICIENT/);
+ assert.equal(client.connected,false);
+ assert.equal(client.forceConsent,true);
+});
+
+test('Google HTTP errors without JSON still identify the API and operation',async()=>{
+ const client=new FamilyDriveClient(async()=>({ok:false,status:403,json:async()=>{throw Error('invalid JSON');}}));
+ client.token='test-token';client.expires=Date.now()+60000;
+ await assert.rejects(client.sheets('/spreadsheets',{method:'POST',body:{}}),error=>{
+  assert.match(error.message,/共有ファイルの作成.*HTTP 403/);
+  return true;
+ });
+ assert.match(describeSharedApiFailure(429,{error:{message:'Rate limit exceeded'}},
+   'https://sheets.googleapis.com/v4','/spreadsheets','POST'),/HTTP 429/);
 });
