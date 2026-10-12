@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {colors,themeBackgroundColor} from '../src/themes.js';
+import {colors,themeBackgroundColor,normalizeThemeColor,isSupportedThemeColor} from '../src/themes.js';
 function luminance(hex){const rgb=hex.replace('#','').match(/../g).map(x=>parseInt(x,16)/255).map(c=>c<=.04045?c/12.92:((c+.055)/1.055)**2.4);return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;}
 function contrast(a,b){const x=luminance(a),y=luminance(b);return (Math.max(x,y)+.05)/(Math.min(x,y)+.05);}
 test('all theme accent text and button labels meet 4.5:1 contrast',()=>{for(const[name,c]of Object.entries(colors)){assert.ok(contrast(c.light,'#fffefa')>=4.5,`${name} light text`);assert.ok(contrast(c.light,'#ffffff')>=4.5,`${name} light button`);assert.ok(contrast(c.dark,'#222925')>=4.5,`${name} dark text`);assert.ok(contrast(c.dark,'#17231b')>=4.5,`${name} dark button`);}for(const [a,b] of [['#25332b','#fffefa'],['#626d65','#fffefa'],['#edf0eb','#222925'],['#adbab0','#222925']])assert.ok(contrast(a,b)>=4.5);});
@@ -74,7 +74,7 @@ test('every original palette has a distinct higher-chroma option without changin
   blue:['#4167a1','#abc8f1'],magenta:['#875081','#dcafda'],
   mono:['#525b61','#c4cbd0']
  };
- assert.equal(Object.keys(colors).length,18);
+ assert.equal(Object.keys(colors).length,14);
  for(const [id,old] of Object.entries(legacy)){
   assert.deepEqual([colors[id].light,colors[id].dark],old);
   const rich=colors[id+'-rich'];
@@ -86,66 +86,52 @@ test('every original palette has a distinct higher-chroma option without changin
  }
 });
 
-test('richer themes color foreground only and retain old surface backgrounds',async()=>{
+test('tone pairs differ only in accent, retaining original text and background',async()=>{
  const {applyTheme}=await import('../src/themes.js');
- const oldDocument=globalThis.document,oldMedia=globalThis.matchMedia;
- const get=(name,mode)=>{
+ const prevDocument=globalThis.document,prevMatchMedia=globalThis.matchMedia;
+ const capture=(color,mode)=>{
   const result=new Map();
   globalThis.document={documentElement:{style:{setProperty:(key,val)=>result.set(key,val)},dataset:{}},querySelector:()=>null};
   globalThis.matchMedia=()=>({matches:false});
-  applyTheme({color:name,mode});
+  applyTheme({color,mode});
   return result;
  };
  try{
   for(const name of ['red','yellow','green','cyan','blue','magenta','mono']){
    for(const mode of ['light','dark']){
-    const standard=get(name,mode),rich=get(name+'-rich',mode);
-    assert.equal(rich.get('--text'),mode==='dark'?colors[name+'-rich'].dark:colors[name+'-rich'].light,name+' '+mode+' bright direct text');
-    assert.notEqual(rich.get('--text'),standard.get('--text'),name+' '+mode+' differs from muted standard');
-    const pct=x=>Number(x.match(/ (\d+(?:\.\d+)?)%,/)[1]);
-    assert.ok(pct(rich.get('--muted'))>pct(standard.get('--muted')),name+' '+mode+' stronger colored helper text');
-    for(const key of ['bg','surface','panel','line','tint'])assert.equal(rich.get('--'+key),standard.get('--'+key),name+' '+mode+' '+key);
+    const dark=mode==='dark',normal=capture(name,mode),bright=capture(name+'-rich',mode);
+    assert.equal(bright.get('--accent'),colors[name+'-rich'][mode],name+' '+mode+' accent');
+    assert.notEqual(bright.get('--accent'),normal.get('--accent'));
+    for(const [key,value] of normal){
+     if(key==='--accent')continue;
+     assert.equal(bright.get(key),value,name+' '+mode+' '+key+' must be unchanged');
+    }
     assert.equal(themeBackgroundColor({color:name,mode}),themeBackgroundColor({color:name+'-rich',mode}));
    }
   }
  }finally{
-  if(oldDocument===undefined)delete globalThis.document;else globalThis.document=oldDocument;
-  if(oldMedia===undefined)delete globalThis.matchMedia;else globalThis.matchMedia=oldMedia;
+  if(prevDocument===undefined)delete globalThis.document;else globalThis.document=prevDocument;
+  if(prevMatchMedia===undefined)delete globalThis.matchMedia;else globalThis.matchMedia=prevMatchMedia;
  }
 });
 
+test('only seven brighter hues are available and legacy color IDs remain compatible',()=>{
+ assert.deepEqual(Object.keys(colors).filter(k=>k.endsWith('-rich')),
+  ['red-rich','yellow-rich','green-rich','cyan-rich','blue-rich','magenta-rich','mono-rich']);
+ assert.equal(colors['red-rich'].light,'#c62828');
+ assert.equal(colors['red-rich'].dark,'#ff6868');
+ for(const [old,color] of Object.entries({'orange-rich':'red-rich','lime-rich':'green-rich','purple-rich':'magenta-rich','pink-rich':'red-rich'})){
+  assert.equal(isSupportedThemeColor(old),true);
+  assert.equal(normalizeThemeColor(old),color);
+ }
+ assert.equal(isSupportedThemeColor('not-a-theme'),false);
+ assert.equal(normalizeThemeColor('not-a-theme'),'green');
+});
 
-
-test('image-inspired spectrum gives legible bright text in light and dark modes',async()=>{
- const {applyTheme}=await import('../src/themes.js');
- const oldDocument=globalThis.document,oldMatchMedia=globalThis.matchMedia;
- const resolveMix=v=>{
-  if(/^#[0-9a-f]{6}$/i.test(v))return v;
-  const found=/^color-mix\(in srgb, (#[0-9a-f]{6}) (\d+)%, (#[0-9a-f]{6})\)$/i.exec(v);
-  assert.ok(found,'unrecognized theme token '+v);
-  const pct=Number(found[2])/100;
-  return '#'+[1,3,5].map(i=>Math.round(parseInt(found[1].slice(i,i+2),16)*pct+parseInt(found[3].slice(i,i+2),16)*(1-pct)).toString(16).padStart(2,'0')).join('');
- };
- try{
-  for(const name of ['red','orange','yellow','lime','green','cyan','blue','purple','magenta','pink','mono']){
-   const rich=colors[name+'-rich'];
-   assert.ok(rich?.rich,'missing image-inspired hue '+name);
-   assert.ok(contrast(rich.light,'#ffffff')>=4.5,'light readable '+name);
-   assert.ok(contrast(rich.dark,'#273240')>=4.5,'dark readable '+name);
-   for(const mode of ['light','dark']){
-    const vars=new Map();
-    globalThis.document={documentElement:{style:{setProperty:(key,value)=>vars.set(key,value)},dataset:{}},querySelector:()=>null};
-    globalThis.matchMedia=()=>({matches:mode==='dark'});
-    applyTheme({color:name+'-rich',mode});
-    const fg=resolveMix(vars.get('--text')),muted=resolveMix(vars.get('--muted'));
-    const bg=resolveMix(vars.get('--surface'));
-    assert.equal(fg,rich[mode]);
-    assert.ok(contrast(fg,bg)>=4.5,name+' '+mode+' body contrast');
-    assert.ok(contrast(muted,bg)>=4.5,name+' '+mode+' muted contrast');
-   }
-  }
- }finally{
-  if(oldDocument===undefined)delete globalThis.document;else globalThis.document=oldDocument;
-  if(oldMatchMedia===undefined)delete globalThis.matchMedia;else globalThis.matchMedia=oldMatchMedia;
+test('the brighter accents retain good label contrast',()=>{
+ for(const name of ['red','yellow','green','cyan','blue','magenta','mono']){
+  const vivid=colors[name+'-rich'];
+  assert.ok(contrast(vivid.light,'#ffffff')>=4.5,name+' light on white');
+  assert.ok(contrast(vivid.dark,'#14202a')>=4.5,name+' dark button label');
  }
 });
