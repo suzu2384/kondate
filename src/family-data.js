@@ -17,8 +17,12 @@ export function masterSharedSnapshot(rows=[]){
  }
  return out;
 }
-export function shoppingSharedSnapshot(input={}){
+export function shoppingSharedSnapshot(input={},computed=[]){
  const s=shoppingSettings(input),out={servings:s.servings};
+ for(const i of computed.filter(i=>i.kind==='auto')){
+  out['ingredient:'+i.id]={id:i.id,kind:'auto',name:i.name,
+   baseUnit:i.baseUnit,baseQuantity:i.baseQuantity,sourceNames:i.sourceNames||[]};
+ }
  for(const name of s.selected)out['selected:'+normalize(name)]=name;
  for(const i of s.manual)out['manual:'+i.id]={...i};
  for(const [id,value] of Object.entries(s.checked))out['checked:'+id]=value;
