@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {driveSettingsDigest,decideDriveSync} from '../src/drive-sync.js';
+import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependentDriveChanges} from '../src/drive-sync.js';
 const remote={format:'kondate-drive-settings-v2',updatedAt:'2026-10-09T07:00:00Z',settings:{theme:{color:'green'},rules:{days:7}},master:{a:{manual:[]}}};
 const changed={...remote,settings:{...remote.settings,theme:{color:'blue'}}};
 const choose=o=>decideDriveSync({remoteExists:true,localDigest:'local',remoteDigest:'remote',baseDigest:'base',pending:true,remoteRevision:'9',baseRevision:'8',...o});
@@ -31,4 +31,27 @@ test('initial setup with an existing Drive backup downloads it; an empty Drive u
  assert.equal(choose({localDigest:'new',remoteDigest:'old',baseDigest:'',pending:false,remoteRevision:'4',baseRevision:''}),'download');
  assert.equal(decideDriveSync({remoteExists:false,localDigest:'local'}),'upload');
  assert.equal(decideDriveSync({remoteExists:false,localDigest:'local',baseRevision:'5'}),'missing');
+});
+
+test('independent changes to the draft and settings safely merge both directions',async()=>{
+ const base={...remote,settings:{...remote.settings,draft:[{dishes:[{name:'カレー',category:'main'}]}],recentNewMains:[]}};
+ const hashes=await driveSectionDigests(base);
+ const changedDraft={...base,settings:{...base.settings,draft:[{dishes:[{name:'煮魚',category:'main'}]}],recentNewMains:['特製炒め物']}};
+ const changedTheme={...base,settings:{...base.settings,theme:{color:'blue'}}};
+ for(const [local,cloud] of [[changedDraft,changedTheme],[changedTheme,changedDraft]]){
+  const merged=await mergeIndependentDriveChanges(local,cloud,hashes);
+  assert.deepEqual(merged.settings.draft,changedDraft.settings.draft);
+  assert.deepEqual(merged.settings.recentNewMains,changedDraft.settings.recentNewMains);
+  assert.deepEqual(merged.settings.theme,changedTheme.settings.theme);
+ }
+});
+test('overlapping draft changes remain a conflict rather than silent overwrite',async()=>{
+ const base={...remote,settings:{...remote.settings,draft:[]}};
+ const hashes=await driveSectionDigests(base);
+ const draft=name=>({...base,settings:{...base.settings,draft:[{dishes:[{name}]}]}});
+ assert.equal(await mergeIndependentDriveChanges(draft('A'),draft('B'),hashes),null);
+ assert.equal(await mergeIndependentDriveChanges(draft('A'),draft('B'),null),null);
+ const a={...base,settings:{...base.settings,theme:{color:'red'}}};
+ const b={...base,settings:{...base.settings,theme:{color:'blue'}}};
+ assert.equal(await mergeIndependentDriveChanges(a,b,hashes),null);
 });
