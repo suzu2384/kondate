@@ -16,18 +16,14 @@ const context={master:dishes,rules,previous:[
  {dishes:[{name:'未調理の候補',category:'main',locked:false}]}
 ]};
 
-test('AI menu prompt prioritizes history diversity rather than filling every slot with oldest',()=>{
- const req=createMenuRequest(context);
- assert.match(req.prompt,/最も古い料理や調理回数count=0の料理ばかりを並べない/);
- assert.match(req.prompt,/定番料理、ほどよく期間が空いた料理、久しぶりの料理を混ぜる/);
- assert.match(req.prompt,/preferOld=trueの場合、oldDays日以上作っていない料理も献立の一部で優先/);
- assert.match(req.prompt,/ただしそれだけで大半を占めない/);
- assert.match(req.prompt,/countが多い定番料理/);
- assert.match(req.prompt,/balance=trueなら/);
- assert.match(req.prompt,/excludeRecentがtrueなら/);
- assert.match(req.prompt,/lockedは絶対に維持する/);
+test('AI prompt is concise, varies draft, and relies on prefiltered candidates',()=>{
+ const prompt=createMenuRequest(context).prompt;
+ assert.match(prompt,/days配列は必ず3日分/);
+ assert.match(prompt,/candidatesから除外済み/);
+ assert.match(prompt,/lockedは同じ日に必ず含めて/);
+ assert.match(prompt,/前回と違うもの/);
+ assert.ok(prompt.split('\n').length<16);
 });
-
 test('previous draft names are hints to vary regeneration, not mandatory exclusions',()=>{
  const prompt=createMenuRequest(context).prompt;
  const payload=JSON.parse(prompt.slice(prompt.indexOf('データ:\n')+'データ:\n'.length));
@@ -37,7 +33,7 @@ test('previous draft names are hints to vary regeneration, not mandatory exclusi
  assert.equal(payload.excludeRecent,true);
  assert.equal(payload.recentDays,7);
  assert.equal(payload.counts.main,1);
- assert.match(prompt,/候補不足なら通常の料理のみ再利用してよい/);
+ assert.match(prompt,/前回と違うもの/);
  assert.doesNotMatch(prompt,/直前の生成案は必ず除外/);
 });
 
@@ -47,7 +43,7 @@ test('absence of previous draft and disabled age preference do not force oldest 
  assert.deepEqual(payload.previousSuggested,[]);
  assert.equal(payload.preferOld,false);
  assert.equal(payload.excludeRecent,false);
- assert.match(prompt,/preferOld=falseなら古さを優先条件にしない/);
+ assert.match(prompt,/除外済み/);
 });
 
 test('new diversity hints never include raw events, locations, metadata or credentials',()=>{
@@ -57,4 +53,29 @@ test('new diversity hints never include raw events, locations, metadata or crede
  assert.match(prompt,/前の献立/);
  for(const secret of ['自宅の住所','secret-example','個人の予定','個人情報','secret-other'])
   assert.doesNotMatch(prompt,new RegExp(secret));
+});
+
+test('recent meals are excluded in both first and subsequent AI requests',()=>{
+ const p={...context,referenceDate:'2026-10-12',previous:[],master:[
+  {name:'昨日の料理',category:'main',lastDate:'2026-10-11',count:12},
+  {name:'7日前の料理',category:'main',lastDate:'2026-10-05',count:9},
+  {name:'8日前の料理',category:'main',lastDate:'2026-10-04',count:7},
+  {name:'未調理の料理',category:'main',lastDate:null,count:0}
+ ]};
+ for(const prev of [[],[{dishes:[{name:'8日前の料理',category:'main',locked:false}]}]]){
+  const request=createMenuRequest({...p,previous:prev});
+  assert.deepEqual(request.candidates.map(d=>d.name),['8日前の料理','未調理の料理']);
+  const payload=JSON.parse(request.prompt.split('データ:\n')[1]);
+  assert.deepEqual(payload.candidates.map(d=>d.name),['8日前の料理','未調理の料理']);
+ }
+ assert.equal(createMenuRequest({...p,rules:{...rules,excludeRecent:false}}).candidates.length,4);
+});
+test('fixed recently cooked dishes remain listed as exceptions only',()=>{
+ const p={...context,referenceDate:'2026-10-12',master:[
+  {name:'昨日の料理',category:'main',lastDate:'2026-10-11',count:2},
+  {name:'古い料理',category:'main',lastDate:'2026-09-10',count:2}
+ ],previous:[{dishes:[{name:'昨日の料理',category:'main',locked:true}]}]};
+ const result=createMenuRequest(p);
+ assert.deepEqual(result.candidates.map(d=>d.name),['古い料理','昨日の料理']);
+ assert.deepEqual(JSON.parse(result.prompt.split('データ:\n')[1]).locked,[{day:1,dishes:[{name:'昨日の料理',category:'main'}]}]);
 });
