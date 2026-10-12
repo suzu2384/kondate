@@ -11,7 +11,7 @@ test('record input provides a native-independent, selectable dish suggestion lis
  assert.match(block,/dish-suggestions/);
  assert.doesNotMatch(block,/list="dish-options"/);
  assert.match(app,/function showDishSuggestions\(input\)/);
- assert.match(app,/dishSuggestions\(master\(\),input\.value/);
+ assert.match(app,/recordDishSuggestions\(master\(\),state\.draft,input\.value/);
  assert.match(app,/'suggest-record-dish':pickRecordDishSuggestion/);
  assert.match(app,/document\.addEventListener\('focusin'/);
  assert.match(app,/if\(e\.key==='ArrowDown'\)/);
@@ -44,7 +44,22 @@ test('selecting a dish uses early pointer handling and updates the live field wi
  assert.doesNotMatch(body,/drawRecord\(\)|\.innerHTML=/);
  const pointer=app.slice(app.indexOf("document.addEventListener('pointerdown'"),app.indexOf("document.addEventListener('click'"));
  assert.match(pointer,/e\.preventDefault\(\)/);
+ assert.match(pointer,/e\\.pointerType==='touch'/);
+ assert.match(css,/\\.dish-suggestion\\s*\\{\\s*flex:0 0 auto/);
+ assert.match(css,/touch-action:pan-y/);
  assert.match(pointer,/pickRecordDishSuggestion\(candidate\)/);
  assert.match(pointer,/\},true\)/);
  assert.match(app,/'suggest-record-dish':pickRecordDishSuggestion/);
+});
+
+test('record suggestions use stable indexes and include fresh plan dishes',()=>{
+ assert.match(app,/const recordDishChoices=new Map\(\)/);
+ assert.match(app,/data-choice="\$\{n\}"/);
+ assert.match(app,/recordDishChoices\.get\(index\)\?\.\[Number\(button\.dataset\.choice\)\]/);
+});
+test('dialog headers are more compact across desktop and mobile',()=>{
+ assert.match(css,/#dialog \.dialog-head\{padding:8px 14px;min-height:42px/);
+ assert.match(css,/#dialog \.dialog-head h2\{font-size:15px/);
+ assert.match(css,/#dialog \.dialog-head\{padding:6px 10px;min-height:38px/);
+ assert.match(app,/id="dialog-title" tabindex="-1"/);
 });
