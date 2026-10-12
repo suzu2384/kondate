@@ -742,7 +742,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 .tabs button .nav-icon-calendar{-webkit-mask-image:url('./icons/tabs/calendar-days.svg');mask-image:url('./icons/tabs/calendar-days.svg')}
 .tabs button .nav-icon-generate{-webkit-mask-image:url('./icons/tabs/chef-hat.svg');mask-image:url('./icons/tabs/chef-hat.svg')}
-.tabs button .nav-icon-shopping{-webkit-mask-image:url('./icons/presets/shopping_cart_2_fill.svg');mask-image:url('./icons/presets/shopping_cart_2_fill.svg')}
+.tabs button .nav-icon-shopping{-webkit-mask-image:url('./icons/tabs/shopping-cart.svg');mask-image:url('./icons/tabs/shopping-cart.svg')}
 .tabs button .nav-icon-settings{-webkit-mask-image:url('./icons/tabs/settings.svg');mask-image:url('./icons/tabs/settings.svg')}
 
 /* v1.3.61: KonDate wordmark and the supplied calendar-check SVG. */
@@ -1067,4 +1067,36 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .shopping-screen .shopping-toolbar #shopping-servings{width:49px;max-width:49px}
  .master-screen .master-toolbar{gap:3px;padding:0 1px}
  .master-screen .master-toolbar button{padding:5px 5px;font-size:10px}
+}
+
+/* v1.14.3 — independent uploaded Lucide shopping/search action icons.
+   Keep icons/presets untouched (including shopping_cart_2_fill.svg). */
+.master-actions .master-action-icon{
+ display:block;flex:0 0 auto;width:20px;height:20px;
+ background-color:currentColor;
+ -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+ -webkit-mask-position:center;mask-position:center;
+ -webkit-mask-size:contain;mask-size:contain;
+}
+.master-action-icon-search{
+ -webkit-mask-image:url('./icons/actions/search.svg');mask-image:url('./icons/actions/search.svg');
+}
+.master-action-icon-add{
+ -webkit-mask-image:url('./icons/actions/shopping-cart-plus.svg');mask-image:url('./icons/actions/shopping-cart-plus.svg');
+}
+.master-action-icon-remove{
+ -webkit-mask-image:url('./icons/actions/shopping-cart-minus.svg');mask-image:url('./icons/actions/shopping-cart-minus.svg');
+}
+/* Square tap targets avoid clutter in narrow recipe rows while retaining aria labels. */
+.master-actions .master-recipe-search,
+.master-actions .master-buy{
+ display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 36px;width:36px;height:36px;min-width:36px;min-height:36px;
+ padding:0;
+}
+@media(max-width:760px){
+ .master-actions .master-recipe-search,
+ .master-actions .master-buy{
+  flex-basis:36px;width:36px;height:36px;min-width:36px;min-height:36px;padding:0;
+ }
 }
