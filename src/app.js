@@ -416,9 +416,10 @@ async function familyJoin(type){
  const id=sharedSpreadsheetId($('#family-join-link')?.value);
  if(!id)throw Error('相手から受け取ったGoogleスプレッドシートのURLを入力してください。');
  const current=family.entry(type);
- if(current.id===id){notify('その共有ファイルにはすでに接続しています。');return;}
+ if(current.id===id&&!current.owner){notify('その共有ファイルにはすでに「共有された側」で参加しています。');return;}
  if(current.queue.length||family.busy[type])throw Error('切り替える前に未送信の変更を同期してください。');
- if(ownedFamilyMatches[type].some(file=>file.id===id))return familyUseOwned(type,id);
+ // Choosing "join by URL" always means recipient mode, regardless of file
+ // ownership. The user explicitly chooses owner mode from the Drive results.
  if((current.id||type==='shopping')&&!window.confirm(
   'この端末の'+(type==='shopping'?'買い物リスト':'同じ料理の情報')+
   'を共有リンク先の内容に切り替えます。現在の共有ファイル自体は削除されません。続行しますか？'))return;
