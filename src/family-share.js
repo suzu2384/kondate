@@ -227,7 +227,10 @@ export class FamilySync{
     const op=validateSharedOp(JSON.parse(row[1]),type);
     if(known.has(op.id))continue;
     remote.push(op);known.add(op.id);
-    if(d.queue.some(x=>x.id!==op.id&&x.key===op.key))conflicts.push(op.key);
+    // An echoed or independently identical edit is not a conflict. Compare
+    // the latest locally pending value, not just the shared recipe key.
+    const pending=d.queue.filter(x=>x.id!==op.id&&x.key===op.key).at(-1);
+    if(pending&&!equals(pending.value,op.value))conflicts.push(op.key);
    }
    d.cursor+=rows.length;d.seen=[...known].slice(-1500);
    const acknowledged=new Set(remote.map(op=>op.id));
