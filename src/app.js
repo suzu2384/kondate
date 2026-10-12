@@ -166,6 +166,13 @@ function extraEvents(){
 
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
 const editedFamilyDishes=new Set();
+function familyInitialOwnerSnapshot(type){
+ if(type==='shopping'){
+  const items=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
+  return shoppingSharedSnapshot(state.shopping,items.items);
+ }
+ return masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)})));
+}
 function familySnapshot(type){
  if(type==='shopping'){
   const current=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
@@ -402,7 +409,7 @@ async function familyStart(type){
  await familyClient.authorize(GOOGLE_CLIENT_ID,{join:joinedOther});
  // Do not call start() with an already active recipient entry; preserve it
  // until the new file is successfully created and the invitation sent.
- await family.start(type,familySnapshot(type),email,{replace:!!current.id});
+ await family.start(type,familyInitialOwnerSnapshot(type),email,{replace:!!current.id});
  closeModal();render();notify('自分の共有ファイルを作成し、招待しました。URLは共有画面からコピーできます。');
 }
 async function familyJoin(type){
