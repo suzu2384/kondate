@@ -26,7 +26,7 @@ import {normalizeStatusNotice,selectStatusNotice,generationFailureNotice,generat
 import {catalog} from './catalog.js';
 import {recipeSearchUrl} from './recipe-search.js';
 import {INGREDIENT_UNITS,validateIngredients,MAX_INGREDIENTS,normalizeIngredient} from './ingredients.js';
-import {DEFAULT_SHOPPING_SERVINGS,MAX_SHOPPING_SERVINGS,shoppingSettings,shoppingItems,validateShoppingSettings,addShoppingDish} from './shopping.js';
+import {DEFAULT_SHOPPING_SERVINGS,MAX_SHOPPING_SERVINGS,shoppingSettings,shoppingItems,quantityLabel,validateShoppingSettings,addShoppingDish} from './shopping.js';
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
@@ -161,7 +161,18 @@ function extraEvents(){
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
 const editedFamilyDishes=new Set();
 function familySnapshot(type){
- if(type==='shopping')return shoppingSharedSnapshot(state.shopping);
+ if(type==='shopping'){
+  const current=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
+  const entry=family.entry('shopping');
+  const data=shoppingSharedSnapshot(state.shopping,
+   (!entry.id||entry.owner||family.entry('master').id)?current.items:[]);
+  // Joining the checklist alone must never erase its source ingredient data
+  // when this device does not have the corresponding recipe master.
+  if(entry.id&&!entry.owner&&!family.entry('master').id)
+   for(const [key,value] of Object.entries(entry.shadow))
+    if(key.startsWith('ingredient:'))data[key]=value;
+  return data;
+ }
  const all=masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)})));
  if(!family.entry('master').id)return all; // Initial owner export includes the current catalog.
  // Joining a family does not automatically publish the recipient's private
@@ -204,6 +215,8 @@ async function syncFamily(type){
  try{
   const result=await family.sync(type,(ops,opts)=>applyFamily(type,ops,opts));
   lastFamilyPoll[type]=Date.now();
+  // FamilySync updates its materialized shadow after applying operations.
+  if(result.changed&&tab===type)render();
   if(result.conflicts.length)notify({summary:'同じ項目への同時変更を検出しました。共有データの更新順に反映されます。',severity:'warning'});
  }catch(error){
   lastFamilyPoll[type]=Date.now();
@@ -453,7 +466,25 @@ function buyMasterDish(b){
  state.shopping.selected=addShoppingDish(state.shopping.selected,existing.name);
  persist();render();notify('「'+existing.name+'」を買い物リストに追加しました。');
 }
-function shoppingData(){return shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});}
+function shoppingData(){
+ const view=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
+ const shared=family.entry('shopping');
+ if(!shared.id)return view;
+ const auto=Object.entries(shared.shadow).filter(([key,item])=>
+  key.startsWith('ingredient:')&&item?.kind==='auto'&&item.id&&item.name&&item.baseUnit);
+ // Always display the shared aggregation when connected; a recipient does not
+ // need to separately connect the recipe master just to see the checklist.
+ const sharedRows=auto.map(([,i])=>{
+  const signature=i.baseUnit+':'+String(i.baseQuantity);
+  return {...i,signature,display:quantityLabel(i),
+   checked:state.shopping.checked[i.id]===signature,
+   excluded:state.shopping.excluded[i.id]===true};
+ });
+ const manual=view.items.filter(item=>item.kind==='manual');
+ const items=[...sharedRows,...manual].sort((a,b)=>a.name.localeCompare(b.name,'ja')||a.baseUnit.localeCompare(b.baseUnit,'ja'));
+ return {...view,items,pending:items.filter(i=>!i.checked&&!i.excluded),
+  bought:items.filter(i=>i.checked&&!i.excluded),excluded:items.filter(i=>i.excluded)};
+}
 function shoppingRow(item){
  const name=esc(item.name),detail=item.kind==='manual'?'手動追加':(item.sourceNames.length?item.sourceNames.join('・'):'');
  return `<li class="shopping-item ${item.checked?'is-bought':''} ${item.excluded?'is-excluded':''}">
