@@ -7,6 +7,14 @@ export const SHARED_KINDS=['master','shopping'];
 export const SHOPPING_SYNC_SECONDS=[3,5,10,15,30,60];
 const STORAGE='kondate.family-share.v1',TOKEN_STORAGE='kondate.family-share.token.v1';
 const MARKER='kondate-shared-v1';
+const SHARED_TITLES={master:'KonDate 共有料理マスター',shopping:'KonDate 共有買い物リスト'};
+const SHEET_MIME='application/vnd.google-apps.spreadsheet';
+export function ownedShareQuery(type){
+ if(!Object.hasOwn(SHARED_TITLES,type))throw Error('共有対象が不正です。');
+ const name=SHARED_TITLES[type].replaceAll('\\','\\\\').replaceAll("'","\\'");
+ return `name = '${name}' and mimeType = '${SHEET_MIME}' and trashed = false and 'me' in owners`;
+}
+export const sharedSpreadsheetUrl=id=>'https://docs.google.com/spreadsheets/d/'+encodeURIComponent(id)+'/edit';
 const validId=id=>/^[a-zA-Z0-9_-]{15,180}$/.test(String(id||''));
 /** Do not accept arbitrary URLs as a spreadsheet share link. */
 export function sharedSpreadsheetId(input){
@@ -135,10 +143,32 @@ export class FamilyDriveClient{
  }
  sheets(path,opt){return this.request('https://sheets.googleapis.com/v4',path,opt);}
  drive(path,opt){return this.request('https://www.googleapis.com',path,opt);}
+ async findOwned(type){
+  const query=ownedShareQuery(type),files=[],known=new Set();
+  let pageToken='';
+  // Drive's drive.file scope only reveals this app's files, not arbitrary
+  // spreadsheets from another app or the recipient's general Shared with me.
+  for(let page=0;page<10;page++){
+   const params=new URLSearchParams({q:query,spaces:'drive',pageSize:'100',
+    fields:'nextPageToken,files(id,name,mimeType,ownedByMe,modifiedTime)',
+    orderBy:'modifiedTime desc'});
+   if(pageToken)params.set('pageToken',pageToken);
+   const data=await this.drive('/drive/v3/files?'+params.toString());
+   for(const f of Array.isArray(data?.files)?data.files:[]){
+    if(!validId(f.id)||f.ownedByMe!==true||f.name!==SHARED_TITLES[type]||
+       f.mimeType!==SHEET_MIME||known.has(f.id))continue;
+    known.add(f.id);
+    files.push({id:f.id,name:f.name,modifiedTime:String(f.modifiedTime||'')});
+   }
+   pageToken=data?.nextPageToken||'';
+   if(!pageToken)break;
+  }
+  return files;
+ }
  async create(type){
   if(!SHARED_KINDS.includes(type))throw Error('不明な共有対象です。');
   const r=await this.sheets('/spreadsheets',{method:'POST',body:{
-   properties:{title:'KonDate 共有'+(type==='master'?'料理マスター':'買い物リスト')},
+   properties:{title:SHARED_TITLES[type]},
    sheets:[{properties:{title:'Ops',gridProperties:{columnCount:2,rowCount:1000}}}]
   }});
   if(!validId(r.spreadsheetId))throw Error('共有ファイルを作成できませんでした。');
@@ -200,14 +230,14 @@ export class FamilySync{
   if(email)await this.client.invite(id,email);
   return id;
  }
- async join(type,id,apply){
+ async join(type,id,apply,{owner=false}={}){
   if(!this.client.connected)throw Error('共有用Google認証が必要です。');
   const rows=await this.client.readRows(id,1);
   if(rows[0]?.[0]!==MARKER||rows[0]?.[1]!==type)throw Error('このファイルはKonDateの該当する共有データではありません。');
   const ops=[];
   for(const row of rows.slice(1)){if(!row?.[1])continue;ops.push(validateSharedOp(JSON.parse(row[1]),type));}
   await apply(ops,{initial:true});
-  this.settings[type]={...blank(),id,cursor:rows.length+1,shadow:replayOps({},ops),
+  this.settings[type]={...blank(),id,owner,cursor:rows.length+1,shadow:replayOps({},ops),
    seen:ops.map(op=>op.id).slice(-1500)};
   this.persist();return id;
  }
