@@ -107,3 +107,15 @@ test('the app persists only recent proposed names and increases model variety',(
  assert.match(app,/state\.recentNewMains=rememberNewMainSuggestions\(state\.recentNewMains,plan\)/);
  assert.match(firebase,/temperature:0\.95/);
 });
+
+test('seven-day response is rejected if it merely repeats a prior draft despite many fresh alternatives',async()=>{
+ const large=Array.from({length:28},(_,i)=>({name:'料理'+i,category:'main',lastDate:'2025-01-01'}));
+ const prior=Array.from({length:7},(_,i)=>({dishes:[{name:'料理'+i,category:'main'}]}));
+ const repeat=JSON.stringify({days:Array.from({length:7},(_,i)=>({
+  dishes:[i===6?{name:'今週の新作主菜',category:'main',new:true}:{name:'料理'+i,category:'main'}]
+ }))});
+ const modified={...context,master:large,rules:{...context.rules,preferOld:false},previous:prior};
+ const {service,calls}=provider([repeat,repeat]);
+ await assert.rejects(new AIService(service).generate(modified),/ほぼ同じ料理/);
+ assert.equal(calls.length,2);
+});
