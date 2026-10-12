@@ -871,8 +871,8 @@ function masterRows(items){
    <small class="master-dish-meta">${esc(categoryName(d.category))} <span aria-hidden="true">·</span> 最終調理日 ${esc(d.lastDate?d.lastDate.replaceAll('-','/'):'未調理')} <span aria-hidden="true">·</span> ${d.count}回</small>
   </div>
   <div class="master-actions">
-   <a class="master-recipe-search" href="${esc(recipeSearchUrl(d.name))}" target="_blank" rel="noopener noreferrer" aria-label="${esc(d.name)}のレシピを検索">検索</a>
-   ${button(isShoppingMasterSelected(d)?'追加済':'買う','buy-master','mini master-buy'+(isShoppingMasterSelected(d)?' selected':''),`data-name="${esc(d.name)}" data-key="${esc(d.key||'')}" data-category="${esc(d.category||'main')}" aria-pressed="${isShoppingMasterSelected(d)}"`) }
+   <a class="master-recipe-search" href="${esc(recipeSearchUrl(d.name))}" target="_blank" rel="noopener noreferrer" aria-label="${esc(d.name)}のレシピを検索" title="検索"><span class="master-action-icon master-action-icon-search" aria-hidden="true"></span></a>
+   ${button(`<span class="master-action-icon ${isShoppingMasterSelected(d)?'master-action-icon-remove':'master-action-icon-add'}" aria-hidden="true"></span>`,'buy-master','mini master-buy'+(isShoppingMasterSelected(d)?' selected':''),`data-name="${esc(d.name)}" data-key="${esc(d.key||'')}" data-category="${esc(d.category||'main')}" aria-pressed="${isShoppingMasterSelected(d)}" aria-label="${esc(d.name)}を${isShoppingMasterSelected(d)?'買い物から外す':'買い物に追加'}" title="${isShoppingMasterSelected(d)?'追加済（買い物から外す）':'買う（買い物に追加）'}"`) }
    ${button('編集','edit-master','mini',`data-key="${esc(d.key)}"${d.unregistered?' disabled aria-label="マスター未登録のため編集できません"':''}`)}
   </div>
  </li>`).join('')||'<li class="master-empty">該当する料理はありません。</li>';
