@@ -326,7 +326,12 @@ async function discoverOwnedFamily(type){
   // adopting one. Duplicate names never require an extra selection.
   for(const item of matches){
    try{
-    await family.join(type,item.id,(ops,opts)=>applyFamily(type,ops,opts),{owner:true});
+    await family.join(type,item.id,async(ops,opts)=>{
+     if(serial!==ownedFamilyLookupSerial||family.entry(type).id||
+        !$('#dialog')?.open||$('#family-owned-results')?.dataset.kind!==type)
+      throw Error('別の共有操作が始まったため、自動接続を中止しました。');
+     await applyFamily(type,ops,opts);
+    },{owner:true});
     if(serial!==ownedFamilyLookupSerial)return;
     ownedFamilyState[type]='connected';
     showOwnedFamilyResults(type,serial);
@@ -413,6 +418,8 @@ async function familyRenew(type){
 }
 async function familyStart(type){
  const current=family.entry(type);
+ if(!current.id&&ownedFamilyState[type]==='searching')throw Error('既存の共有ファイルの検索が終わってから操作してください。');
+ ++ownedFamilyLookupSerial;
  if(current.id&&current.owner){
   const email=$('#family-share-email')?.value?.trim()||'';
   if(!/^[-\w.+]+@[-\w.]+\.[a-z]{2,}$/i.test(email))throw Error('共有相手のメールアドレスを入力してください。');
@@ -438,6 +445,8 @@ async function familyStart(type){
 async function familyJoin(type){
  const id=sharedSpreadsheetId($('#family-join-link')?.value);
  if(!id)throw Error('相手から受け取ったGoogleスプレッドシートのURLを入力してください。');
+ // An explicit URL join takes precedence over any pending owner auto-search.
+ ++ownedFamilyLookupSerial;
  const current=family.entry(type);
  if(current.id===id&&!current.owner){notify('その共有ファイルにはすでに「共有された側」で参加しています。');return;}
  if(current.queue.length||family.busy[type])throw Error('切り替える前に未送信の変更を同期してください。');
@@ -1774,6 +1783,7 @@ const actions={
  'shopping-copy':copyShoppingList,
  'family-dialog':b=>familyDialog(b.dataset.kind),
  'family-account-change':()=>{
+  ++ownedFamilyLookupSerial;
   familyClient.chooseAccountAgain(GOOGLE_CLIENT_ID);
   notify('次の共有開始・参加操作で、Googleアカウントを選び直せます。');
  },
