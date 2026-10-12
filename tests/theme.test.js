@@ -21,6 +21,7 @@ test('light theme is bright across all colors, not only the page background',asy
  const rgba=hex=>hex.match(/[0-9a-f]{2}/gi).map(x=>parseInt(x,16));
  const resolve=value=>{
   const found=/^color-mix\(in srgb, (#[0-9a-f]{6}) (\d+)%, (#[0-9a-f]{6})\)$/i.exec(value);
+  if(/^#[0-9a-f]{6}$/i.test(value))return value;
   if(!found)throw Error('Unknown theme color: '+value);
   const [,foreground,percent,background]=found;
   const fraction=Number(percent)/100,fg=rgba(foreground.slice(1)),bg=rgba(background.slice(1));
@@ -73,7 +74,7 @@ test('every original palette has a distinct higher-chroma option without changin
   blue:['#4167a1','#abc8f1'],magenta:['#875081','#dcafda'],
   mono:['#525b61','#c4cbd0']
  };
- assert.equal(Object.keys(colors).length,14);
+ assert.equal(Object.keys(colors).length,18);
  for(const [id,old] of Object.entries(legacy)){
   assert.deepEqual([colors[id].light,colors[id].dark],old);
   const rich=colors[id+'-rich'];
@@ -99,9 +100,10 @@ test('richer themes color foreground only and retain old surface backgrounds',as
   for(const name of ['red','yellow','green','cyan','blue','magenta','mono']){
    for(const mode of ['light','dark']){
     const standard=get(name,mode),rich=get(name+'-rich',mode);
+    assert.equal(rich.get('--text'),mode==='dark'?colors[name+'-rich'].dark:colors[name+'-rich'].light,name+' '+mode+' bright direct text');
+    assert.notEqual(rich.get('--text'),standard.get('--text'),name+' '+mode+' differs from muted standard');
     const pct=x=>Number(x.match(/ (\d+(?:\.\d+)?)%,/)[1]);
-    assert.ok(pct(rich.get('--text'))>pct(standard.get('--text')),name+' '+mode+' text saturation');
-    assert.ok(pct(rich.get('--muted'))>pct(standard.get('--muted')),name+' '+mode+' muted saturation');
+    assert.ok(pct(rich.get('--muted'))>pct(standard.get('--muted')),name+' '+mode+' stronger colored helper text');
     for(const key of ['bg','surface','panel','line','tint'])assert.equal(rich.get('--'+key),standard.get('--'+key),name+' '+mode+' '+key);
     assert.equal(themeBackgroundColor({color:name,mode}),themeBackgroundColor({color:name+'-rich',mode}));
    }
@@ -113,3 +115,37 @@ test('richer themes color foreground only and retain old surface backgrounds',as
 });
 
 
+
+test('image-inspired spectrum gives legible bright text in light and dark modes',async()=>{
+ const {applyTheme}=await import('../src/themes.js');
+ const oldDocument=globalThis.document,oldMatchMedia=globalThis.matchMedia;
+ const resolveMix=v=>{
+  if(/^#[0-9a-f]{6}$/i.test(v))return v;
+  const found=/^color-mix\(in srgb, (#[0-9a-f]{6}) (\d+)%, (#[0-9a-f]{6})\)$/i.exec(v);
+  assert.ok(found,'unrecognized theme token '+v);
+  const pct=Number(found[2])/100;
+  return '#'+[1,3,5].map(i=>Math.round(parseInt(found[1].slice(i,i+2),16)*pct+parseInt(found[3].slice(i,i+2),16)*(1-pct)).toString(16).padStart(2,'0')).join('');
+ };
+ try{
+  for(const name of ['red','orange','yellow','lime','green','cyan','blue','purple','magenta','pink','mono']){
+   const rich=colors[name+'-rich'];
+   assert.ok(rich?.rich,'missing image-inspired hue '+name);
+   assert.ok(contrast(rich.light,'#ffffff')>=4.5,'light readable '+name);
+   assert.ok(contrast(rich.dark,'#273240')>=4.5,'dark readable '+name);
+   for(const mode of ['light','dark']){
+    const vars=new Map();
+    globalThis.document={documentElement:{style:{setProperty:(key,value)=>vars.set(key,value)},dataset:{}},querySelector:()=>null};
+    globalThis.matchMedia=()=>({matches:mode==='dark'});
+    applyTheme({color:name+'-rich',mode});
+    const fg=resolveMix(vars.get('--text')),muted=resolveMix(vars.get('--muted'));
+    const bg=resolveMix(vars.get('--surface'));
+    assert.equal(fg,rich[mode]);
+    assert.ok(contrast(fg,bg)>=4.5,name+' '+mode+' body contrast');
+    assert.ok(contrast(muted,bg)>=4.5,name+' '+mode+' muted contrast');
+   }
+  }
+ }finally{
+  if(oldDocument===undefined)delete globalThis.document;else globalThis.document=oldDocument;
+  if(oldMatchMedia===undefined)delete globalThis.matchMedia;else globalThis.matchMedia=oldMatchMedia;
+ }
+});

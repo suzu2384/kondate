@@ -10,13 +10,19 @@ export const colors={
  blue:{name:'青',light:'#4167a1',dark:'#abc8f1'},
  magenta:{name:'マゼンタ',light:'#875081',dark:'#dcafda'},
  mono:{name:'無彩色',light:'#525b61',dark:'#c4cbd0'},
- // Higher-chroma accents, individually balanced for light/dark accessibility.
- 'red-rich':{name:'赤（鮮やか）',light:'#ae3a4d',dark:'#f29baa',rich:true},
- 'yellow-rich':{name:'黄（鮮やか）',light:'#86620f',dark:'#f0ce72',rich:true},
- 'green-rich':{name:'緑（鮮やか）',light:'#267a4d',dark:'#76dba8',rich:true},
- 'cyan-rich':{name:'シアン（鮮やか）',light:'#0d7489',dark:'#76d9e5',rich:true},
- 'blue-rich':{name:'青（鮮やか）',light:'#2b5fac',dark:'#90bbf3',rich:true},
- 'magenta-rich':{name:'マゼンタ（鮮やか）',light:'#944187',dark:'#e8a4d9',rich:true},
+ // Bright spectrum taken from the supplied color-chart reference.
+ // Light accents are deepened only enough to remain readable on white; dark
+ // accents retain the bright image-like appearance. Legacy palette is intact.
+ 'red-rich':{name:'赤（明るめ）',light:'#b63250',dark:'#f09386',rich:true},
+ 'orange-rich':{name:'オレンジ（明るめ）',light:'#ad5000',dark:'#ed8d55',rich:true},
+ 'yellow-rich':{name:'黄（明るめ）',light:'#9a6b00',dark:'#fdfb68',rich:true},
+ 'lime-rich':{name:'黄緑（明るめ）',light:'#567c08',dark:'#badc95',rich:true},
+ 'green-rich':{name:'緑（明るめ）',light:'#1e7a31',dark:'#a3d16e',rich:true},
+ 'cyan-rich':{name:'シアン（明るめ）',light:'#007ea3',dark:'#5ac4f6',rich:true},
+ 'blue-rich':{name:'青（明るめ）',light:'#2860c9',dark:'#80a7f7',rich:true},
+ 'purple-rich':{name:'紫（明るめ）',light:'#5832a8',dark:'#ae86ff',rich:true},
+ 'magenta-rich':{name:'マゼンタ（明るめ）',light:'#8c34b5',dark:'#d987ff',rich:true},
+ 'pink-rich':{name:'ピンク（明るめ）',light:'#ad3565',dark:'#de799d',rich:true},
  'mono-rich':{name:'無彩色（くっきり）',light:'#334250',dark:'#e1e8ef',rich:true}
 };
 /** Resolve the same sRGB background mix as the CSS theme into a browser-safe hex color. */
@@ -41,11 +47,12 @@ export function applyTheme({color='green',mode='auto'}={}){
  // distinct surfaces, so changing mode affects controls, cards and text too.
  const vars=palette.rich?(dark?{
  bg:softMix(4,'#0d1118'),surface:softMix(8,'#1a222c'),panel:softMix(11,'#273240'),
- text:mix(38,'#f4f7fb'),muted:mix(40,'#c1cbd5'),line:softMix(15,'#495461'),
+ // No grey wash on the foreground: use the vibrant palette directly.
+ text:accent,muted:mix(73,'#c1cbd5'),line:softMix(15,'#495461'),
  accent,'on-accent':'#14202a',tint:softMix(19,'#2b3544'),
  danger:'#ffaaa9',shadow:'0 8px 26px #00000045'}:{
  bg:softMix(3,'#fbfcfe'),surface:softMix(1,'#ffffff'),panel:softMix(7,'#f5f8fc'),
- text:mix(42,'#172432'),muted:mix(42,'#5a6573'),line:softMix(10,'#e2e8f0'),
+ text:accent,muted:mix(75,'#5a6573'),line:softMix(10,'#e2e8f0'),
  accent,'on-accent':'#fff',tint:softMix(14,'#f4f8fc'),
  danger:'#a53940',shadow:'0 6px 22px #1b2c4010'}):dark?{
  bg:mix(4,'#0d1118'),surface:mix(8,'#1a222c'),panel:mix(11,'#273240'),
