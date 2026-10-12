@@ -102,8 +102,8 @@ test('Google APIs use limited owner authorization and the Sheets append API for 
  assert.match(src,/':append\?valueInputOption=RAW/);
  assert.match(src,/\bappendRows\(id,rows\)/);
  assert.match(src,/\/permissions\?sendNotificationEmail=true/);
- assert.doesNotMatch(src,/gapi\\.load\\('picker'/);
- assert.match(src,/https:\\/\\/www\\.googleapis\\.com\\/auth\\/spreadsheets/);
+ assert.equal(src.includes("gapi.load('picker'"),false);
+ assert.ok(src.includes('https://www.googleapis.com/auth/spreadsheets'));
  assert.deepEqual(SHOPPING_SYNC_SECONDS,[3,5,10,15,30,60]);
  assert.throws(()=>validateSharedOp({kind:'shopping',key:'servings',id:'xxx',value:1,at:Date.now()},'shopping'),/不正/);
 });
@@ -298,10 +298,10 @@ test('shared spreadsheet IDs are extracted only from supported Google Sheets URL
   'https://docs.google.com.evil.invalid/spreadsheets/d/'+id]){
   assert.equal(sharedSpreadsheetId(raw),'',raw);
  }
- assert.doesNotMatch(file('src/app.js'),/familyClient\\.pick\\(/);
+ assert.equal(file('src/app.js').includes('familyClient.pick('),false);
  const app=file('src/app.js');
- assert.match(app,/familyClient\\.authorize\\(GOOGLE_CLIENT_ID,\\{join:true\\}\\)/);
- assert.match(app,/id=sharedSpreadsheetId\\(/);
+ assert.ok(app.includes('familyClient.authorize(GOOGLE_CLIENT_ID,{join:true})'));
+ assert.ok(app.includes('id=sharedSpreadsheetId('));
  assert.match(app,/family-copy-link/);
  assert.match(app,/family-renew/);
 });
