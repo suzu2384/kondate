@@ -1,3 +1,4 @@
+import {preferredGoogleAccount,rememberDriveAccount,forgetGoogleAccount} from './account-hint.js';
 // Serverless family collaboration. Google Sheets is the append-only change journal;
 // per-item operations avoid overwriting edits made by another device.
 export const SHARE_SCOPE='https://www.googleapis.com/auth/drive.file';
@@ -61,7 +62,7 @@ export function describeSharedApiFailure(status,payload,host,path,method='GET'){
 }
 
 export class FamilyDriveClient{
- constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';this.forceConsent=false;}
+ constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';this.forceConsent=false;this.forceAccountChoice=false;}
  get connected(){return !!this.token&&Date.now()<this.expires;}
  invalidateAccess({consent=false}={}){
   this.token='';this.expires=0;this.forceConsent=consent;
@@ -73,22 +74,29 @@ export class FamilyDriveClient{
   if(!s||s.clientId!==clientId||!s.token||s.expires<=Date.now())return false;
   Object.assign(this,{token:s.token,expires:s.expires,clientId});return true;
  }
+ chooseAccountAgain(clientId){
+  forgetGoogleAccount(clientId,'share');
+  this.invalidateAccess();
+  this.forceAccountChoice=true;
+ }
  authorize(clientId){
-  if(this.connected&&this.clientId===clientId)return Promise.resolve();
+  if(this.connected&&this.clientId===clientId&&!this.forceAccountChoice)return Promise.resolve();
   if(!clientId||!globalThis.google?.accounts?.oauth2)throw Error('Google認証を準備してください。');
   return new Promise((resolve,reject)=>{
    google.accounts.oauth2.initTokenClient({
     client_id:clientId,scope:SHARE_SCOPE,
+    ...(!this.forceAccountChoice&&preferredGoogleAccount(clientId,'share')?{login_hint:preferredGoogleAccount(clientId,'share')}:{}),
     callback:r=>{
      if(r.error||!r.access_token){reject(Error('共有用Google認証を許可してください。'));return;}
      if(!google.accounts.oauth2.hasGrantedAllScopes(r,SHARE_SCOPE)){reject(Error('Driveファイルの権限が必要です。'));return;}
      this.token=r.access_token;this.clientId=clientId;
      this.expires=Date.now()+Math.max(60,Number(r.expires_in||3600)-60)*1000;
-     this.forceConsent=false;
+     this.forceConsent=false;this.forceAccountChoice=false;
+     void rememberDriveAccount(clientId,'share',this.token,this.fetcher);
      try{sessionStorage.setItem(TOKEN_STORAGE,JSON.stringify({token:this.token,clientId,expires:this.expires}));}catch{}
      resolve();
     },error_callback:r=>reject(Error(r?.type==='popup_closed'?'Google認証画面が閉じられました。':'Google認証を開けませんでした。'))
-   }).requestAccessToken({prompt:this.forceConsent?'consent':''});
+   }).requestAccessToken({prompt:this.forceAccountChoice?'select_account':this.forceConsent?'consent':''});
   });
  }
  async request(host,path,{method='GET',body}={}){
