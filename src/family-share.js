@@ -218,16 +218,22 @@ export class FamilySync{
   if(d.queue.length+added.length>500)throw Error('共有操作の未送信件数が上限です。');
   d.queue.push(...added);d.shadow=clone(current);this.persist();return added.length;
  }
- async start(type,current,email){
+ async start(type,current,email,{replace=false}={}){
   if(!this.client.connected)throw Error('共有用Google認証が必要です。');
-  if(this.entry(type).id)throw Error('すでに共有中です。');
+  if(this.busy[type])throw Error('共有の同期処理が実行中です。');
+  const previous=this.entry(type);
+  if(previous.id&&!replace)throw Error('すでに共有中です。');
+  if(replace&&previous.queue.length)throw Error('未送信の共有データが残っています。');
   const id=await this.client.create(type);
   const ops=diffSnapshots({},current,type);
   for(let i=0;i<ops.length;i+=200)await this.client.appendRows(id,ops.slice(i,i+200).map(op=>[op.id,JSON.stringify(op)]));
-  // Keep the link if invitation fails, so the initial data is not abandoned.
+  // For role switching, keep the previously joined file intact until both
+  // the initial journal and invitation succeed. The new file can still be
+  // discovered by its title if its invitation fails.
+  if(replace&&email)await this.client.invite(id,email);
   this.settings[type]={...blank(),id,owner:true,cursor:2+ops.length,shadow:clone(current),seen:ops.map(op=>op.id).slice(-1500)};
   this.persist();
-  if(email)await this.client.invite(id,email);
+  if(!replace&&email)await this.client.invite(id,email);
   return id;
  }
  async join(type,id,apply,{owner=false}={}){
