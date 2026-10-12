@@ -44,8 +44,8 @@ test('selecting a dish uses early pointer handling and updates the live field wi
  assert.doesNotMatch(body,/drawRecord\(\)|\.innerHTML=/);
  const pointer=app.slice(app.indexOf("document.addEventListener('pointerdown'"),app.indexOf("document.addEventListener('click'"));
  assert.match(pointer,/e\.preventDefault\(\)/);
- assert.match(pointer,/e\\.pointerType==='touch'/);
- assert.match(css,/\\.dish-suggestion\\s*\\{\\s*flex:0 0 auto/);
+ assert.ok(pointer.includes("e.pointerType==='touch'"));
+ assert.ok(css.includes('.dish-suggestion{\n flex:0 0 auto;'));
  assert.match(css,/touch-action:pan-y/);
  assert.match(pointer,/pickRecordDishSuggestion\(candidate\)/);
  assert.match(pointer,/\},true\)/);
