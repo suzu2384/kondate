@@ -1,4 +1,4 @@
-import {createMenuRequest,parseMenuResponse} from './ai-menu.js';
+import {createMenuRequest,parseMenuResponse,validateMenuQuality} from './ai-menu.js';
 import {createIngredientRequest,parseIngredientResponse} from './ai-ingredients.js';
 
 // Google-hosted Firebase SDK: loaded only after a person chooses AI generation.
@@ -59,6 +59,8 @@ export function createFirebaseAIProvider(config,{loadSDK=loadFirebaseSDK}={}){
     }
     try{
      const plan=parseMenuResponse(responseText,context);
+     const issues=validateMenuQuality(plan,context);
+     if(issues.length)throw Error(issues.join('\n'));
      if(firstError)plan.warnings=[`AIの初回応答に問題があったため再生成し、${context.rules.days}日分を完成させました。初回: ${firstError.message}`];
      return plan;
     }catch(error){
