@@ -16,9 +16,12 @@ test('auto sync is opt-in on each device, uploads local changes and downloads re
  assert.match(app,/window\.addEventListener\('focus'/);
  assert.match(app,/document\.addEventListener\('visibilitychange'/);
 });
-test('cloud updates are never automatically overwritten if local edits are pending',()=>{
- assert.match(app,/if\(decision==='conflict'\)\{\s*setDriveSyncStatus\('競合：/);
- assert.match(app,/notify\('⚠ Driveの設定が競合しています/);
+test('Drive only merges independent draft and settings changes; overlapping edits remain conflicts',()=>{
+ assert.match(app,/if\(decision==='conflict'\)/);
+ assert.match(app,/mergeIndependentDriveChanges\(localSnapshot,remoteSnapshot,baseSections\)/);
+ assert.match(app,/drive\.saveChecked\(merged,remoteRevision\)/);
+ assert.match(app,/await applyRemoteSettings\(mergedRevision,merged\)/);
+ assert.match(app,/setDriveSyncStatus\('競合：両端末で同じ設定または献立を変更/);
  assert.match(app,/const decision=decideDriveSync\(/);
  assert.match(app,/await markDriveSynced\(nextRevision,localSnapshot\)/);
 });
