@@ -331,7 +331,7 @@ test('no Picker library or build key is required for shared link joining',()=>{
   for(const key of ['GOOGLE_PICKER_API_KEY','GOOGLE_PROJECT_NUMBER','KONDATE_GOOGLE_PICKER','apis.google.com/js/api.js'])
    assert.equal(src.includes(key),false,key);
  }
- assert.match(app,/共有リンク（参加するとき）/);
+ assert.match(app,/他人の共有リンク（参加・切り替え）/);
  assert.match(app,/リンクをコピー/);
 });
 
@@ -473,6 +473,7 @@ test('switching recipient to a new owned share preserves original until successf
  const client=fakeClient(),first=new FamilySync(client,storage()),changing=new FamilySync(client,storage());
  const id=await first.start('shopping',{servings:2},'relative@example.com');
  await changing.join('shopping',id,async()=>{});
+ client.create=async type=>{const next='owned-shopping-12345678901234567890';client.files.set(next,[['kondate-shared-v1',type]]);return next;};
  const original=client.invite;
  client.invite=async()=>{throw Error('invitation failed');};
  await assert.rejects(changing.start('shopping',{servings:4},'relative@example.com',{replace:true}),/invitation failed/);
