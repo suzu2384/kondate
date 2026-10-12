@@ -5,6 +5,7 @@ export const AI_MAX_DAYS=MAX_GENERATION_DAYS;
 export const AI_MODEL_CANDIDATE_LIMIT=160;
 
 export const AI_RECENT_NEW_MAIN_LIMIT=16;
+export const AI_RECENT_SUGGESTION_LIMIT=96;
 
 // Remember only names of recently suggested AI-original mains. These are not
 // cooking history and do not enter the master or affect frequency scoring.
@@ -22,6 +23,33 @@ export function rememberNewMainSuggestions(history=[],plan=[]){
  for(const day of Array.isArray(plan)?plan:[])for(const d of day?.dishes||[])
   if(d?.category==='main'&&d?.isNew===true)append(d.name);
  return recent.slice(-AI_RECENT_NEW_MAIN_LIMIT);
+}
+// Last several generated menus are suggestions, not cooking history.
+// Keep these only as a rotation preference; never blacklist scarce choices.
+export function rememberMenuSuggestions(history=[],plan=[]){
+ const result=[];
+ for(const name of [...(Array.isArray(history)?history:[]),
+  ...(Array.isArray(plan)?plan:[]).flatMap(day=>(day?.dishes||[])
+   .filter(d=>!d.locked&&!d.isNew&&typeof d.name==='string').map(d=>d.name))]){
+  if(typeof name!=='string'||!name.trim()||name.length>100)continue;
+  const key=normalize(name),at=result.findIndex(x=>normalize(x)===key);
+  if(at>=0)result.splice(at,1);
+  result.push(name.trim());
+ }
+ return result.slice(-AI_RECENT_SUGGESTION_LIMIT);
+}
+// Name similarity rejects superficial variations of a newly invented main,
+// without treating every dish that shares an ingredient as identical.
+export function similarDishNames(a,b){
+ const left=normalize(a),right=normalize(b);
+ if(left===right)return true;
+ if(Math.min(left.length,right.length)<7)return false;
+ const grams=value=>Array.from({length:value.length-1},(_,i)=>value.slice(i,i+2));
+ const x=grams(left),y=grams(right),remaining=new Map();
+ for(const gram of y)remaining.set(gram,(remaining.get(gram)||0)+1);
+ let common=0;
+ for(const gram of x)if(remaining.get(gram)>0){common++;remaining.set(gram,remaining.get(gram)-1);}
+ return 2*common/(x.length+y.length)>=0.78;
 }
 export function recentNewMainNames(context={}){
  const previous=Array.isArray(context.previous)?context.previous:[];
@@ -45,21 +73,64 @@ export function createMenuRequest(context){
  const reference=context.referenceDate||today();
  const excludedBefore=addDays(reference,-(Number(rules.recentDays)||7));
  const excludedRecent=!!rules.excludeRecent;
- const chosen=[];
- const names=new Set();
+ // Build the entire eligible catalog before selecting a limited AI prompt
+ // pool. The master is newest-first, which is precisely the wrong cut order.
+ const former=rememberMenuSuggestions(context.recentSuggested);
+ const previousNonlocked=(Array.isArray(previous)?previous:[]).flatMap(day=>(day?.dishes||[])
+  .filter(d=>!d.locked).map(d=>d.name));
+ const recentlySuggested=new Set([...former,...previousNonlocked].map(normalize));
+ const available=[],seen=new Set();
  for(const dish of master){
   if(!Object.hasOwn(counts,dish.category))continue;
   if(excludedRecent&&dish.lastDate&&dish.lastDate>=excludedBefore)continue;
   const key=normalize(dish.name);
-  if(!key||names.has(key))continue;
-  chosen.push({
+  if(!key||seen.has(key))continue;
+  seen.add(key);
+  available.push({
    name:String(dish.name).slice(0,100),category:dish.category,
    count:Number(dish.count)||0,lastDate:dish.lastDate||null,
    protein:dish.protein||'不明',method:dish.method||'不明',genre:dish.genre||'不明'
   });
-  names.add(key);
-  if(chosen.length>=AI_MODEL_CANDIDATE_LIMIT)break;
  }
+ // Divide the limited candidate capacity proportionally across categories.
+ // Rank all eligible recipes using the age setting, previous suggestions and
+ // protein/method/genre variety rather than trusting the calendar sort order.
+ const chosen=[];
+ const usage={protein:new Map(),method:new Map(),genre:new Map()};
+ const categoryPools=Object.fromEntries(Object.keys(counts).map(k=>[k,available.filter(d=>d.category===k)]));
+ const age=d=>!d.lastDate?3650:Math.max(0,Math.round(
+  (Date.parse(reference)-Date.parse(d.lastDate))/86400000));
+ const score=d=>{
+  const daysAgo=age(d),oldDays=Math.max(1,Number(rules.oldDays)||30);
+  let value=rules.preferOld
+   ?(daysAgo>=oldDays?65:0)+Math.min(daysAgo,365)/365*30:0;
+  if(recentlySuggested.has(normalize(d.name)))value-=150;
+  value-=Math.log1p(d.count)*2;
+  if(rules.balance)for(const [field,penalty] of [['protein',19],['method',13],['genre',6]]){
+   const v=d[field];if(v&&v!=='不明')value-=(usage[field].get(v)||0)*penalty;
+  }
+  return value;
+ };
+ const categoryOrder=Object.entries(counts).flatMap(([cat,n])=>Array.from({length:n},()=>cat));
+ while(chosen.length<AI_MODEL_CANDIDATE_LIMIT){
+  let advanced=false;
+  for(const cat of categoryOrder){
+   const pool=categoryPools[cat];
+   if(!pool?.length)continue;
+   // Stable sort for deterministic tests and consistent old-first behavior.
+   let best=0;
+   for(let i=1;i<pool.length;i++)if(score(pool[i])>score(pool[best]))best=i;
+   const [dish]=pool.splice(best,1);
+   chosen.push(dish);advanced=true;
+   for(const key of Object.keys(usage)){
+    const label=dish[key];
+    if(label&&label!=='不明')usage[key].set(label,(usage[key].get(label)||0)+1);
+   }
+   if(chosen.length>=AI_MODEL_CANDIDATE_LIMIT)break;
+  }
+  if(!advanced)break;
+ }
+ const names=new Set(chosen.map(d=>normalize(d.name)));
  const locked=Array.from({length:days},(_,i)=>({
   day:i+1,dishes:(previous[i]?.dishes||[]).filter(d=>d.locked).map(d=>({
    name:d.name,category:d.category
@@ -80,22 +151,26 @@ export function createMenuRequest(context){
   .filter(d=>d&&!d.locked&&typeof d.name==='string')
   .map(d=>d.name.trim()).filter(Boolean)))].slice(0,120);
  const prompt=[
-  '日本の家庭向けに、毎回違う組み合わせの献立をJSONのみで提案してください。',
-  `最重要: days配列は必ず${days}日分、${days}個の要素。各日dishes配列にはcountsの分類別品数を正確に入れてください。`,
-  '形式: {"days":[{"dishes":[{"name":"料理名","category":"main","new":true}]}]}。new:trueは新規主菜だけに指定します。',
-  '既存料理はcandidatesの名前・categoryをそのまま使用。lockedは同じ日に必ず含めてください。',
-  'excludeRecent=trueのとき、直近recentDays日以内の料理はcandidatesから除外済みです。locked以外の除外料理を絶対に選ばないでください。',
-  'unique=trueなら同じ料理名を重複させず、balance=trueなら食材や調理法を偏らせないでください。',
-  '前回のpreviousSuggestedは調理履歴ではありません。固定していない料理は、候補がある限り前回と違うものを選んでください。',
+  '日本の家庭向けに、調理履歴に偏らない献立を完成させてください。JSONのみ返してください。',
+  `必須: days配列は必ず${days}日分、${days}個の要素。途中で終えず、各日countsの品数を埋めてください。`,
+  `返答形式（全${days}日分の構造見本。料理名の例は必ず実際の候補名に置換）: ${JSON.stringify(example)}`,
+  '既存料理はcandidates内のnameとcategoryだけをそのまま使用。lockedは指定した日から動かさない。',
+  'excludeRecent=trueのとき直近recentDays日以内の料理は候補から除外済み。選ばない。',
+  'preferOld=trueならoldDays日以上作っていない料理・未調理料理を優先。',
+  '以前の提案履歴recentSuggestedと直前のpreviousSuggestedは調理実績ではない。選択肢がある限り再利用せず、前回から献立全体を大きく変える。',
+  'balance=trueなら、同じ主食材・調理法・ジャンルを連続させず、7日間を通して偏らないように組み合わせる。',
+  'unique=trueなら同じ料理名を繰り返さない。',
   ...(rules.newMain?[
-   '新しい主菜をちょうど1品だけ創作し、その料理だけnew:trueにしてください。名前は100文字以内。既存のcandidates/locked/recentNewMainsとは別の料理にしてください。',
-   '新しい主菜にはprotein、method、genreを任意で付けてよい。その他の料理は新規作成しないでください。'
-  ]:['新しい料理は作らず、new:trueを付けないでください。']),
+   '主菜をちょうど1品だけ新しく創作し、その料理のみnew:true。candidates・locked・recentNewMainsと同一またはほぼ同じ料理は避ける。他の料理はすべて既存候補から選ぶ。',
+   '新しい主菜のみprotein、method、genreを任意で指定できる。'
+  ]:['新しい料理は作らず、new:trueは付けない。']),
   'データ:',
   JSON.stringify({days,counts,unique:!!rules.unique,excludeRecent:excludedRecent,
    recentDays:Number(rules.recentDays)||7,preferOld:!!rules.preferOld,
+   oldDays:Math.max(1,Number(rules.oldDays)||30),
    balance:!!rules.balance,newMain:!!rules.newMain,
-   referenceDate:reference,candidates:chosen,locked,previousSuggested,recentNewMains})
+   referenceDate:reference,candidates:chosen,locked,previousSuggested,
+   recentSuggested:former.slice(-AI_RECENT_SUGGESTION_LIMIT),recentNewMains})
  ].join('\n');
  return {prompt,candidates:chosen};
 }
@@ -136,7 +211,7 @@ export function parseMenuResponse(text,context){
     // Only one explicitly marked main may be invented. Other categories stay constrained.
     if(!context.rules.newMain||d?.category!=='main'||d.new!==true)
      throw Error('AIが登録候補にない料理を返しました。通常の献立生成も利用できます。');
-    if(previousNewMains.has(key))
+    if([...previousNewMains].some(prior=>similarDishNames(key,prior)))
      throw Error('AIが前回までと同じ新しい主菜を提案しました。別の新規料理で再生成します。');
     if(!name||name.length>100||/[\u0000-\u001f\u007f]/.test(name)||!key||allKnown.has(key)||++proposed>1)
      throw Error('AIが新しい主菜を正しく提案できませんでした。再度お試しください。');
