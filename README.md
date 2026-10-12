@@ -1,5 +1,14 @@
 # KonDate / kondate
 
+## v1.14.3：買い物・料理タブのアイコン差し替え
+
+- 買い物タブのアイコンを `icons/tabs/shopping-cart.svg` に変更。
+- 料理タブの「買う」を `icons/actions/shopping-cart-plus.svg`、「追加済」を `icons/actions/shopping-cart-minus.svg`、「検索」を `icons/actions/search.svg` に変更。
+- 文字の代わりにSVGアイコンを表示。操作時の名称やアクセシビリティラベル、既存の追加・解除・検索機能は維持。
+- アップロード元の `(1)` はファイル名から除去。プリセット用の `icons/presets/shopping_cart_2_fill.svg` は変更なし。
+- 新しいSVGをオフラインキャッシュに含め、スマートフォンのアイコンサイズを確認する回帰テストを追加。
+
+
 ## v1.14.2：スマホでも各タブの共有ボタンを表示
 
 - 画面幅500px以下で共有ボタンを非表示にしていたCSSを削除しました。
