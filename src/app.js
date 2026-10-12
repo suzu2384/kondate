@@ -15,7 +15,7 @@ import {sortCalendarExtras,reorderPresetRules,movePresetRule} from './preset-ord
 import {DriveSettingsClient} from './drive.js';
 import {expiredGoogleServices,renewExpiredGoogleServices} from './google-reauth.js';
 import {dateTapAction,monthSnapOffset,moveMonth} from './calendar-gestures.js';
-import {driveSettingsDigest,decideDriveSync} from './drive-sync.js';
+import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependentDriveChanges} from './drive-sync.js';
 import {recordDishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {searchPlaces,filterPlaceCandidates,LOCATION_ATTRIBUTION} from './place-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
@@ -56,6 +56,7 @@ const restoredDriveSession=drive.restoreAuto(GOOGLE_CLIENT_ID);
 const DRIVE_REVISION='kondate.drive-auto-revision.v1';
 const DRIVE_DIRTY='kondate.drive-auto-pending.v1';
 const DRIVE_DIGEST='kondate.drive-auto-digest.v1';
+const DRIVE_SECTIONS='kondate.drive-auto-sections.v1';
 const DRIVE_LAST_SUCCESS='kondate.drive-last-success.v1';
 const driveMeta=key=>{try{return localStorage.getItem(key)||'';}catch{return '';}};
 const setDriveMeta=(key,value)=>{try{if(value)localStorage.setItem(key,value);else localStorage.removeItem(key);}catch{}};
@@ -1109,6 +1110,7 @@ async function markDriveSynced(version,snapshot){
  // Track the shared content separately from Drive's changing file version.
  driveCloudRevision=version||'';
  driveBaseDigest=await driveSettingsDigest(snapshot);
+ setDriveMeta(DRIVE_SECTIONS,JSON.stringify(await driveSectionDigests(snapshot)));
  setDriveMeta(DRIVE_REVISION,driveCloudRevision);
  setDriveMeta(DRIVE_DIGEST,driveBaseDigest);
  // Keep edits made while a network request was in flight.
@@ -1188,8 +1190,22 @@ async function autoDriveSync(){
    return;
   }
   if(decision==='conflict'){
-   setDriveSyncStatus('競合：別端末と設定が異なります。自動上書きは停止中');
-   notify('⚠ Driveの設定が競合しています。設定画面で手動保存か復元を選んでください。');
+   // Never overwrite two independently edited drafts. Only combine
+   // a draft change with unrelated configuration changes.
+   let baseSections=null;
+   try{baseSections=JSON.parse(driveMeta(DRIVE_SECTIONS)||'null');}catch{}
+   const merged=await mergeIndependentDriveChanges(localSnapshot,remoteSnapshot,baseSections);
+   if(merged){
+    if(await driveSettingsDigest(createDriveSnapshot(state))!==localDigest){
+     followUp=true;setDriveSyncStatus('同期中の変更を検知・再照合を予約');return;
+    }
+    const mergedRevision=await drive.saveChecked(merged,remoteRevision);
+    followUp=await applyRemoteSettings(mergedRevision,merged);
+    setDriveSyncStatus('献立と他端末の設定を安全に統合しました',true);
+    return;
+   }
+   setDriveSyncStatus('競合：両端末で同じ設定または献立を変更。自動上書き停止中');
+   notify('⚠ Driveで両端末の変更が競合しています。献立を消さないため自動上書きは停止中です。設定画面のDrive保存・復元で内容を確認してください。');
    return;
   }
   if(decision==='missing'){
@@ -1954,7 +1970,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
  if(el.id==='drive-auto'){
   if(!el.checked){
    drive.disableAuto();driveAutoReady=false;driveSyncStatus='';
-   drivePending=false;driveCloudRevision='';driveBaseDigest='';setDriveMeta(DRIVE_DIRTY,'');setDriveMeta(DRIVE_REVISION,'');setDriveMeta(DRIVE_DIGEST,'');
+   drivePending=false;driveCloudRevision='';driveBaseDigest='';setDriveMeta(DRIVE_DIRTY,'');setDriveMeta(DRIVE_REVISION,'');setDriveMeta(DRIVE_DIGEST,'');setDriveMeta(DRIVE_SECTIONS,'');
    if(driveAutoTimer){clearTimeout(driveAutoTimer);driveAutoTimer=null;}
    notify('この端末のDrive自動同期を停止しました。');render();return;
   }
@@ -1963,7 +1979,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
    await drive.authorize(GOOGLE_CLIENT_ID);
    drive.enableAuto();
    driveSyncStatus='認証済み・初回照合中';
-   driveAutoReady=false;driveCloudRevision='';driveBaseDigest='';drivePending=false;
+   driveAutoReady=false;driveCloudRevision='';driveBaseDigest='';drivePending=false;setDriveMeta(DRIVE_SECTIONS,'');
    setDriveMeta(DRIVE_REVISION,'');setDriveMeta(DRIVE_DIRTY,'');setDriveMeta(DRIVE_DIGEST,'');
    await autoDriveSync();
    if(drive.autoEnabled&&drive.connected&&!driveCloudRevision)
