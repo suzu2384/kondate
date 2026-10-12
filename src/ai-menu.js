@@ -81,7 +81,7 @@ export function createMenuRequest(context){
   .map(d=>d.name.trim()).filter(Boolean)))].slice(0,120);
  const prompt=[
   '日本の家庭向けに、毎回違う組み合わせの献立をJSONのみで提案してください。',
-  `日数: ${days}日。days配列は必ず${days}個。各日dishes配列にはcountsの分類別品数を正確に入れてください。`,
+  `最重要: days配列は必ず${days}日分、${days}個の要素。各日dishes配列にはcountsの分類別品数を正確に入れてください。`,
   '形式: {"days":[{"dishes":[{"name":"料理名","category":"main","new":true}]}]}。new:trueは新規主菜だけに指定します。',
   '既存料理はcandidatesの名前・categoryをそのまま使用。lockedは同じ日に必ず含めてください。',
   'excludeRecent=trueのとき、直近recentDays日以内の料理はcandidatesから除外済みです。locked以外の除外料理を絶対に選ばないでください。',
