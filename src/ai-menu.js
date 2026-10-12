@@ -96,7 +96,7 @@ export function createMenuRequest(context){
    recentDays:Number(rules.recentDays)||7,preferOld:!!rules.preferOld,
    balance:!!rules.balance,newMain:!!rules.newMain,
    referenceDate:reference,candidates:chosen,locked,previousSuggested,recentNewMains})
- ].join('\\n');
+ ].join('\n');
  return {prompt,candidates:chosen};
 }
 
