@@ -4,7 +4,7 @@ import {generate,reroll,validatePlan} from './generator.js';
 import {CalendarClient,calendarCreatePayload} from './google.js';
 import {CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefreshDue,calendarEventsChanged,fetchCalendarUpdates} from './calendar-auto-refresh.js';
 import {GOOGLE_CLIENT_ID} from './config.js';
-import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,sharedSpreadsheetId} from './family-share.js';
+import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,sharedSpreadsheetId,sharedSpreadsheetUrl} from './family-share.js';
 import {rememberCalendarAccount} from './account-hint.js';
 import {masterSharedSnapshot,shoppingSharedSnapshot,applyShoppingEvents,applyMasterEvents} from './family-data.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
@@ -261,38 +261,117 @@ async function syncFamily(type,{manual=false}={}){
   return {changed:false,pending:d.queue.length,error};
  }
 }
+const ownedFamilyMatches={master:[],shopping:[]};
+const ownedFamilyState={master:'idle',shopping:'idle'};
+let ownedFamilyLookupSerial=0;
+
+function ownedFamilyResults(type){
+ const d=family.entry(type),matches=ownedFamilyMatches[type],status=ownedFamilyState[type];
+ if(status==='searching')return '<p class="hint">自分のGoogle Driveから共有ファイルを検索しています…</p>';
+ if(status==='error')return '<p class="hint">自分のファイルを検索できませんでした。Google認証・通信状態を確認して「再検索」を押してください。</p>';
+ if(!matches.length)return '<p class="hint">このアプリからアクセスできる自分の共有ファイルは見つかりませんでした。他人の共有ファイルにはURLから参加できます。</p>';
+ return '<p class="hint">自分が所有する共有ファイルが'+matches.length+'件見つかりました。</p>'+
+  matches.map((item,i)=>'<div class="check-row"><span>'+esc(item.name)+(matches.length>1?'（'+(i+1)+'件目）':'')+'</span>'+
+   (d.id===item.id&&d.owner?'<span class="hint">使用中</span>':
+    button('自分の共有として使用','family-use-own','mini','data-kind="'+type+'" data-id="'+esc(item.id)+'"'))+
+   button('URLをコピー','family-copy-found','mini','data-kind="'+type+'" data-id="'+esc(item.id)+'"')+
+   '</div>').join('');
+}
+function showOwnedFamilyResults(type,serial){
+ if(serial!==ownedFamilyLookupSerial)return;
+ const container=$('#family-owned-results');
+ if(!container||container.dataset.kind!==type||!$('#dialog')?.open)return;
+ container.innerHTML=ownedFamilyResults(type);
+ // The role can be upgraded when Drive confirms ownership of the active file.
+ const role=$('#family-active-role');
+ if(role&&family.entry(type).id)role.textContent=family.entry(type).owner?'共有した側':'共有された側';
+}
+async function discoverOwnedFamily(type){
+ const serial=++ownedFamilyLookupSerial;
+ ownedFamilyMatches[type]=[];ownedFamilyState[type]='searching';
+ showOwnedFamilyResults(type,serial);
+ try{
+  // Start OAuth during the user's direct click, before the first await.
+  await familyClient.authorize(GOOGLE_CLIENT_ID);
+  const matches=await familyClient.findOwned(type);
+  if(serial!==ownedFamilyLookupSerial)return;
+  ownedFamilyMatches[type]=matches;
+  ownedFamilyState[type]='ready';
+  const current=family.entry(type);
+  if(!current.owner&&current.id&&matches.some(x=>x.id===current.id)){
+   current.owner=true;family.persist();
+  }
+ }catch(error){
+  if(serial!==ownedFamilyLookupSerial)return;
+  ownedFamilyState[type]='error';
+  const container=$('#family-owned-results');
+  if(container&&container.dataset.kind===type){
+   container.textContent='自分の共有ファイルを検索できません：'+error.message;
+  }
+  return;
+ }
+ showOwnedFamilyResults(type,serial);
+}
 function familyDialog(type){
  const label=type==='master'?'料理マスター':'買い物リスト',d=family.entry(type);
  const linked=!!d.id;
+ ownedFamilyMatches[type]=[];ownedFamilyState[type]='searching';
  modal(label+'の共有',
-  '<p class="hint">共有相手もKonDateから同じファイルを編集できます。変更は自動同期されます。個人のカレンダー履歴は共有しません。</p>'+
-  (linked?'<p class="hint">共有中・未送信 '+d.queue.length+'件</p>':'<p class="hint">共有を開始するか、受け取った共有リンクから参加してください。</p>')+
-  (linked?'<p class="hint">共有ファイル：<a target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/'+encodeURIComponent(d.id)+'/edit">Google Driveで開く</a></p>':'')+
+  '<p class="hint">共有ファイルの変更は自動同期されます。個人のカレンダー履歴は共有しません。</p>'+
+  (linked?'<p class="hint">現在：<strong id="family-active-role">'+(d.owner?'共有した側':'共有された側')+'</strong>・未送信 '+d.queue.length+'件</p>':
+   '<p class="hint">自分のGoogle Driveから既存の共有を探します。見つからないときだけ新規作成してください。</p>')+
+  (linked?'<p class="hint">使用中：<a target="_blank" rel="noopener" href="'+sharedSpreadsheetUrl(d.id)+'">Google Driveで開く</a></p>':'')+
+  '<section aria-label="自分の共有ファイルを検索"><h3>自分の共有ファイル</h3>'+
+  '<div id="family-owned-results" data-kind="'+type+'"><p class="hint">検索しています…</p></div>'+
+  button('再検索','family-find-own','mini','data-kind="'+type+'"')+'</section>'+
   '<label class="field"><span>共有相手のGoogleメールアドレス（招待するとき）</span><input id="family-share-email" type="email" autocomplete="email" placeholder="family@gmail.com"></label>'+
-  '<label class="field"><span>共有リンク（参加するとき）</span><input id="family-join-link" type="url" inputmode="url" autocapitalize="off" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/..."></label>'+
-  '<p class="hint">共有する側は相手を招待して「リンクをコピー」。参加する側はそのURLを貼り付けます。参加時のみGoogleスプレッドシートの読み書き権限を求めます。</p>'+
+  '<label class="field"><span>他人の共有リンク（参加・切り替え）</span><input id="family-join-link" type="url" inputmode="url" autocapitalize="off" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/..."></label>'+
+  '<p class="hint">自分のファイルを選んでも、別の共有URLに切り替えて参加できます。切り替えてもGoogle Drive上のファイルは削除されません。</p>'+
   (type==='shopping'?'<label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">'+SHOPPING_SYNC_SECONDS.map(n=>'<option value="'+n+'"'+(family.settings.seconds===n?' selected':'')+'>'+n+'秒</option>').join('')+'</select><small>買い物タブの表示中だけ定期確認。復帰時にも更新します。</small></label>':'<p class="hint">料理マスターはカレンダーの更新間隔に合わせて同期します。</p>'),
   button('閉じる','close-dialog')+
   (linked?button('共有をやめる','family-stop','mini','data-kind="'+type+'"'):'')+
-  (linked?button('リンクをコピー','family-copy-link','mini','data-kind="'+type+'"'):'')+
+  (linked?button('現在のURLをコピー','family-copy-link','mini','data-kind="'+type+'"'):'')+
   (linked?button('再認証・同期','family-renew','mini','data-kind="'+type+'"'):'')+
   button('アカウントを変更','family-account-change','mini','data-kind="'+type+'"')+
-  button('共有に参加','family-join','mini','data-kind="'+type+'"')+
-  button(linked?'相手を追加':'共有を開始','family-start','primary','data-kind="'+type+'"'));
+  button('共有URLに参加','family-join','mini','data-kind="'+type+'"')+
+  (!linked||d.owner?button(linked?'相手を追加':'共有を開始','family-start','primary','data-kind="'+type+'"'):''));
+ void discoverOwnedFamily(type);
 }
-async function familyCopyLink(type){
- const id=family.entry(type).id;
- if(!id)throw Error('共有を開始してからリンクをコピーしてください。');
- const url='https://docs.google.com/spreadsheets/d/'+encodeURIComponent(id)+'/edit';
+async function copyFamilyUrl(id){
+ const url=sharedSpreadsheetUrl(id);
  try{
   if(!navigator.clipboard?.writeText)throw Error('clipboard unavailable');
   await navigator.clipboard.writeText(url);
-  notify('共有リンクをコピーしました。招待した相手へ送ってください。');
+  notify('共有ファイルのURLをコピーしました。');
  }catch{
-  modal('共有リンクをコピー', '<p>次のURLをコピーして共有相手に送ってください。</p>'+
+  modal('共有リンクをコピー', '<p>次のURLをコピーして共有相手へ送ってください。</p>'+
    '<textarea id="family-link-text" rows="3" readonly>'+esc(url)+'</textarea>',button('閉じる','close-dialog'));
   $('#family-link-text')?.select();
  }
+}
+async function familyCopyLink(type){
+ const id=family.entry(type).id;
+ if(!id)throw Error('共有ファイルがまだ選択されていません。');
+ await copyFamilyUrl(id);
+}
+async function familyCopyFound(type,id){
+ if(!ownedFamilyMatches[type].some(x=>x.id===id))throw Error('共有ファイルをもう一度検索してください。');
+ await copyFamilyUrl(id);
+}
+async function familyUseOwned(type,id){
+ if(!ownedFamilyMatches[type].some(x=>x.id===id))throw Error('自分の共有ファイルを検索し直してください。');
+ const current=family.entry(type);
+ if(current.id===id&&current.owner){notify('この共有ファイルはすでに使用中です。');return;}
+ if(current.queue.length||family.busy[type])throw Error('切り替える前に未送信の変更を同期してください。');
+ if((current.id&&current.id!==id||type==='shopping')&&
+    !window.confirm('この端末の'+(type==='shopping'?'買い物リスト':'同じ料理の情報')+'を選択した共有ファイルの内容に切り替えます。現在の共有ファイル自体は削除しません。続行しますか？'))return;
+ await familyClient.authorize(GOOGLE_CLIENT_ID);
+ // Check again if the token was renewed using a different Google account.
+ const owned=await familyClient.findOwned(type);
+ if(!owned.some(file=>file.id===id))throw Error('現在のGoogleアカウントで所有する共有ファイルではありません。');
+ await family.join(type,id,(ops,opts)=>applyFamily(type,ops,opts),{owner:true});
+ closeModal();render();
+ notify('自分の共有ファイルに接続しました。共有した側として同期できます。');
 }
 async function familyRenew(type){
  // Account authorization must start in the original click handler for iOS.
@@ -301,24 +380,36 @@ async function familyRenew(type){
  notify('共有ファイルとの同期が完了しました。');
 }
 async function familyStart(type){
+ const current=family.entry(type);
+ if(!current.id){
+  if(ownedFamilyState[type]==='searching')throw Error('既存の共有ファイルの検索が終わってから操作してください。');
+  if(ownedFamilyMatches[type].length)throw Error('自分の共有ファイルが見つかっています。先に「自分の共有として使用」で接続してください。');
+  if(ownedFamilyState[type]==='error'&&
+     !window.confirm('既存の共有ファイルを検索できませんでした。新しい共有ファイルを作成すると重複する場合があります。続行しますか？'))return;
+ }
+ if(current.id&&!current.owner)throw Error('共有相手の追加は共有ファイルの所有者が行ってください。');
  const email=$('#family-share-email')?.value?.trim()||'';
  if(!/^[-\w.+]+@[-\w.]+\.[a-z]{2,}$/i.test(email))throw Error('共有相手のメールアドレスを入力してください。');
- // OAuth popup must begin synchronously while the browser still sees the user's click.
  const joinedOther=['master','shopping'].some(kind=>family.entry(kind).id&&!family.entry(kind).owner);
  const auth=familyClient.authorize(GOOGLE_CLIENT_ID,{join:joinedOther});await auth;
- if(family.entry(type).id)await familyClient.invite(family.entry(type).id,email);
+ if(current.id)await familyClient.invite(current.id,email);
  else await family.start(type,familySnapshot(type),email);
- closeModal();render();notify('招待を送信しました。共有画面の「リンクをコピー」でURLを相手へ送ってください。');
+ closeModal();render();notify('招待を送信しました。共有画面の「現在のURLをコピー」でURLを相手へ送ってください。');
 }
 async function familyJoin(type){
  const id=sharedSpreadsheetId($('#family-join-link')?.value);
- if(!id)throw Error('共有する側から受け取ったGoogleスプレッドシートのURLを入力してください。');
- if(type==='shopping'&&!window.confirm('この端末の買い物リストを共有リストに切り替えます。未共有の品目やチェック状態は共有先の内容に置き換わります。続行しますか？'))return;
- // Accessing a recipient's shared spreadsheet by ID requires the Sheets scope;
- // drive.file alone only covers files explicitly opened with the app.
+ if(!id)throw Error('相手から受け取ったGoogleスプレッドシートのURLを入力してください。');
+ const current=family.entry(type);
+ if(current.id===id){notify('その共有ファイルにはすでに接続しています。');return;}
+ if(current.queue.length||family.busy[type])throw Error('切り替える前に未送信の変更を同期してください。');
+ if(ownedFamilyMatches[type].some(file=>file.id===id))return familyUseOwned(type,id);
+ if((current.id||type==='shopping')&&!window.confirm(
+  'この端末の'+(type==='shopping'?'買い物リスト':'同じ料理の情報')+
+  'を共有リンク先の内容に切り替えます。現在の共有ファイル自体は削除されません。続行しますか？'))return;
+ // The recipient uses Sheets permission to access a file that the app did not create.
  const auth=familyClient.authorize(GOOGLE_CLIENT_ID,{join:true});await auth;
  await family.join(type,id,(ops,opts)=>applyFamily(type,ops,opts));
- closeModal();render();notify('共有ファイルに参加しました。編集内容は自動で同期されます。');
+ closeModal();render();notify('共有されたファイルに参加しました。編集内容は自動で同期されます。');
 }
 
 function pollFamily(force=false){
@@ -1649,6 +1740,9 @@ const actions={
  'family-start':b=>familyStart(b.dataset.kind),
  'family-join':b=>familyJoin(b.dataset.kind),
  'family-copy-link':b=>familyCopyLink(b.dataset.kind),
+ 'family-copy-found':b=>familyCopyFound(b.dataset.kind,b.dataset.id),
+ 'family-find-own':b=>discoverOwnedFamily(b.dataset.kind),
+ 'family-use-own':b=>familyUseOwned(b.dataset.kind,b.dataset.id),
  'family-renew':b=>familyRenew(b.dataset.kind),
  'family-stop':b=>{
   if(!window.confirm('この端末の自動共有を停止しますか？Google Drive上の共有権限とファイルは残ります。'))return;
