@@ -1,4 +1,5 @@
 // Google Drive AppDataFolder backup. Drive access is requested only on user action.
+import {preferredGoogleAccount,rememberDriveAccount} from './account-hint.js';
 const ROOT='https://www.googleapis.com';
 export const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.appdata';
 const SCOPE=DRIVE_SCOPE;
@@ -48,10 +49,13 @@ export class DriveSettingsClient{
   return new Promise((resolve,reject)=>{
    const client=google.accounts.oauth2.initTokenClient({
     client_id:clientId,scope:SCOPE,
+    ...(preferredGoogleAccount(clientId,'drive')?{login_hint:preferredGoogleAccount(clientId,'drive')}:{}),
     callback:result=>{
      if(result.error){reject(Error('Googleドライブへのアクセスが許可されませんでした。'));return;}
      if(!google.accounts.oauth2.hasGrantedAllScopes(result,SCOPE)){reject(Error('アプリデータの読み書き権限が必要です。'));return;}
-     this.token=result.access_token;this.expires=Date.now()+(Number(result.expires_in)-60)*1000;this.clientId=clientId;this.saveAutoToken();resolve();
+     this.token=result.access_token;this.expires=Date.now()+(Number(result.expires_in)-60)*1000;this.clientId=clientId;this.saveAutoToken();
+     void rememberDriveAccount(clientId,'drive',this.token,this.fetcher);
+     resolve();
     },
     error_callback:result=>reject(Error(result.type==='popup_closed'?'認証画面が閉じられました。':'Google認証画面を開けませんでした。'))
    });
