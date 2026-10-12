@@ -1,3 +1,4 @@
+import {preferredGoogleAccount,forgetGoogleAccount} from './account-hint.js';
 import {eventPayload} from './model.js';
 import {presetEventPayload} from './icon-presets.js';
 const ROOT='https://www.googleapis.com/calendar/v3';
@@ -70,7 +71,7 @@ export class CalendarClient {
   this.token=null;this.expires=0;this.needsReauth=requiresLogin;this.forgetSession();
  }
  // A deliberate sign-out opts out of auto-login on this device.
- disconnect(){this.clearToken();this.creationToken='';this.creationExpires=0;this.setKeepConnected(false);this.forgetPreviousConnection();}
+ disconnect(){this.clearToken();this.creationToken='';this.creationExpires=0;this.setKeepConnected(false);this.forgetPreviousConnection();forgetGoogleAccount(this.clientId,'calendar');}
  restoreSession(clientId){
   if(!clientId)return false;
   const parseValid=raw=>{
@@ -119,7 +120,7 @@ export class CalendarClient {
   }).finally(()=>{this.identityLoading=null;});
   return this.identityLoading;
  }
- authorize(clientId){if(!clientId) return Promise.reject(Error('アプリのGoogle認証設定が完了していません。'));if(!globalThis.google?.accounts?.oauth2)return Promise.reject(Error('認証を準備中です。少し待ってもう一度接続してください。'));this.clientId=clientId;return new Promise((resolve,reject)=>{const client=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:SCOPES,callback:r=>{if(r.error){reject(Error(`Google認証が完了しませんでした（${String(r.error)}）。Google CloudのクライアントID・テストユーザー・認証設定を確認してください。`));return;}if(!google.accounts.oauth2.hasGrantedAllScopes(r,...SCOPES.split(' '))){reject(Error('カレンダーの読み書き権限をすべて許可してください。'));return;}this.token=r.access_token;this.expires=Date.now()+(Number(r.expires_in)-60)*1000;this.rememberSession();resolve();},error_callback:r=>reject(Error(r.type==='popup_closed'?'認証画面が閉じられました。':'ポップアップを許可して再接続してください。'))});client.requestAccessToken({prompt:''});});}
+ authorize(clientId){if(!clientId) return Promise.reject(Error('アプリのGoogle認証設定が完了していません。'));if(!globalThis.google?.accounts?.oauth2)return Promise.reject(Error('認証を準備中です。少し待ってもう一度接続してください。'));this.clientId=clientId;return new Promise((resolve,reject)=>{const client=google.accounts.oauth2.initTokenClient({client_id:clientId,scope:SCOPES,...(preferredGoogleAccount(clientId,'calendar')?{login_hint:preferredGoogleAccount(clientId,'calendar')}:{}),callback:r=>{if(r.error){reject(Error(`Google認証が完了しませんでした（${String(r.error)}）。Google CloudのクライアントID・テストユーザー・認証設定を確認してください。`));return;}if(!google.accounts.oauth2.hasGrantedAllScopes(r,...SCOPES.split(' '))){reject(Error('カレンダーの読み書き権限をすべて許可してください。'));return;}this.token=r.access_token;this.expires=Date.now()+(Number(r.expires_in)-60)*1000;this.rememberSession();resolve();},error_callback:r=>reject(Error(r.type==='popup_closed'?'認証画面が閉じられました。':'ポップアップを許可して再接続してください。'))});client.requestAccessToken({prompt:''});});}
  // Incremental, creation-only authorization keeps normal Calendar access unchanged.
  authorizeCalendarCreation(clientId){
   if(!clientId)return Promise.reject(Error('Googleの認証設定が完了していません。'));
@@ -131,6 +132,7 @@ export class CalendarClient {
   return new Promise((resolve,reject)=>{
    const client=oauth.initTokenClient({
     client_id:clientId,scope:CREATE_CALENDAR_SCOPE,
+    ...(preferredGoogleAccount(clientId,'calendar')?{login_hint:preferredGoogleAccount(clientId,'calendar')}:{}),
     callback:r=>{
      if(r.error){reject(Error('カレンダー作成の許可を取得できませんでした（'+String(r.error)+'）。'));return;}
      if(!r.access_token||!oauth.hasGrantedAllScopes(r,CREATE_CALENDAR_SCOPE)){
