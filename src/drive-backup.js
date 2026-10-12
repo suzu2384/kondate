@@ -1,7 +1,7 @@
 import {validateDishes} from './model.js';
 import {validateIngredients} from './ingredients.js';
 import {shoppingSettings,validateShoppingSettings} from './shopping.js';
-export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','iconRules','calendarRefreshMinutes','draft','recentNewMains','shopping'];
+export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','iconRules','calendarRefreshMinutes','draft','recentNewMains','recentSuggested','shopping'];
 const FORMAT='kondate-drive-settings-v2';
 const copy=x=>structuredClone(x);
 export function createDriveSnapshot(state){
@@ -28,6 +28,9 @@ export function readDriveSnapshot(raw,state,validateImport){
  if(settings.recentNewMains!==undefined&&(!Array.isArray(settings.recentNewMains)||
   settings.recentNewMains.length>16||!settings.recentNewMains.every(s=>typeof s==='string'&&s.length>0&&s.length<=100)))
   throw Error('AIの新規料理履歴が不正です。');
+ if(settings.recentSuggested!==undefined&&(!Array.isArray(settings.recentSuggested)||
+  settings.recentSuggested.length>96||!settings.recentSuggested.every(s=>typeof s==='string'&&s.length>0&&s.length<=100)))
+  throw Error('AIの献立提案履歴が不正です。');
  validateImport({format:'kondate-settings-v1',state:{...state,...settings}});
  const master={};
  if(raw.format===FORMAT){
