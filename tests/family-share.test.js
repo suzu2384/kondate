@@ -238,4 +238,7 @@ test('shopping share-start evaluates real familySnapshot without shadowing data(
  entry.id='abcdefghijklmnop123';entry.owner=false;
  entry.shadow={'ingredient:auto:保存済み|g':{name:'保存済み',baseQuantity:50}};
  assert.deepEqual(snapshot('shopping')['ingredient:auto:保存済み|g'],entry.shadow['ingredient:auto:保存済み|g']);
+ const masterData=snapshot('master');
+ assert.equal(masterData['dish:肉じゃが'].name,'肉じゃが');
+ assert.equal(masterData['dish:肉じゃが'].ingredients[0].quantity,100);
 });
