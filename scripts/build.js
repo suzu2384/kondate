@@ -8,8 +8,8 @@ await mkdir('dist');
 for(const path of ['index.html','style.css','manifest.webmanifest','sw.js','icons','src'])
  await cp(path,`dist/${path}`,{recursive:true});
 await writeFile('dist/src/config.js',
- '/** Public OAuth app identifier. */\\n'+
- 'export const GOOGLE_CLIENT_ID = '+JSON.stringify(clientId)+';\\n');
+ '/** Public OAuth app identifier. */\n'+
+ 'export const GOOGLE_CLIENT_ID = '+JSON.stringify(clientId)+';\n');
 // Shared AI is opt-in only after the project owner explicitly verifies the
 // isolated Firebase project is Spark AND has no linked billing account.
 const firebaseJson=(process.env.KONDATE_AI_FIREBASE_CONFIG||'').trim();
