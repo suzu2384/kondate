@@ -99,3 +99,15 @@ test('new main history and generated draft both survive Drive save and restore',
  assert.deepEqual(receiving.recentNewMains,original.recentNewMains);
  assert.throws(()=>readDriveSnapshot({...snapshot,settings:{...snapshot.settings,recentNewMains:['X'.repeat(101)]}},receiving,()=>{}),/新規料理履歴/);
 });
+
+test('recent proposal rotation survives Drive backups without leaking Calendar records',()=>{
+ const original=state();
+ original.recentSuggested=['鮭の塩焼き','カレー'];
+ const snapshot=createDriveSnapshot(original);
+ assert.deepEqual(snapshot.settings.recentSuggested,original.recentSuggested);
+ const receiving=state();
+ receiving.recentSuggested=[];
+ restoreDriveSnapshot(receiving,readDriveSnapshot(snapshot,receiving,()=>{}));
+ assert.deepEqual(receiving.recentSuggested,original.recentSuggested);
+ assert.throws(()=>readDriveSnapshot({...snapshot,settings:{...snapshot.settings,recentSuggested:['X'.repeat(101)]}},receiving,()=>{}),/献立提案履歴/);
+});
