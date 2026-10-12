@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createMenuRequest,parseMenuResponse} from '../src/ai-menu.js';
+import {createMenuRequest,parseMenuResponse,recentNewMainNames,rememberNewMainSuggestions,AI_RECENT_NEW_MAIN_LIMIT} from '../src/ai-menu.js';
 import {AIService} from '../src/ai.js';
 
 const master=[
@@ -100,4 +100,39 @@ test('free main slot is required, while malformed metadata falls back to unknown
  assert.equal(parseMenuResponse(incorrect,base)[1].dishes[0].protein,'不明');
  const tooLong='長'.repeat(101);
  assert.throws(()=>parseMenuResponse(good.replace('柚子香る鶏肉とれんこんの照り煮',tooLong),base),/新しい主菜を正しく/);
+});
+
+test('an AI-original main must change when regenerated, even if other dishes change',()=>{
+ const oldName='柚子香る鶏肉とれんこんの照り煮';
+ const context={...base,rules:{...base.rules,unique:false},
+  previous:[...base.previous,{dishes:[{name:oldName,category:'main',isNew:true,locked:false}]}]};
+ const prompt=createMenuRequest(context).prompt;
+ const data=JSON.parse(prompt.split('データ:\n')[1]);
+ assert.deepEqual(data.recentNewMains,[oldName]);
+ assert.match(prompt,/recentNewMainsにある料理名/);
+ assert.throws(()=>parseMenuResponse(good,context),/前回までと同じ新しい主菜/);
+ const changed=good.replace(oldName,'タラとごぼうの香味蒸し');
+ assert.equal(parseMenuResponse(changed,context)[1].dishes[0].name,'タラとごぼうの香味蒸し');
+});
+
+test('new mains are also excluded after several subsequent generations',()=>{
+ const oldName='柚子香る鶏肉とれんこんの照り煮';
+ const context={...base,rules:{...base.rules,unique:false},
+  recentNewMains:['豚肉とレタスの煮びたし',oldName]};
+ assert.deepEqual(recentNewMainNames(context),context.recentNewMains);
+ assert.throws(()=>parseMenuResponse(good,context),/前回までと同じ新しい主菜/);
+ assert.doesNotThrow(()=>parseMenuResponse(good.replace(oldName,'春キャベツと鮭の蒸し焼き'),context));
+});
+
+test('history is deduplicated, bounded and does not treat locked historical dishes as a rejection',()=>{
+ const names=Array.from({length:AI_RECENT_NEW_MAIN_LIMIT+3},(_,i)=>'創作料理'+i);
+ const remembered=rememberNewMainSuggestions(names,[{dishes:[{name:'創作料理4',category:'main',isNew:true},
+  {name:'新しい鶏料理',category:'main',isNew:true},
+  {name:'通常料理',category:'main',isNew:false}]}]);
+ assert.equal(remembered.length,AI_RECENT_NEW_MAIN_LIMIT);
+ assert.equal(remembered.at(-1),'新しい鶏料理');
+ assert.equal(remembered.at(-2),'創作料理4');
+ assert.equal(remembered.filter(n=>n==='創作料理4').length,1);
+ const fixed={...base,previous:[{dishes:[{name:'固定主菜',category:'main',isNew:true,locked:true}]}]};
+ assert.deepEqual(recentNewMainNames(fixed),[]);
 });
