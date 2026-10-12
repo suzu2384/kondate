@@ -118,3 +118,16 @@ test('each tab opens its own share dialog, and foreground timer checks shopping 
  assert.match(css,/@media\(max-width:500px\)/);
  assert.match(html,/apis\.google\.com\/js\/api\.js/);
 });
+
+test('shopping share includes computed auto ingredients, even if the recipient has no recipe master',()=>{
+ const original={servings:1,selected:['肉じゃが'],manual:[],checked:{},excluded:{}};
+ const auto=[{id:'auto:牛肉|g',kind:'auto',name:'牛肉',baseQuantity:60,baseUnit:'g',sourceNames:['肉じゃが']}];
+ const data=shoppingSharedSnapshot(original,auto);
+ assert.equal(data['ingredient:auto:牛肉|g'].baseQuantity,60);
+ const serialized=JSON.stringify(data);
+ assert.equal(serialized.includes('lastDate'),false);
+ const app=file('src/app.js');
+ assert.match(app,/const sharedRows=auto\.map/);
+ assert.match(app,/checked:state\.shopping\.checked\[i\.id\]===signature/);
+ assert.match(app,/if\(entry\.id&&!entry\.owner&&!family\.entry\('master'\)\.id\)/);
+});
