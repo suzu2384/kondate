@@ -23,7 +23,8 @@ export const colors={
 export function themeBackgroundColor({color='green',mode='auto'}={},prefersDark=false){
  const dark=mode==='dark'||(mode==='auto'&&prefersDark);
  const palette=colors[color]||colors.green;
- const fg=dark?palette.dark:palette.light,base=dark?'#0d1118':'#fbfcfe',fraction=palette.rich?(dark?0.07:0.04):(dark?0.04:0.03);
+ const backgroundPalette=palette.rich?colors[color.replace(/-rich$/,'')]:palette;
+ const fg=dark?backgroundPalette.dark:backgroundPalette.light,base=dark?'#0d1118':'#fbfcfe',fraction=dark?0.04:0.03;
  const toRgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
  return '#'+toRgb(fg).map((channel,i)=>Math.round(channel*fraction+toRgb(base)[i]*(1-fraction)).toString(16).padStart(2,'0')).join('');
 }
@@ -32,17 +33,20 @@ export function applyTheme({color='green',mode='auto'}={}){
  const dark=mode==='dark'||(mode==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);
  const palette=colors[color]||colors.green,accent=dark?palette.dark:palette.light;
  const mix=(amount,base)=>`color-mix(in srgb, ${accent} ${amount}%, ${base})`;
+ const softPalette=palette.rich?colors[color.replace(/-rich$/,'')]:palette;
+ const softAccent=dark?softPalette.dark:softPalette.light;
+ const softMix=(amount,base)=>`color-mix(in srgb, ${softAccent} ${amount}%, ${base})`;
  // Light is a near-white canvas with subtly coloured panels; don't tint the
  // entire surface as heavily as the accent. Dark deliberately layers three
  // distinct surfaces, so changing mode affects controls, cards and text too.
  const vars=palette.rich?(dark?{
- bg:mix(7,'#0d1118'),surface:mix(10,'#1a222c'),panel:mix(15,'#273240'),
- text:mix(24,'#f4f7fb'),muted:mix(16,'#c5ced8'),line:mix(19,'#495461'),
- accent,'on-accent':'#14202a',tint:mix(26,'#2b3544'),
+ bg:softMix(4,'#0d1118'),surface:softMix(8,'#1a222c'),panel:softMix(11,'#273240'),
+ text:mix(38,'#f4f7fb'),muted:mix(40,'#c1cbd5'),line:softMix(15,'#495461'),
+ accent,'on-accent':'#14202a',tint:softMix(19,'#2b3544'),
  danger:'#ffaaa9',shadow:'0 8px 26px #00000045'}:{
- bg:mix(4,'#fbfcfe'),surface:mix(2,'#ffffff'),panel:mix(9,'#f5f8fc'),
- text:mix(28,'#162633'),muted:mix(14,'#526071'),line:mix(18,'#e2e8f0'),
- accent,'on-accent':'#fff',tint:mix(22,'#f4f8fc'),
+ bg:softMix(3,'#fbfcfe'),surface:softMix(1,'#ffffff'),panel:softMix(7,'#f5f8fc'),
+ text:mix(42,'#172432'),muted:mix(42,'#5a6573'),line:softMix(10,'#e2e8f0'),
+ accent,'on-accent':'#fff',tint:softMix(14,'#f4f8fc'),
  danger:'#a53940',shadow:'0 6px 22px #1b2c4010'}):dark?{
  bg:mix(4,'#0d1118'),surface:mix(8,'#1a222c'),panel:mix(11,'#273240'),
  text:mix(3,'#f4f7fb'),muted:mix(6,'#c1cbd5'),line:mix(15,'#495461'),
