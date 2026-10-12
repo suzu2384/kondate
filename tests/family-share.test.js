@@ -242,3 +242,47 @@ test('shopping share-start evaluates real familySnapshot without shadowing data(
  assert.equal(masterData['dish:肉じゃが'].name,'肉じゃが');
  assert.equal(masterData['dish:肉じゃが'].ingredients[0].quantity,100);
 });
+
+test('identical independently edited recipe does not report a conflict',async()=>{
+ const client=fakeClient(),a=new FamilySync(client,storage()),b=new FamilySync(client,storage());
+ const original={'dish:肉じゃが':{name:'肉じゃが',category:'main',method:'煮る'}};
+ const id=await a.start('master',original,'member@example.com');
+ await b.join('master',id,async()=>{});
+ const updated={'dish:肉じゃが':{name:'肉じゃが',category:'main',method:'炒める'}};
+ a.observe('master',updated);
+ b.observe('master',updated);
+ await a.sync('master',async()=>{});
+ const result=await b.sync('master',async()=>{});
+ assert.deepEqual(result.conflicts,[],'the same changes on both devices are not a conflict');
+ await a.sync('master',async()=>{});
+ await b.sync('master',async()=>{});
+ assert.deepEqual(a.entry('master').queue,[]);
+ assert.deepEqual(b.entry('master').queue,[]);
+});
+
+test('non-recipe edits never republish a joined device personal catalog',()=>{
+ const app=file('src/app.js'),from=app.indexOf('function familySnapshot(type){');
+ const to=app.indexOf('function persist(){',from);
+ assert.ok(from>=0&&to>from);
+ const shared=masterSharedSnapshot([dish,{name:'カレー',category:'main',protein:'肉',method:'煮る',genre:'洋食'}]);
+ const shadow=structuredClone(shared);
+ let current=[
+  {...dish,method:'焼く',ingredients:[{name:'牛肉',quantity:100,unit:'g'}]},
+  {name:'カレー',category:'main',protein:'肉',method:'煮る',genre:'洋食'},
+  {name:'相手の個人用料理',category:'main',method:'蒸す'}
+ ];
+ const edits=new Set(),family={entry:()=>({id:'spreadsheet-id',owner:false,shadow})};
+ const take=new Function('shoppingItems','shoppingSharedSnapshot','state','family','master','data',
+  'masterSharedSnapshot','categoryName','editedFamilyDishes',
+  app.slice(from,to)+'\nreturn familySnapshot;');
+ const snapshot=take(shoppingItems,shoppingSharedSnapshot,{shopping:{}},family,()=>current,()=>({aliases:{}}),
+  masterSharedSnapshot,()=> '主菜',edits);
+ assert.deepEqual(snapshot('master'),shared,'existing remote dishes stay unchanged, personal dishes never leak');
+ edits.add('dish:肉じゃが');
+ const changed=snapshot('master');
+ assert.equal(changed['dish:肉じゃが'].method,'焼く','explicitly edited recipe is published');
+ assert.deepEqual(changed['dish:カレー'],shared['dish:カレー'],'unrelated shared recipe is preserved');
+ assert.equal(changed['dish:相手の個人用料理'],undefined,'private dish stays private');
+ edits.clear();
+ assert.deepEqual(snapshot('master'),shared);
+});
