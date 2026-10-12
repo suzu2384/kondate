@@ -20,7 +20,7 @@ import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependent
 import {recordDishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {searchPlaces,filterPlaceCandidates,LOCATION_ATTRIBUTION} from './place-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
-import {rememberNewMainSuggestions} from './ai-menu.js';
+import {rememberNewMainSuggestions,rememberMenuSuggestions} from './ai-menu.js';
 import {AIService} from './ai.js';
 import {createAIProvider} from './ai-provider.js';
 import {AI_PUBLIC_CONFIG} from './ai-config.js';
@@ -32,13 +32,14 @@ import {DEFAULT_SHOPPING_SERVINGS,MAX_SHOPPING_SERVINGS,shoppingSettings,shoppin
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme,normalizeThemeColor,isSupportedThemeColor} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
-const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],recentNewMains:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,...loaded};
+const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],recentNewMains:[],recentSuggested:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,...loaded};
 state.rules={...defaultRules,...loaded.rules,counts:{...defaultRules.counts,...loaded.rules?.counts}};
 state.rules.days=normalizeGenerationDays(state.rules.days);
 state.theme.color=normalizeThemeColor(state.theme.color);
 state.shopping=shoppingSettings(state.shopping);
 state.menuGenerationMode=state.menuGenerationMode==='ai'?'ai':'rules';
 state.recentNewMains=rememberNewMainSuggestions(state.recentNewMains);
+state.recentSuggested=rememberMenuSuggestions(state.recentSuggested);
 state.categoryCalendars=migrateCategoryCalendars(state.categories,loaded.categoryCalendars,state.calendarId);
 // Legacy standard-calendar setting has been migrated to Main.
 state.calendarId='';state.calendarName='';
@@ -1125,7 +1126,7 @@ async function applyRemoteSettings(remoteVersion,remoteSnapshot){
  const saved=readDriveSnapshot(remoteSnapshot,state,validateImport);
  const wasBooting=driveAutoBooting;driveAutoBooting=true;
  try{
-  restoreDriveSnapshot(state,saved);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.shopping=shoppingSettings(state.shopping);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.recentNewMains=rememberNewMainSuggestions(state.recentNewMains);
+  restoreDriveSnapshot(state,saved);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.shopping=shoppingSettings(state.shopping);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.recentNewMains=rememberNewMainSuggestions(state.recentNewMains);state.recentSuggested=rememberMenuSuggestions(state.recentSuggested);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
   // Private backups must not revert shared purchases or recipes. The shared
@@ -1523,9 +1524,9 @@ const actions={
    aiGenerating=true;render();
    try{
     // A frozen request avoids comparing a seven-day response against later UI edits.
-    const context={master:master(),rules:structuredClone(state.rules),previous:structuredClone(state.draft),recentNewMains:[...state.recentNewMains]};
+    const context={master:master(),rules:structuredClone(state.rules),previous:structuredClone(state.draft),recentNewMains:[...state.recentNewMains],recentSuggested:[...state.recentSuggested]};
     const plan=await ai.generate(context);
-    state.draft=plan;state.recentNewMains=rememberNewMainSuggestions(state.recentNewMains,plan);issues=[];persist();
+    state.draft=plan;state.recentNewMains=rememberNewMainSuggestions(state.recentNewMains,plan);state.recentSuggested=rememberMenuSuggestions(state.recentSuggested,plan);issues=[];persist();
     notify(plan.warnings?.length?{
      summary:`AIが${requested}日分を生成しました（再生成あり）`,
      detail:plan.warnings.join('\\n'),
