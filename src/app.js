@@ -3,7 +3,9 @@ import {readState,saveState,storedState,calendarKey} from './storage.js';
 import {generate,reroll,validatePlan} from './generator.js';
 import {CalendarClient,calendarCreatePayload} from './google.js';
 import {CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefreshDue,calendarEventsChanged,fetchCalendarUpdates} from './calendar-auto-refresh.js';
-import {GOOGLE_CLIENT_ID} from './config.js';
+import {GOOGLE_CLIENT_ID,GOOGLE_PICKER_API_KEY,GOOGLE_PROJECT_NUMBER} from './config.js';
+import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS} from './family-share.js';
+import {masterSharedSnapshot,shoppingSharedSnapshot,applyShoppingEvents,applyMasterEvents} from './family-data.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES,normalizeIcon,normalizeIconColor,isSupportedIcon} from './calendar-display.js';
 import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEvent,presetEventPayload} from './icon-presets.js';
@@ -43,6 +45,9 @@ const presetQueue=new PresetWriteQueue(globalThis.localStorage,()=>uid());
 let presetFlushing=false,presetFlushPromise=null;
 state.calendarRefreshMinutes=normalizeCalendarRefreshMinutes(state.calendarRefreshMinutes);
 const api=new CalendarClient(),ai=new AIService(createAIProvider(AI_PUBLIC_CONFIG)),drive=new DriveSettingsClient();
+const familyClient=new FamilyDriveClient(),family=new FamilySync(familyClient);
+familyClient.restore(GOOGLE_CLIENT_ID);
+let applyingFamily=false,lastFamilyPoll={master:0,shopping:0};
 if(!ai.available)state.menuGenerationMode='rules';
 const restoredGoogleSession=api.restoreSession(GOOGLE_CLIENT_ID);
 const restoredDriveSession=drive.restoreAuto(GOOGLE_CLIENT_ID);
@@ -154,7 +159,94 @@ function extraEvents(){
 }
 
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
-function persist(){saveState(state);if(!driveAutoBooting&&drive.autoEnabled)markDriveDirty();}
+function familySnapshot(type){
+ return type==='master'?masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)}))):
+  shoppingSharedSnapshot(state.shopping);
+}
+function persist(){
+ if(!applyingFamily){
+  for(const type of ['master','shopping']){
+   if(!family.entry(type).id)continue;
+   try{if(family.observe(type,familySnapshot(type)))
+    setTimeout(()=>{void syncFamily(type);},180);}
+   catch(error){notify({summary:error.message,severity:'error'});}
+  }
+ }
+ saveState(state);
+ if(!applyingFamily&&!driveAutoBooting&&drive.autoEnabled)markDriveDirty();
+}
+async function applyFamily(type,ops,{initial=false}={}){
+ applyingFamily=true;
+ try{
+  if(type==='shopping')state.shopping=applyShoppingEvents(state.shopping,ops,initial);
+  else{
+   for(const op of ops){
+    const d=op.value;
+    if(d&&/^[a-z][a-z0-9-]*$/.test(d.category)&&!state.categories.some(c=>c.id===d.category))
+     state.categories.push({id:d.category,name:String(d.categoryName||d.category).slice(0,20)});
+   }
+   applyMasterEvents(data(),ops,state.categories.map(c=>c.id));
+  }
+  saveState(state);
+  if(tab===type)render();
+ }finally{applyingFamily=false;}
+}
+async function syncFamily(type){
+ const d=family.entry(type);
+ if(!d.id||!familyClient.connected||document.hidden)return;
+ try{
+  const result=await family.sync(type,(ops,opts)=>applyFamily(type,ops,opts));
+  lastFamilyPoll[type]=Date.now();
+  if(result.conflicts.length)notify({summary:'同じ項目への同時変更を検出しました。共有データの更新順に反映されます。',severity:'warning'});
+ }catch(error){
+  lastFamilyPoll[type]=Date.now();
+  // The local operation queue remains durable; never silently discard edits.
+  if(tab===type)notify({summary:'共有同期：'+error.message,severity:'warning'});
+ }
+}
+function familyDialog(type){
+ const label=type==='master'?'料理マスター':'買い物リスト',d=family.entry(type);
+ const linked=!!d.id;
+ modal(label+'の共有',
+  '<p class="hint">共有相手もKonDateから同じファイルを編集できます。変更は自動同期されます。個人のカレンダー履歴は共有しません。</p>'+
+  (linked?'<p class="hint">共有中・未送信 '+d.queue.length+'件</p>':'<p class="hint">共有を開始するか、受け取った共有ファイルへ参加してください。</p>')+
+  '<label class="field"><span>共有相手のGoogleメールアドレス</span><input id="family-share-email" type="email" autocomplete="email" placeholder="family@gmail.com"></label>'+
+  (type==='shopping'?'<label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">'+SHOPPING_SYNC_SECONDS.map(n=>'<option value="'+n+'"'+(family.settings.seconds===n?' selected':'')+'>'+n+'秒</option>').join('')+'</select><small>買い物タブの表示中だけ定期確認。復帰時にも更新します。</small></label>':'<p class="hint">料理マスターはカレンダーの更新間隔に合わせて同期します。</p>')+
+  (linked?'<p class="hint">共有ファイル：<a target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/'+encodeURIComponent(d.id)+'/edit">Google Driveで開く</a></p>':'')+
+  (!GOOGLE_PICKER_API_KEY||!GOOGLE_PROJECT_NUMBER?'<p class="hint">「共有に参加」にはGoogle Pickerの開発者設定が必要です。</p>':''),
+  button('閉じる','close-dialog')+
+  (linked?button('共有をやめる','family-stop','mini', 'data-kind="'+type+'"'):'')+
+  button('共有に参加','family-join','mini','data-kind="'+type+'"')+
+  button(linked?'相手を追加':'共有を開始','family-start','primary','data-kind="'+type+'"'));
+}
+async function familyStart(type){
+ const email=$('#family-share-email')?.value?.trim()||'';
+ if(!/^[-\\w.+]+@[-\\w.]+\\.[a-z]{2,}$/i.test(email))throw Error('共有相手のメールアドレスを入力してください。');
+ // OAuth popup must begin synchronously in this click handler.
+ const auth=familyClient.authorize(GOOGLE_CLIENT_ID);await auth;
+ if(family.entry(type).id)await familyClient.invite(family.entry(type).id,email);
+ else await family.start(type,familySnapshot(type),email);
+ closeModal();render();notify('共有の招待を送信しました。相手は「共有に参加」から共有ファイルを選択してください。');
+}
+async function familyJoin(type){
+ // Start OAuth synchronously while the browser still sees the user's click.
+ const auth=familyClient.authorize(GOOGLE_CLIENT_ID);await auth;
+ const id=await familyClient.pick(GOOGLE_PICKER_API_KEY,GOOGLE_PROJECT_NUMBER);
+ if(!id)return;
+ await family.join(type,id,(ops,opts)=>applyFamily(type,ops,opts));
+ closeModal();render();notify('共有ファイルに参加しました。編集内容は自動で同期されます。');
+}
+function pollFamily(force=false){
+ if(document.hidden||!familyClient.connected)return;
+ const now=Date.now();
+ for(const type of ['master','shopping']){
+  if(!family.entry(type).id)continue;
+  const interval=type==='shopping'?family.settings.seconds*1000:state.calendarRefreshMinutes*60000;
+  if((tab===type&&interval>0&&now-lastFamilyPoll[type]>=interval)||force)
+   void syncFamily(type);
+ }
+}
+
 function notify(message){const note=selectStatusNotice(currentNoticeData,message);currentNotice=note?.summary||'';currentNoticeData=note;showStatus();}
 function dismissNotice(){currentNotice='';currentNoticeData=null;showStatus();}
 function updateConnection(){
@@ -383,6 +475,7 @@ function shoppingScreen(){
    <label class="shopping-servings">人数 <select id="shopping-servings" aria-label="買い物に必要な人数">${Array.from({length:MAX_SHOPPING_SERVINGS},(_,i)=>i+1).map(n=>`<option value="${n}"${n===view.servings?' selected':''}>${n}</option>`).join('')}</select> 人分</label>
    ${button('＋ 品目追加','shopping-add','mini primary')}
    ${button('未購入をコピー','shopping-copy','mini')}
+   ${button('共有','family-dialog','family-share-button mini','data-kind="shopping"')}
   </div>
   <div class="shopping-list card scroll">
    <ul class="shopping-items">${items.map(shoppingRow).join('')||`<li class="shopping-empty">${emptyMessage}</li>`}</ul>
@@ -759,7 +852,7 @@ function masterFilterButtons(){
 function masterScreen(){
  const items=masterItems();
  return `<section class="screen master-screen" aria-label="料理">
-  <div class="master-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}</div>
+  <div class="master-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}${button('共有','family-dialog','family-share-button mini', 'data-kind="master"')}</div>
   <div class="master-list-wrap card scroll"><ul class="master-list" id="master-rows">${masterRows(items)}</ul></div>
  </section>`;
 }
@@ -1365,6 +1458,14 @@ const actions={
  },
  'shopping-restore':b=>{delete state.shopping.excluded[b.dataset.id];persist();render();},
  'shopping-copy':copyShoppingList,
+ 'family-dialog':b=>familyDialog(b.dataset.kind),
+ 'family-start':b=>familyStart(b.dataset.kind),
+ 'family-join':b=>familyJoin(b.dataset.kind),
+ 'family-stop':b=>{
+  if(!window.confirm('この端末の自動共有を停止しますか？Google Drive上の共有権限とファイルは残ります。'))return;
+  family.stop(b.dataset.kind);closeModal();render();notify('この端末の共有同期を停止しました。');
+ },
+
  'drive-sync-now':async()=>{
   if(!drive.autoEnabled)throw Error('この端末のDrive自動同期を有効にしてください。');
   if(!drive.connected)return reauthenticateExpiredGoogle();
@@ -1732,6 +1833,11 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   else delete state.shopping.checked[item.id];
   persist();render();return;
  }
+ if(el.id==='family-interval'){
+  const seconds=Number(el.value);
+  if(!SHOPPING_SYNC_SECONDS.includes(seconds))throw Error('更新間隔が不正です。');
+  family.settings.seconds=seconds;family.persist();lastFamilyPoll.shopping=0;return;
+ }
  if(el.id==='shopping-servings'){
   const n=Number(el.value);
   if(!Number.isInteger(n)||n<1||n>MAX_SHOPPING_SERVINGS)throw Error('買い物人数は1〜30人で指定してください。');
@@ -1813,11 +1919,12 @@ if(restoredGoogleSession){
 driveAutoBooting=false;
 prepareGoogleIdentity();
 if(restoredDriveSession)autoDriveSync();
-window.addEventListener('focus',()=>{if(drive.autoEnabled)autoDriveSync();void flushPendingPresets();void autoRefreshCalendar();});
+window.addEventListener('focus',()=>{if(drive.autoEnabled)autoDriveSync();void flushPendingPresets();void autoRefreshCalendar();pollFamily(true);});
 document.addEventListener('visibilitychange',()=>{
- if(!document.hidden){if(drive.autoEnabled)autoDriveSync();void flushPendingPresets();void autoRefreshCalendar();}
+ if(!document.hidden){if(drive.autoEnabled)autoDriveSync();void flushPendingPresets();void autoRefreshCalendar();pollFamily(true);}
 });
 setInterval(()=>{if(!document.hidden&&drive.autoEnabled)autoDriveSync();void autoRefreshCalendar();},30000);
+setInterval(()=>pollFamily(),1000);
 // The journal is persisted on each tap; mobile browsers may suspend background timers.
 window.addEventListener('pagehide',()=>{void flushPendingPresets();});
 setInterval(()=>{if(presetQueue.size)void flushPendingPresets();},PRESET_FLUSH_INTERVAL_MS);
