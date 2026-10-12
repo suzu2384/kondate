@@ -132,3 +132,24 @@ test('shopping share includes computed auto ingredients, even if the recipient h
  assert.match(app,/checked:state\.shopping\.checked\[i\.id\]===signature/);
  assert.match(app,/if\(entry\.id&&!entry\.owner&&!family\.entry\('master'\)\.id\)/);
 });
+
+test('family sharing buttons remain visible in both tab toolbars on phones',()=>{
+ const css=file('style.css'),app=file('src/app.js');
+ const style=css.slice(css.lastIndexOf('/* Family share actions stay in the tab toolbar'));
+ assert.ok(style.length>200,'Dedicated responsive styling for both family share buttons');
+ assert.doesNotMatch(style,/family-share-button[^\\n]*\\{[^}]*display\\s*:\\s*none/);
+ assert.doesNotMatch(css, /\\.master-toolbar \\.family-share-button,\\.shopping-toolbar \\.family-share-button\\{display:none\\}/);
+ assert.match(style,/@media\\(max-width:500px\\)/);
+ assert.match(style,/\\.master-screen \\.master-toolbar\\{flex-wrap:nowrap/);
+ assert.match(style,/\\.shopping-screen \\.shopping-toolbar\\{flex-wrap:nowrap/);
+ assert.match(style,/\\.master-screen \\.master-toolbar \\.family-share-button\\{margin-left:auto/);
+ assert.match(style,/\\.shopping-screen \\.shopping-toolbar \\.family-share-button\\{margin-left:auto/);
+ const master=app.slice(app.indexOf('function masterScreen(){'),app.indexOf('function refreshMasterRows(){'));
+ const shopping=app.slice(app.indexOf('function shoppingScreen(){'),app.indexOf('function editShoppingManual('));
+ assert.match(master,/\\$\\{button\\('＋ 新規','add-master'/);
+ assert.match(master,/\\$\\{button\\('共有','family-dialog'.*data-kind="master"/);
+ assert.ok(master.indexOf("button('共有','family-dialog'")>master.indexOf("button('＋ 新規','add-master'"));
+ assert.match(shopping,/\\$\\{button\\('未購入をコピー','shopping-copy'/);
+ assert.match(shopping,/\\$\\{button\\('共有','family-dialog'.*data-kind="shopping"/);
+ assert.ok(shopping.indexOf("button('共有','family-dialog'")>shopping.indexOf("button('未購入をコピー','shopping-copy'"));
+});
