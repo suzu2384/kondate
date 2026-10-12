@@ -465,7 +465,7 @@ test('discovery restores an unlinked owner automatically and skips active recipi
   async authorize(){authorization++;},
   async findOwned(){lookups++;return [{id,name:'KonDate 共有料理マスター'}];}
  };
- const build=new Function('$,'family','familyClient','GOOGLE_CLIENT_ID','sharedSpreadsheetUrl','sharedSpreadsheetId',
+ const build=new Function('$','family','familyClient','GOOGLE_CLIENT_ID','sharedSpreadsheetUrl','sharedSpreadsheetId',
   'applyFamily','render','esc','button',source.slice(start,end)+
   '\nreturn {discoverOwnedFamily,ownedFamilyMatches,ownedFamilyState};');
  const session=build($,recipient,client,'google-client-id',sharedSpreadsheetUrl,sharedSpreadsheetId,
