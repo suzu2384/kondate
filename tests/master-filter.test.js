@@ -47,7 +47,7 @@ test('generated menu keeps day and dish sequence, with duplicates and newly prop
  assert.equal(items[1].key,'');
  assert.equal(items[1].category,'soup');
  const markup=functions.masterRows(items);
- assert.match(markup,/創作スープのレシピを検索">検索<\/a>/);
+ assert.match(markup,/創作スープのレシピを検索" title="検索"><span class="master-action-icon master-action-icon-search" aria-hidden="true"><\/span><\/a>/);
  const lines=markup.split('class="master-entry"');
  assert.match(lines[2],/data-action="edit-master" data-key="" disabled/);
  assert.doesNotMatch(lines[1],/data-action="edit-master"[^>]*disabled/);
