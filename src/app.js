@@ -3,8 +3,8 @@ import {readState,saveState,storedState,calendarKey} from './storage.js';
 import {generate,reroll,validatePlan} from './generator.js';
 import {CalendarClient,calendarCreatePayload} from './google.js';
 import {CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefreshDue,calendarEventsChanged,fetchCalendarUpdates} from './calendar-auto-refresh.js';
-import {GOOGLE_CLIENT_ID,GOOGLE_PICKER_API_KEY,GOOGLE_PROJECT_NUMBER} from './config.js';
-import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS} from './family-share.js';
+import {GOOGLE_CLIENT_ID} from './config.js';
+import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,sharedSpreadsheetId} from './family-share.js';
 import {rememberCalendarAccount} from './account-hint.js';
 import {masterSharedSnapshot,shoppingSharedSnapshot,applyShoppingEvents,applyMasterEvents} from './family-data.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
@@ -242,35 +242,61 @@ function familyDialog(type){
  const linked=!!d.id;
  modal(label+'の共有',
   '<p class="hint">共有相手もKonDateから同じファイルを編集できます。変更は自動同期されます。個人のカレンダー履歴は共有しません。</p>'+
-  (linked?'<p class="hint">共有中・未送信 '+d.queue.length+'件</p>':'<p class="hint">共有を開始するか、受け取った共有ファイルへ参加してください。</p>')+
-  '<label class="field"><span>共有相手のGoogleメールアドレス</span><input id="family-share-email" type="email" autocomplete="email" placeholder="family@gmail.com"></label>'+
-  (type==='shopping'?'<label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">'+SHOPPING_SYNC_SECONDS.map(n=>'<option value="'+n+'"'+(family.settings.seconds===n?' selected':'')+'>'+n+'秒</option>').join('')+'</select><small>買い物タブの表示中だけ定期確認。復帰時にも更新します。</small></label>':'<p class="hint">料理マスターはカレンダーの更新間隔に合わせて同期します。</p>')+
+  (linked?'<p class="hint">共有中・未送信 '+d.queue.length+'件</p>':'<p class="hint">共有を開始するか、受け取った共有リンクから参加してください。</p>')+
   (linked?'<p class="hint">共有ファイル：<a target="_blank" rel="noopener" href="https://docs.google.com/spreadsheets/d/'+encodeURIComponent(d.id)+'/edit">Google Driveで開く</a></p>':'')+
-  (!GOOGLE_PICKER_API_KEY||!GOOGLE_PROJECT_NUMBER?'<p class="hint">「共有に参加」にはGoogle Pickerの開発者設定が必要です。</p>':''),
+  '<label class="field"><span>共有相手のGoogleメールアドレス（招待するとき）</span><input id="family-share-email" type="email" autocomplete="email" placeholder="family@gmail.com"></label>'+
+  '<label class="field"><span>共有リンク（参加するとき）</span><input id="family-join-link" type="url" inputmode="url" autocapitalize="off" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/..."></label>'+
+  '<p class="hint">共有する側は相手を招待して「リンクをコピー」。参加する側はそのURLを貼り付けます。参加時のみGoogleスプレッドシートの読み書き権限を求めます。</p>'+
+  (type==='shopping'?'<label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">'+SHOPPING_SYNC_SECONDS.map(n=>'<option value="'+n+'"'+(family.settings.seconds===n?' selected':'')+'>'+n+'秒</option>').join('')+'</select><small>買い物タブの表示中だけ定期確認。復帰時にも更新します。</small></label>':'<p class="hint">料理マスターはカレンダーの更新間隔に合わせて同期します。</p>'),
   button('閉じる','close-dialog')+
-  (linked?button('共有をやめる','family-stop','mini', 'data-kind="'+type+'"'):'')+
+  (linked?button('共有をやめる','family-stop','mini','data-kind="'+type+'"'):'')+
+  (linked?button('リンクをコピー','family-copy-link','mini','data-kind="'+type+'"'):'')+
+  (linked?button('再認証・同期','family-renew','mini','data-kind="'+type+'"'):'')+
   button('アカウントを変更','family-account-change','mini','data-kind="'+type+'"')+
   button('共有に参加','family-join','mini','data-kind="'+type+'"')+
   button(linked?'相手を追加':'共有を開始','family-start','primary','data-kind="'+type+'"'));
 }
+async function familyCopyLink(type){
+ const id=family.entry(type).id;
+ if(!id)throw Error('共有を開始してからリンクをコピーしてください。');
+ const url='https://docs.google.com/spreadsheets/d/'+encodeURIComponent(id)+'/edit';
+ try{
+  if(!navigator.clipboard?.writeText)throw Error('clipboard unavailable');
+  await navigator.clipboard.writeText(url);
+  notify('共有リンクをコピーしました。招待した相手へ送ってください。');
+ }catch{
+  modal('共有リンクをコピー', '<p>次のURLをコピーして共有相手に送ってください。</p>'+
+   '<textarea id="family-link-text" rows="3" readonly>'+esc(url)+'</textarea>',button('閉じる','close-dialog'));
+  $('#family-link-text')?.select();
+ }
+}
+async function familyRenew(type){
+ // Account authorization must start in the original click handler for iOS.
+ await familyClient.authorize(GOOGLE_CLIENT_ID,{join:!family.entry(type).owner});
+ await syncFamily(type);
+ notify('共有の認証と同期を確認しました。');
+}
 async function familyStart(type){
  const email=$('#family-share-email')?.value?.trim()||'';
  if(!/^[-\w.+]+@[-\w.]+\.[a-z]{2,}$/i.test(email))throw Error('共有相手のメールアドレスを入力してください。');
- // OAuth popup must begin synchronously in this click handler.
- const auth=familyClient.authorize(GOOGLE_CLIENT_ID);await auth;
+ // OAuth popup must begin synchronously while the browser still sees the user's click.
+ const joinedOther=['master','shopping'].some(kind=>family.entry(kind).id&&!family.entry(kind).owner);
+ const auth=familyClient.authorize(GOOGLE_CLIENT_ID,{join:joinedOther});await auth;
  if(family.entry(type).id)await familyClient.invite(family.entry(type).id,email);
  else await family.start(type,familySnapshot(type),email);
- closeModal();render();notify('共有の招待を送信しました。相手は「共有に参加」から共有ファイルを選択してください。');
+ closeModal();render();notify('招待を送信しました。共有画面の「リンクをコピー」でURLを相手へ送ってください。');
 }
 async function familyJoin(type){
+ const id=sharedSpreadsheetId($('#family-join-link')?.value);
+ if(!id)throw Error('共有する側から受け取ったGoogleスプレッドシートのURLを入力してください。');
  if(type==='shopping'&&!window.confirm('この端末の買い物リストを共有リストに切り替えます。未共有の品目やチェック状態は共有先の内容に置き換わります。続行しますか？'))return;
- // Start OAuth synchronously while the browser still sees the user's click.
- const auth=familyClient.authorize(GOOGLE_CLIENT_ID);await auth;
- const id=await familyClient.pick(GOOGLE_PICKER_API_KEY,GOOGLE_PROJECT_NUMBER);
- if(!id)return;
+ // Accessing a recipient's shared spreadsheet by ID requires the Sheets scope;
+ // drive.file alone only covers files explicitly opened with the app.
+ const auth=familyClient.authorize(GOOGLE_CLIENT_ID,{join:true});await auth;
  await family.join(type,id,(ops,opts)=>applyFamily(type,ops,opts));
  closeModal();render();notify('共有ファイルに参加しました。編集内容は自動で同期されます。');
 }
+
 function pollFamily(force=false){
  if(document.hidden||!familyClient.connected)return;
  const now=Date.now();
@@ -1598,6 +1624,8 @@ const actions={
  },
  'family-start':b=>familyStart(b.dataset.kind),
  'family-join':b=>familyJoin(b.dataset.kind),
+ 'family-copy-link':b=>familyCopyLink(b.dataset.kind),
+ 'family-renew':b=>familyRenew(b.dataset.kind),
  'family-stop':b=>{
   if(!window.confirm('この端末の自動共有を停止しますか？Google Drive上の共有権限とファイルは残ります。'))return;
   family.stop(b.dataset.kind);closeModal();render();notify('この端末の共有同期を停止しました。');
