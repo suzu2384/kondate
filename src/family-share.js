@@ -28,9 +28,46 @@ export function replayOps(before={},ops=[]){
   if(op.value===null)delete result[op.key];else result[op.key]=clone(op.value);}
  return result;
 }
+/**
+ * Preserve Google's reason and the failed operation instead of treating every
+ * HTTP 403 as disabled Sheets API. Google API errors can arise in either
+ * Sheets or Drive, and the project in ErrorInfo often identifies a mismatch.
+ */
+export function describeSharedApiFailure(status,payload,host,path,method='GET'){
+ const sheets=host.includes('sheets.googleapis.com');
+ const service=sheets?'Google Sheets API':'Google Drive API';
+ let stage=sheets?'共有データ読み取り':'共有ファイル操作';
+ if(sheets&&method==='POST'&&/^\/spreadsheets(?:\?|$)/.test(path))stage='共有ファイルの作成';
+ else if(sheets&&method==='POST'&&path.includes(':append'))stage='共有データの書き込み';
+ else if(!sheets&&method==='POST'&&path.includes('/permissions'))stage='共有相手への編集権限の付与';
+ const error=payload?.error&&typeof payload.error==='object'?payload.error:{};
+ const details=Array.isArray(error.details)?error.details:[];
+ const info=details.find(item=>item?.['@type']==='type.googleapis.com/google.rpc.ErrorInfo')||
+  details.find(item=>typeof item?.reason==='string')||{};
+ const reason=String(info.reason||error.status||'').slice(0,80);
+ const consumer=String(info.metadata?.consumer||'');
+ const project=/^projects\/([a-zA-Z0-9_-]{1,80})$/.exec(consumer)?.[1]||'';
+ const message=String(error.message||'').replace(/\s+/g,' ').slice(0,400);
+ let suggestion='';
+ if(reason==='SERVICE_DISABLED'||reason==='accessNotConfigured')
+  suggestion='エラーに示されたGoogle Cloudプロジェクトで対象APIを有効化してください。';
+ else if(reason==='ACCESS_TOKEN_SCOPE_INSUFFICIENT'||reason==='insufficientPermissions')
+  suggestion='共有用Google認証の権限が不足しています。再度「共有を開始」から認証してください。';
+ else if(reason==='storageQuotaExceeded'||reason==='quotaExceeded'||reason==='RESOURCE_EXHAUSTED')
+  suggestion='Google Driveの空き容量やAPI利用上限を確認してください。';
+ else if(reason==='domainPolicy'||reason==='cannotShareAcrossDomains')
+  suggestion='Google Workspaceの外部共有制限を確認してください。';
+ return `${stage}に失敗しました（${service}／HTTP ${status}${reason?'／'+reason:''}${project?'／プロジェクト '+project:''}）。${suggestion}${message?' Google: '+message:''}`;
+}
+
 export class FamilyDriveClient{
- constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';}
+ constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';this.forceConsent=false;}
  get connected(){return !!this.token&&Date.now()<this.expires;}
+ invalidateAccess({consent=false}={}){
+  this.token='';this.expires=0;this.forceConsent=consent;
+  try{sessionStorage.removeItem(TOKEN_STORAGE);}catch{}
+ }
+
  restore(clientId){
   let s;try{s=JSON.parse(sessionStorage.getItem(TOKEN_STORAGE)||'null');}catch{}
   if(!s||s.clientId!==clientId||!s.token||s.expires<=Date.now())return false;
@@ -47,10 +84,11 @@ export class FamilyDriveClient{
      if(!google.accounts.oauth2.hasGrantedAllScopes(r,SHARE_SCOPE)){reject(Error('Driveファイルの権限が必要です。'));return;}
      this.token=r.access_token;this.clientId=clientId;
      this.expires=Date.now()+Math.max(60,Number(r.expires_in||3600)-60)*1000;
+     this.forceConsent=false;
      try{sessionStorage.setItem(TOKEN_STORAGE,JSON.stringify({token:this.token,clientId,expires:this.expires}));}catch{}
      resolve();
     },error_callback:r=>reject(Error(r?.type==='popup_closed'?'Google認証画面が閉じられました。':'Google認証を開けませんでした。'))
-   }).requestAccessToken({prompt:''});
+   }).requestAccessToken({prompt:this.forceConsent?'consent':''});
   });
  }
  async request(host,path,{method='GET',body}={}){
@@ -59,9 +97,18 @@ export class FamilyDriveClient{
    ...(body!==undefined?{'Content-Type':'application/json'}:{})},
    body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(25000)});}
   catch{throw Error('Googleとの通信に失敗しました。');}
-  if(r.status===401){this.token='';this.expires=0;try{sessionStorage.removeItem(TOKEN_STORAGE);}catch{}
-   throw Error('共有用Google認証の有効期限が切れました。');}
-  if(!r.ok)throw Error(r.status===403?'共有権限またはGoogle Sheets APIの有効化を確認してください。':'共有ファイルの操作に失敗しました（'+r.status+'）。');
+  if(r.status===401){
+   this.invalidateAccess();
+   throw Error('共有用Google認証の有効期限が切れました。');
+  }
+  if(!r.ok){
+   let payload=null;
+   try{payload=await r.json();}catch{}
+   const reason=payload?.error?.details?.find(d=>d?.reason)?.reason||'';
+   if(r.status===403&&(reason==='ACCESS_TOKEN_SCOPE_INSUFFICIENT'||reason==='insufficientPermissions'))
+    this.invalidateAccess({consent:true});
+   throw Error(describeSharedApiFailure(r.status,payload,host,path,method));
+  }
   return r.status===204?null:r.json();
  }
  sheets(path,opt){return this.request('https://sheets.googleapis.com/v4',path,opt);}
