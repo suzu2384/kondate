@@ -6,7 +6,36 @@ export class AIService {
  constructor(provider=null){this.provider=provider;}
  get available(){return !!this.provider;}
  get canAnalyzePhoto(){return typeof this.provider?.analyzePhoto==='function';}
- async generate(context){if(!this.available)throw Error('AIは未設定です。ルールベース生成をご利用ください。');const plan=await this.provider.generate(context);if(!Array.isArray(plan)||plan.length!==context.rules.days)throw Error('AIの生成日数が指定と一致しません。');for(const day of plan){const originals=day.dishes;day.dishes=validateDishes(originals).map((dish,i)=>({...dish,isNew:originals[i]?.isNew===true}));}const errors=validatePlan(plan,context.rules,context.master);for(const day of plan)for(const[cat,count]of Object.entries(context.rules.counts))if(day.dishes.filter(d=>d.category===cat).length!==count)errors.push('AIの料理数が設定と一致しません。');if(context.rules.newMain){const known=new Set((context.master||[]).map(d=>normalize(d.name)));const locked=new Set((context.previous||[]).flatMap(day=>day.dishes.filter(d=>d.locked)).map(d=>normalize(d.name)));if(!plan.some(day=>day.dishes.some(d=>d.category==='main'&&!known.has(normalize(d.name))&&!locked.has(normalize(d.name)))))errors.push('AIが新しい主菜を提案できませんでした。再度お試しください。');}for(const [i,day]of (context.previous||[]).entries())for(const locked of day.dishes.filter(d=>d.locked)){const match=plan[i]?.dishes.find(d=>normalize(d.name)===normalize(locked.name)&&d.category===locked.category);if(!match)errors.push('AIが固定した料理を変更しました。');else match.locked=true;}if(errors.length)throw Error(errors.join('\n'));return plan;}
+ async generate(context){
+  if(!this.available)throw Error('AIは未設定です。ルールベース生成をご利用ください。');
+  const plan=await this.provider.generate(context);
+  if(!Array.isArray(plan)||plan.length!==context.rules.days)
+   throw Error('AIの生成日数が指定と一致しません。');
+  for(const day of plan){
+   const originals=day.dishes;
+   day.dishes=validateDishes(originals).map((dish,i)=>({...dish,isNew:originals[i]?.isNew===true}));
+  }
+  const errors=[];
+  // Locked meals are explicit exceptions to the recent-history exclusion.
+  // Carry their flag into validation before checking the last-cooked date.
+  for(const [i,day] of (context.previous||[]).entries())for(const locked of (day.dishes||[]).filter(d=>d.locked)){
+   const match=plan[i]?.dishes.find(d=>normalize(d.name)===normalize(locked.name)&&d.category===locked.category);
+   if(!match)errors.push('AIが固定した料理を変更しました。');
+   else match.locked=true;
+  }
+  errors.push(...validatePlan(plan,context.rules,context.master));
+  for(const day of plan)for(const [cat,count] of Object.entries(context.rules.counts))
+   if(day.dishes.filter(d=>d.category===cat).length!==count)
+    errors.push('AIの料理数が設定と一致しません。');
+  if(context.rules.newMain){
+   const known=new Set((context.master||[]).map(d=>normalize(d.name)));
+   const locked=new Set((context.previous||[]).flatMap(day=>(day.dishes||[]).filter(d=>d.locked)).map(d=>normalize(d.name)));
+   if(!plan.some(day=>day.dishes.some(d=>d.category==='main'&&!known.has(normalize(d.name))&&!locked.has(normalize(d.name)))))
+    errors.push('AIが新しい主菜を提案できませんでした。再度お試しください。');
+  }
+  if(errors.length)throw Error([...new Set(errors)].join('\n'));
+  return plan;
+ }
  async generateIngredients(dishName){
   if(typeof this.provider?.generateIngredients!=='function')throw Error('AIの材料生成は現在利用できません。AI接続の設定を確認してください。');
   return validateIngredients(await this.provider.generateIngredients(dishName));
