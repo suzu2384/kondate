@@ -385,7 +385,7 @@ test('shared sync reports expired authentication without silently losing local e
  const entry={id:'abcdefghijklmnopqrstuvwxyz',queue:[{key:'dish:肉じゃが'}]};
  const family={entry:()=>entry},notifications=[];
  const run=new Function('family','familyClient','document','notify','tab','applyFamily','render','lastFamilyPoll',
-  app.slice(start,end)+'\\nreturn syncFamily;');
+  app.slice(start,end)+'\nreturn syncFamily;');
  const sync=run(family,{connected:false},{hidden:false},message=>notifications.push(message),
   'master',async()=>{},()=>{}, {master:0,shopping:0});
  const idle=await sync('master');
@@ -403,7 +403,7 @@ test('manual shared sync confirms the acknowledged append and shows a success no
  const app=file('src/app.js');
  const start=app.indexOf('async function syncFamily(type,{manual=false}={}){'),end=app.indexOf('function familyDialog(',start);
  const run=new Function('family','familyClient','document','notify','tab','applyFamily','render','lastFamilyPoll',
-  app.slice(start,end)+'\\nreturn syncFamily;');
+  app.slice(start,end)+'\nreturn syncFamily;');
  const notifications=[],sync=run(family,client,{hidden:false},note=>notifications.push(note),
   'master',async()=>{},()=>{}, {master:0,shopping:0});
  const response=await sync('master',{manual:true});
