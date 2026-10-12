@@ -37,7 +37,7 @@ test('previous draft names are hints to vary regeneration, not mandatory exclusi
  assert.equal(payload.excludeRecent,true);
  assert.equal(payload.recentDays,7);
  assert.equal(payload.counts.main,1);
- assert.match(prompt,/候補不足なら再利用してよい/);
+ assert.match(prompt,/候補不足なら通常の料理のみ再利用してよい/);
  assert.doesNotMatch(prompt,/直前の生成案は必ず除外/);
 });
 
