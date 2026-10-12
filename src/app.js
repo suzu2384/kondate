@@ -263,7 +263,7 @@ function pollFamily(force=false){
  for(const type of ['master','shopping']){
   if(!family.entry(type).id)continue;
   const interval=type==='shopping'?family.settings.seconds*1000:state.calendarRefreshMinutes*60000;
-  if((tab===type&&interval>0&&now-lastFamilyPoll[type]>=interval)||force)
+  if(((type==='master'||tab==='shopping')&&interval>0&&now-lastFamilyPoll[type]>=interval)||force)
    void syncFamily(type);
  }
 }
