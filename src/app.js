@@ -1692,7 +1692,11 @@ const actions={
 };
 async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))return;await actions[action]?.(b);}catch(error){
  if(action==='generate')notify(generationFailureNotice(error,state.menuGenerationMode));
- else if($('#dialog').open&&$('#dialog-error'))$('#dialog-error').textContent=error.message;
+ else if($('#dialog').open&&$('#dialog-error')){
+  const detail=$('#dialog-error');detail.textContent=error.message;
+  // The HTTP reason may be below the fold in the family share dialog.
+  detail.scrollIntoView({block:'nearest'});
+ }
  else notify({summary:error.message,severity:'error'});
  updateConnection();
 }}
