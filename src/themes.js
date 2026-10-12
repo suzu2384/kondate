@@ -25,12 +25,19 @@ export const colors={
  'pink-rich':{name:'ピンク（明るめ）',light:'#ad3565',dark:'#de799d',rich:true},
  'mono-rich':{name:'無彩色（くっきり）',light:'#334250',dark:'#e1e8ef',rich:true}
 };
+// Bright-only hues borrow the closest original background; no extra surface tint.
+function backgroundPalette(color,palette){
+ if(!palette.rich)return palette;
+ const base=color.replace(/-rich$/,'');
+ const nearest={orange:'red',purple:'magenta',pink:'red',lime:'green'}[base]||base;
+ return colors[nearest]||colors.green;
+}
 /** Resolve the same sRGB background mix as the CSS theme into a browser-safe hex color. */
 export function themeBackgroundColor({color='green',mode='auto'}={},prefersDark=false){
  const dark=mode==='dark'||(mode==='auto'&&prefersDark);
  const palette=colors[color]||colors.green;
- const backgroundPalette=palette.rich?colors[color.replace(/-rich$/,'')]:palette;
- const fg=dark?backgroundPalette.dark:backgroundPalette.light,base=dark?'#0d1118':'#fbfcfe',fraction=dark?0.04:0.03;
+ const back=backgroundPalette(color,palette);
+ const fg=dark?back.dark:back.light,base=dark?'#0d1118':'#fbfcfe',fraction=dark?0.04:0.03;
  const toRgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
  return '#'+toRgb(fg).map((channel,i)=>Math.round(channel*fraction+toRgb(base)[i]*(1-fraction)).toString(16).padStart(2,'0')).join('');
 }
@@ -39,7 +46,7 @@ export function applyTheme({color='green',mode='auto'}={}){
  const dark=mode==='dark'||(mode==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);
  const palette=colors[color]||colors.green,accent=dark?palette.dark:palette.light;
  const mix=(amount,base)=>`color-mix(in srgb, ${accent} ${amount}%, ${base})`;
- const softPalette=palette.rich?colors[color.replace(/-rich$/,'')]:palette;
+ const softPalette=backgroundPalette(color,palette);
  const softAccent=dark?softPalette.dark:softPalette.light;
  const softMix=(amount,base)=>`color-mix(in srgb, ${softAccent} ${amount}%, ${base})`;
  // Light is a near-white canvas with subtly coloured panels; don't tint the
