@@ -11,7 +11,7 @@ const validId=id=>/^[a-zA-Z0-9_-]{15,180}$/.test(String(id||''));
 /** Do not accept arbitrary URLs as a spreadsheet share link. */
 export function sharedSpreadsheetId(input){
  const raw=String(input||'').trim();
- if(validId(raw))return raw;
+ if(raw.length>=25&&validId(raw))return raw;
  let url;try{url=new URL(raw);}catch{return '';}
  if(url.protocol!=='https:')return '';
  let id='';
