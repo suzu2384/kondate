@@ -5,6 +5,7 @@ import {CalendarClient,calendarCreatePayload} from './google.js';
 import {CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefreshDue,calendarEventsChanged,fetchCalendarUpdates} from './calendar-auto-refresh.js';
 import {GOOGLE_CLIENT_ID,GOOGLE_PICKER_API_KEY,GOOGLE_PROJECT_NUMBER} from './config.js';
 import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS} from './family-share.js';
+import {rememberCalendarAccount} from './account-hint.js';
 import {masterSharedSnapshot,shoppingSharedSnapshot,applyShoppingEvents,applyMasterEvents} from './family-data.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES,normalizeIcon,normalizeIconColor,isSupportedIcon} from './calendar-display.js';
@@ -240,6 +241,7 @@ function familyDialog(type){
   (!GOOGLE_PICKER_API_KEY||!GOOGLE_PROJECT_NUMBER?'<p class="hint">「共有に参加」にはGoogle Pickerの開発者設定が必要です。</p>':''),
   button('閉じる','close-dialog')+
   (linked?button('共有をやめる','family-stop','mini', 'data-kind="'+type+'"'):'')+
+  button('アカウントを変更','family-account-change','mini','data-kind="'+type+'"')+
   button('共有に参加','family-join','mini','data-kind="'+type+'"')+
   button(linked?'相手を追加':'共有を開始','family-start','primary','data-kind="'+type+'"'));
 }
@@ -1256,6 +1258,7 @@ async function loadCalendarOptions(){
  try{
   const found=await api.calendars();
   calendars=found;
+  rememberCalendarAccount(GOOGLE_CLIENT_ID,found);
   calendarAutoReady=true;
   calendarLoadError=found.length?'':'Googleへのログインは成功しましたが、カレンダー一覧が0件でした。Googleカレンダーに利用可能なカレンダーがあるか確認してください。';
   render();
@@ -1581,6 +1584,10 @@ const actions={
  'shopping-restore':b=>{delete state.shopping.excluded[b.dataset.id];persist();render();},
  'shopping-copy':copyShoppingList,
  'family-dialog':b=>familyDialog(b.dataset.kind),
+ 'family-account-change':()=>{
+  familyClient.chooseAccountAgain(GOOGLE_CLIENT_ID);
+  notify('次の共有開始・参加操作で、Googleアカウントを選び直せます。');
+ },
  'family-start':b=>familyStart(b.dataset.kind),
  'family-join':b=>familyJoin(b.dataset.kind),
  'family-stop':b=>{
