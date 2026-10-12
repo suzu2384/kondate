@@ -78,3 +78,32 @@ test('generating controls, outcome colors, and original main badges are represen
  assert.match(css,/#status-bar\.status-error\{background:#9e2424/);
  assert.match(css,/#status-bar\.status-warning\{background:#ffdc75/);
 });
+
+test('a previously suggested new main triggers a second AI call rather than being accepted',async()=>{
+ const previousName='鶏肉の新作煮込み';
+ const changedName='サバと根菜の甘酢焼き';
+ const repeated={...context,recentNewMains:[previousName]};
+ const {service,calls}=provider([good,good.replace(previousName,changedName)]);
+ const plan=await new AIService(service).generate(repeated);
+ assert.equal(calls.length,2);
+ assert.equal(plan[6].dishes[0].name,changedName);
+ assert.match(calls[0],/recentNewMains/);
+ assert.match(calls[1],/前回までと同じ新しい主菜/);
+ assert.match(plan.warnings[0],/初回/);
+});
+
+test('if the AI repeatedly proposes an old new main, keep the existing plan instead of accepting it',async()=>{
+ const repeated={...context,recentNewMains:['鶏肉の新作煮込み']};
+ const {service,calls}=provider([good,good]);
+ await assert.rejects(new AIService(service).generate(repeated),/前回までと同じ新しい主菜/);
+ assert.equal(calls.length,2);
+});
+
+test('the app persists only recent proposed names and increases model variety',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const firebase=readFileSync(new URL('../src/ai-firebase.js',import.meta.url),'utf8');
+ assert.match(app,/recentNewMains:\[\]/);
+ assert.match(app,/recentNewMains:\[\.\.\.state\.recentNewMains\]/);
+ assert.match(app,/state\.recentNewMains=rememberNewMainSuggestions\(state\.recentNewMains,plan\)/);
+ assert.match(firebase,/temperature:0\.95/);
+});
