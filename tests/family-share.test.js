@@ -465,7 +465,8 @@ test('discovery restores an unlinked owner automatically and skips active recipi
   async authorize(){authorization++;},
   async findOwned(){lookups++;return [{id,name:'KonDate 共有料理マスター'}];}
  };
- const build=new Function('
+ const build=new Function('$,'family','familyClient','GOOGLE_CLIENT_ID','sharedSpreadsheetUrl','sharedSpreadsheetId',
+  'applyFamily','render','esc','button',source.slice(start,end)+
   '\nreturn {discoverOwnedFamily,ownedFamilyMatches,ownedFamilyState};');
  const session=build($,recipient,client,'google-client-id',sharedSpreadsheetUrl,sharedSpreadsheetId,
   async (type,ops)=>applied.push(...ops),()=>{renders++;},x=>x,()=>'<button></button>');
@@ -496,100 +497,6 @@ test('shared URL is shown in the same editable field for both roles with adjacen
  assert.doesNotMatch(dialog,/他人の共有リンク/);
  assert.match(css,/#dialog \.family-link-row,#dialog \.family-email-row\{display:flex/);
  assert.match(css,/#dialog \.family-link-row input,#dialog \.family-email-row input\{flex:1 1 auto;min-width:0/);
-});
-test('recipient mode persists despite an owned match until user explicitly switches',async()=>{
- const client=fakeClient(),owner=new FamilySync(client,storage());
- const id=await owner.start('master',{'dish:肉じゃが':{name:'肉じゃが',category:'main'}},'relative@example.com');
- const joined=new FamilySync(client,storage());
- await joined.join('master',id,async()=>{});
- assert.equal(joined.entry('master').owner,false);
- const app=file('src/app.js');
- const joinCode=app.slice(app.indexOf('async function familyJoin(type){'),app.indexOf('\nfunction pollFamily(',app.indexOf('async function familyJoin(type){')));
- assert.doesNotMatch(joinCode,/return familyUseOwned/,'URL joining must not imply owner mode');
- await joined.join('master',id,async()=>{},{owner:true});
- assert.equal(joined.entry('master').owner,true);
- await joined.join('master',id,async()=>{});
- assert.equal(joined.entry('master').owner,false,'explicit URL participation sets recipient mode');
-});
-test('switching recipient to a new owned share preserves original until successful invitation',async()=>{
- const client=fakeClient(),first=new FamilySync(client,storage()),changing=new FamilySync(client,storage());
- const id=await first.start('shopping',{servings:2},'relative@example.com');
- await changing.join('shopping',id,async()=>{});
- client.create=async type=>{const next='owned-shopping-12345678901234567890';client.files.set(next,[['kondate-shared-v1',type]]);return next;};
- const original=client.invite;
- client.invite=async()=>{throw Error('invitation failed');};
- await assert.rejects(changing.start('shopping',{servings:4},'relative@example.com',{replace:true}),/invitation failed/);
- assert.equal(changing.entry('shopping').id,id);
- assert.equal(changing.entry('shopping').owner,false);
- client.invite=original;
- const newId=await changing.start('shopping',{servings:4},'relative@example.com',{replace:true});
- assert.notEqual(newId,id);
- assert.equal(changing.entry('shopping').owner,true);
- assert.equal(replayOps({},client.files.get(newId).slice(1).map(row=>JSON.parse(row[1]))).servings,4);
- assert.equal(replayOps({},client.files.get(id).slice(1).map(row=>JSON.parse(row[1]))).servings,2);
-});
-test('active recipient cannot abandon unsent changes when starting their own share',async()=>{
- const client=fakeClient(),owner=new FamilySync(client,storage()),recipient=new FamilySync(client,storage());
- const id=await owner.start('shopping',{servings:2},'relative@example.com');
- await recipient.join('shopping',id,async()=>{});
- recipient.observe('shopping',{servings:3});
- await assert.rejects(recipient.start('shopping',{servings:4},'relative@example.com',{replace:true}),/未送信/);
- assert.equal(recipient.entry('shopping').owner,false);
- assert.equal(recipient.entry('shopping').queue.length,1);
-});
-
-test('a stale owner lookup cannot replace a link join started during discovery',async()=>{
- const app=file('src/app.js');
- const start=app.indexOf('const ownedFamilyMatches='),end=app.indexOf('function familyDialog(type){',start);
- const family=new FamilySync(fakeClient(),storage());
- let finishSearch;
- const client={async authorize(){},findOwned(){return new Promise(resolve=>{finishSearch=resolve;});}};
- const container={dataset:{kind:'master'},textContent:''};
- const $=selector=>selector==='#dialog'?{open:true}:selector==='#family-owned-results'?container:null;
- const build=new Function('$','family','familyClient','GOOGLE_CLIENT_ID','sharedSpreadsheetUrl','applyFamily',
-  'render','esc','button',app.slice(start,end)+
-  '\nreturn {search:discoverOwnedFamily,cancel:()=>++ownedFamilyLookupSerial};');
- const screen=build($,family,client,'oauth',sharedSpreadsheetUrl,async()=>{},()=>{},x=>x,()=>null);
- const task=screen.search('master');
- await Promise.resolve();
- assert.equal(typeof finishSearch,'function');
- screen.cancel();
- finishSearch([{id:'abcdefghijklmnopqrstuvwxyz0123456',name:'KonDate 共有料理マスター'}]);
- await task;
- assert.equal(family.entry('master').id,'','an obsolete discovery must not alter the selected share');
-});
-,'family','familyClient','GOOGLE_CLIENT_ID','sharedSpreadsheetUrl','sharedSpreadsheetId',
-  'applyFamily','render','esc','button',source.slice(start,end)+
-  '\nreturn {discoverOwnedFamily,ownedFamilyMatches,ownedFamilyState};');
- const session=build($,recipient,client,'google-client-id',sharedSpreadsheetUrl,
-  async (type,ops)=>applied.push(...ops),()=>{renders++;},x=>x,()=>'<button></button>');
- await session.discoverOwnedFamily('master');
- assert.equal(recipient.entry('master').id,id);
- assert.equal(recipient.entry('master').owner,true);
- assert.equal(applied.length,1);
- assert.equal(url.value,sharedSpreadsheetUrl(id));
- assert.equal(copy.disabled,false);
- assert.equal(startButton.textContent,'相手を追加');
- assert.equal(lookups,1);
- assert.equal(renders,1);
- // The same discovery on a device joined as recipient must do nothing.
- await recipient.join('master',id,async()=>{});
- await session.discoverOwnedFamily('master');
- assert.equal(recipient.entry('master').owner,false);
- assert.equal(lookups,1);
- assert.equal(authorization,1);
-});
-test('shared URL is shown in the same editable field for both roles with adjacent copy',()=>{
- const src=file('src/app.js'),css=file('style.css');
- const start=src.indexOf('function familyDialog(type){'),end=src.indexOf('async function copyFamilyUrl(',start);
- const dialog=src.slice(start,end);
- assert.match(dialog,/共有ファイルのURL/);
- assert.match(dialog,/class="family-link-row"/);
- assert.ok(dialog.includes('esc(sharedSpreadsheetUrl(d.id))'));
- assert.match(dialog,/button\('コピー','family-copy-link'/);
- assert.doesNotMatch(dialog,/他人の共有リンク/);
- assert.match(css,/#dialog \.family-link-row\{display:flex/);
- assert.match(css,/#dialog \.family-link-row input\{flex:1 1 auto;min-width:0/);
 });
 test('recipient mode persists despite an owned match until user explicitly switches',async()=>{
  const client=fakeClient(),owner=new FamilySync(client,storage());
