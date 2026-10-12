@@ -98,7 +98,8 @@ test('same-key collision is reported; last append remains deterministic',async()
 test('Google APIs use drive.file authorization and only the Sheets append API for writes',()=>{
  const src=file('src/family-share.js');
  assert.match(src,/https:\/\/www\.googleapis\.com\/auth\/drive\.file/);
- assert.match(src,/values\/.*append\?valueInputOption=RAW/);
+ assert.match(src,/':append\?valueInputOption=RAW/);
+ assert.match(src,/\bappendRows\(id,rows\)/);
  assert.match(src,/\/permissions\?sendNotificationEmail=true/);
  assert.match(src,/gapi\.load\('picker'/);
  assert.deepEqual(SHOPPING_SYNC_SECONDS,[3,5,10,15,30,60]);
