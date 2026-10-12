@@ -1,3 +1,4 @@
+import {preferredGoogleAccount} from './account-hint.js';
 import {SCOPES} from './google.js';
 import {DRIVE_SCOPE} from './drive.js';
 
@@ -26,6 +27,7 @@ export function renewExpiredGoogleServices(calendar,drive,clientId,services=expi
  return new Promise((resolve,reject)=>{
   const client=oauth.initTokenClient({
    client_id:clientId,scope:scopes.join(' '),
+   ...(preferredGoogleAccount(clientId,refresh.calendar?'calendar':'drive')?{login_hint:preferredGoogleAccount(clientId,refresh.calendar?'calendar':'drive')}:{}),
    callback:result=>{
     if(result.error){reject(Error('Googleの再認証が完了しませんでした（'+String(result.error)+'）。'));return;}
     if(!result.access_token||!oauth.hasGrantedAllScopes(result,...scopes)){
