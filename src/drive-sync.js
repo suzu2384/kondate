@@ -26,3 +26,36 @@ export function decideDriveSync({remoteExists,localDigest,remoteDigest,baseDiges
  if(remoteRevision&&remoteRevision===baseRevision)return pending?'upload':'download';
  return pending?'conflict':'download';
 }
+
+
+/** Fingerprints for safe, independent editing of a draft vs other settings. */
+export async function driveSectionDigests(snapshot){
+ const {draft=[],recentNewMains=[],...otherSettings}=snapshot?.settings||{};
+ const [plan,other]=await Promise.all([
+  driveSettingsDigest({settings:{draft,recentNewMains}}),
+  driveSettingsDigest({settings:otherSettings,master:snapshot?.master||{}})
+ ]);
+ return {plan,other};
+}
+/**
+ * Three-way merge only when the devices changed disjoint sections.
+ * A simultaneous edit to the actual meal draft is always a conflict.
+ * Missing baselines (older clients) are deliberately never inferred.
+ */
+export async function mergeIndependentDriveChanges(local,remote,base){
+ if(!base||!['plan','other'].every(k=>typeof base[k]==='string'&&/^[0-9a-f]{64}$/.test(base[k])))
+  return null;
+ const [l,r]=await Promise.all([driveSectionDigests(local),driveSectionDigests(remote)]);
+ const localPlan=l.plan!==base.plan,remotePlan=r.plan!==base.plan;
+ const localOther=l.other!==base.other,remoteOther=r.other!==base.other;
+ if(localPlan&&!remotePlan&&!localOther&&remoteOther)
+  return {...remote,settings:{...remote.settings,
+   draft:structuredClone(local.settings.draft),
+   recentNewMains:structuredClone(local.settings.recentNewMains||[])}};
+ if(remotePlan&&!localPlan&&localOther&&!remoteOther)
+  return {...remote,settings:{...local.settings,
+   draft:structuredClone(remote.settings.draft),
+   recentNewMains:structuredClone(remote.settings.recentNewMains||[])},
+   master:structuredClone(local.master||{})};
+ return null;
+}
