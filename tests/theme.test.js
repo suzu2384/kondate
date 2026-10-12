@@ -85,7 +85,7 @@ test('every original palette has a distinct higher-chroma option without changin
  }
 });
 
-test('richer themes color the foreground and supporting surfaces more than legacy themes',async()=>{
+test('richer themes color foreground only and retain old surface backgrounds',async()=>{
  const {applyTheme}=await import('../src/themes.js');
  const oldDocument=globalThis.document,oldMedia=globalThis.matchMedia;
  const get=(name,mode)=>{
@@ -102,8 +102,8 @@ test('richer themes color the foreground and supporting surfaces more than legac
     const pct=x=>Number(x.match(/ (\d+(?:\.\d+)?)%,/)[1]);
     assert.ok(pct(rich.get('--text'))>pct(standard.get('--text')),name+' '+mode+' text saturation');
     assert.ok(pct(rich.get('--muted'))>pct(standard.get('--muted')),name+' '+mode+' muted saturation');
-    assert.ok(pct(rich.get('--panel'))>pct(standard.get('--panel')),name+' '+mode+' panel saturation');
-    assert.notEqual(themeBackgroundColor({color:name,mode}),themeBackgroundColor({color:name+'-rich',mode}));
+    for(const key of ['bg','surface','panel','line','tint'])assert.equal(rich.get('--'+key),standard.get('--'+key),name+' '+mode+' '+key);
+    assert.equal(themeBackgroundColor({color:name,mode}),themeBackgroundColor({color:name+'-rich',mode}));
    }
   }
  }finally{
@@ -112,4 +112,4 @@ test('richer themes color the foreground and supporting surfaces more than legac
  }
 });
 
-test('theme swatch pairing keeps original buttons and accessible descriptive labels',()=>{})
+
