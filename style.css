@@ -1043,11 +1043,28 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  justify-content:flex-start;
 }
 
-/* Family sharing in the same action row; narrow phones use Settings fallback. */
+/* Family share actions stay in the tab toolbar, including on narrow phones. */
 .master-toolbar{align-items:center;min-width:0}
-.master-toolbar #master-search{flex:1 1 auto;min-width:72px;width:0}
+.master-toolbar #master-search{flex:1 1 auto;min-width:48px;width:0}
 .master-toolbar .family-share-button{margin-left:auto;flex:0 0 auto;white-space:nowrap}
-.shopping-toolbar .family-share-button{margin-left:auto;flex:0 0 auto}
+.shopping-toolbar .family-share-button{margin-left:auto;flex:0 0 auto;white-space:nowrap}
 @media(max-width:500px){
- .master-toolbar .family-share-button,.shopping-toolbar .family-share-button{display:none}
+ .master-screen .master-toolbar{flex-wrap:nowrap;gap:4px;padding:0 3px}
+ .master-screen .master-toolbar #master-search{min-width:48px;min-height:33px;padding:5px 7px;font-size:12px}
+ .master-screen .master-toolbar .master-count{font-size:10px}
+ .master-screen .master-toolbar button{min-height:33px;padding:5px 7px;font-size:11px}
+ .master-screen .master-toolbar .family-share-button{margin-left:auto}
+ .shopping-screen .shopping-toolbar{flex-wrap:nowrap;gap:3px;padding:0 3px;min-width:0}
+ .shopping-screen .shopping-toolbar .shopping-servings{flex:0 0 auto;gap:2px;font-size:10px}
+ .shopping-screen .shopping-toolbar #shopping-servings{width:53px;max-width:53px;min-height:31px;padding:3px;font-size:16px}
+ .shopping-screen .shopping-toolbar button{flex:0 0 auto;min-height:31px;padding:5px 5px;font-size:10px}
+ .shopping-screen .shopping-toolbar .family-share-button{margin-left:auto}
+}
+@media(max-width:350px){
+ .shopping-screen .shopping-toolbar{gap:2px;padding:0 1px}
+ .shopping-screen .shopping-toolbar button{padding:4px 3px;font-size:9px}
+ .shopping-screen .shopping-toolbar .shopping-servings{gap:1px}
+ .shopping-screen .shopping-toolbar #shopping-servings{width:49px;max-width:49px}
+ .master-screen .master-toolbar{gap:3px;padding:0 1px}
+ .master-screen .master-toolbar button{padding:5px 5px;font-size:10px}
 }
