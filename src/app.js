@@ -16,7 +16,7 @@ import {DriveSettingsClient} from './drive.js';
 import {expiredGoogleServices,renewExpiredGoogleServices} from './google-reauth.js';
 import {dateTapAction,monthSnapOffset,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync} from './drive-sync.js';
-import {dishSuggestions,selectRecordDish} from './dish-suggestions.js';
+import {recordDishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {searchPlaces,filterPlaceCandidates,LOCATION_ATTRIBUTION} from './place-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
 import {AIService} from './ai.js';
@@ -832,28 +832,30 @@ function pickPlaceSuggestion(button){
  closePlaceSearchSheet();
  hidePlaceSuggestions();updatePlaceSearchMessage('');field.blur();
 }
+const recordDishChoices=new Map();
 function hideDishSuggestions(){
  for(const list of document.querySelectorAll('.dish-suggestions'))list.hidden=true;
  for(const input of document.querySelectorAll('[data-editor-name]'))input.setAttribute('aria-expanded','false');
+ recordDishChoices.clear();
 }
 function showDishSuggestions(input){
  if(!input||!editor)return;
  const index=Number(input.dataset.editorName);
  const list=input.closest('.dish-input-group')?.querySelector('.dish-suggestions');
  if(!list||!editor.dishes[index])return;
- const choices=dishSuggestions(master(),input.value,editor.dishes[index].category,8);
- list.innerHTML=choices.map((d,n)=>`<button type="button" class="dish-suggestion" role="option" data-action="suggest-record-dish" data-index="${index}" data-name="${esc(d.name)}"><span>${esc(d.name)}</span><small>${esc(categoryName(d.category))}</small></button>`).join('');
+ const choices=recordDishSuggestions(master(),state.draft,input.value,editor.dishes[index].category,48);
+ recordDishChoices.set(index,choices);
+ list.innerHTML=choices.map((d,n)=>`<button type="button" class="dish-suggestion" role="option" data-action="suggest-record-dish" data-index="${index}" data-choice="${n}"><span>${esc(d.name)}</span><small>${esc(categoryName(d.category))}</small></button>`).join('');
  list.hidden=!choices.length;
  input.setAttribute('aria-expanded',String(!!choices.length));
 }
 function pickRecordDishSuggestion(button){
  if(!editor||!button)return;
  const index=Number(button.dataset.index);
- const selected=master().find(d=>d.name===button.dataset.name);
+ const selected=recordDishChoices.get(index)?.[Number(button.dataset.choice)];
  const input=document.querySelector(`[data-editor-name="${index}"]`);
  if(!selected||!input||!selectRecordDish(editor,index,selected))return;
- // Update the live input before focus/blur events; replacing the modal's HTML
- // here can discard the selection on iOS Safari during a touch sequence.
+ // Keep the input node alive; rebuilding the dialog during a tap loses focus on iOS.
  input.value=selected.name;
  const category=input.closest('.dish-editor')?.querySelector('[data-editor-category]');
  if(category)category.value=selected.category;
@@ -1765,7 +1767,8 @@ document.addEventListener('pointerdown',e=>{
   e.preventDefault();openPlaceSearchSheet();return;
  }
  const candidate=e.target.closest?.('[data-action="suggest-record-dish"]');
- if(!candidate)return;
+ if(!candidate||e.pointerType==='touch')return;
+ // Touch scrolling must remain native; tap selection uses the click handler.
  e.preventDefault();
  pickRecordDishSuggestion(candidate);
 },true);
