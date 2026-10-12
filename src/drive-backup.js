@@ -1,7 +1,7 @@
 import {validateDishes} from './model.js';
 import {validateIngredients} from './ingredients.js';
 import {shoppingSettings,validateShoppingSettings} from './shopping.js';
-export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','iconRules','calendarRefreshMinutes','draft','shopping'];
+export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','iconRules','calendarRefreshMinutes','draft','recentNewMains','shopping'];
 const FORMAT='kondate-drive-settings-v2';
 const copy=x=>structuredClone(x);
 export function createDriveSnapshot(state){
@@ -25,6 +25,9 @@ export function readDriveSnapshot(raw,state,validateImport){
   throw Error('バックアップの形式・サイズが不正です。');
  const settings=Object.fromEntries(SETTINGS.filter(k=>Object.hasOwn(raw.settings,k)).map(k=>[k,copy(raw.settings[k])]));
  if(settings.shopping!==undefined)validateShoppingSettings(settings.shopping);
+ if(settings.recentNewMains!==undefined&&(!Array.isArray(settings.recentNewMains)||
+  settings.recentNewMains.length>16||!settings.recentNewMains.every(s=>typeof s==='string'&&s.length>0&&s.length<=100)))
+  throw Error('AIの新規料理履歴が不正です。');
  validateImport({format:'kondate-settings-v1',state:{...state,...settings}});
  const master={};
  if(raw.format===FORMAT){
