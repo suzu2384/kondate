@@ -1213,7 +1213,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 
 /* Family share URL stays on one row with a fixed copy action on iPhone PWA. */
-#dialog .family-link-row{display:flex;align-items:center;gap:6px;min-width:0;width:100%}
-#dialog .family-link-row input{flex:1 1 auto;min-width:0;width:0;margin:0}
-#dialog .family-link-row button{flex:0 0 auto;white-space:nowrap;margin:0}
+#dialog .family-link-row,#dialog .family-email-row{display:flex;align-items:center;gap:6px;min-width:0;width:100%}
+#dialog .family-link-row input,#dialog .family-email-row input{flex:1 1 auto;min-width:0;width:0;margin:0}
+#dialog .family-link-row button,#dialog .family-email-row button{flex:0 0 auto;white-space:nowrap;margin:0}
 #dialog [hidden]{display:none!important}
