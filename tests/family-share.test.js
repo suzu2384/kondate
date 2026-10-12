@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,diffSnapshots,replayOps,validateSharedOp,describeSharedApiFailure} from '../src/family-share.js';
 import {shoppingSharedSnapshot,applyShoppingEvents,masterSharedSnapshot,applyMasterEvents} from '../src/family-data.js';
+import {shoppingItems} from '../src/shopping.js';
 const file=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const storage=()=>{const d=new Map();return {getItem:k=>d.get(k)||null,setItem:(k,v)=>d.set(k,v),removeItem:k=>d.delete(k)};};
 const fakeClient=()=>({
@@ -209,4 +210,32 @@ test('Google HTTP errors without JSON still identify the API and operation',asyn
  });
  assert.match(describeSharedApiFailure(429,{error:{message:'Rate limit exceeded'}},
    'https://sheets.googleapis.com/v4','/spreadsheets','POST'),/HTTP 429/);
+});
+
+test('shopping share-start evaluates real familySnapshot without shadowing data()',()=>{
+ const src=file('src/app.js');
+ const start=src.indexOf('function familySnapshot(type){');
+ const end=src.indexOf('function persist(){',start);
+ assert.ok(start>=0&&end>start,'the production familySnapshot() should be testable');
+ const state={shopping:{servings:2,selected:['肉じゃが'],manual:[],checked:{},excluded:{}}};
+ const recipes=[{name:'肉じゃが',category:'main',ingredients:[{name:'じゃがいも',quantity:100,unit:'g'}]}];
+ const entry={id:'',owner:false,shadow:{}};
+ const family={entry:type=>type==='shopping'?entry:{id:''}};
+ let accessed=0;
+ const data=()=>{accessed++;return {aliases:{}};};
+ const construct=new Function('shoppingItems','shoppingSharedSnapshot','state','family','master','data',
+  'masterSharedSnapshot','categoryName','editedFamilyDishes',
+  src.slice(start,end)+'\nreturn familySnapshot;');
+ const snapshot=construct(shoppingItems,shoppingSharedSnapshot,state,family,()=>recipes,data,
+  masterSharedSnapshot,()=> '主菜',new Set());
+ const result=snapshot('shopping');
+ assert.ok(accessed>0,'the existing data() function must execute');
+ assert.equal(result.servings,2);
+ assert.equal(result['selected:肉じゃが'],'肉じゃが');
+ assert.equal(result['ingredient:auto:じゃがいも|g'].baseQuantity,200);
+ // Joining the shopping list without the recipe master must retain remotely
+ // shared auto ingredients rather than silently removing them.
+ entry.id='abcdefghijklmnop123';entry.owner=false;
+ entry.shadow={'ingredient:auto:保存済み|g':{name:'保存済み',baseQuantity:50}};
+ assert.deepEqual(snapshot('shopping')['ingredient:auto:保存済み|g'],entry.shadow['ingredient:auto:保存済み|g']);
 });
