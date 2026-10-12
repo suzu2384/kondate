@@ -168,14 +168,14 @@ function familySnapshot(type){
  if(type==='shopping'){
   const current=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
   const entry=family.entry('shopping');
-  const data=shoppingSharedSnapshot(state.shopping,
+  const snapshot=shoppingSharedSnapshot(state.shopping,
    (!entry.id||entry.owner||family.entry('master').id)?current.items:[]);
   // Joining the checklist alone must never erase its source ingredient data
   // when this device does not have the corresponding recipe master.
   if(entry.id&&!entry.owner&&!family.entry('master').id)
    for(const [key,value] of Object.entries(entry.shadow))
-    if(key.startsWith('ingredient:'))data[key]=value;
-  return data;
+    if(key.startsWith('ingredient:'))snapshot[key]=value;
+  return snapshot;
  }
  const all=masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)})));
  if(!family.entry('master').id)return all; // Initial owner export includes the current catalog.
