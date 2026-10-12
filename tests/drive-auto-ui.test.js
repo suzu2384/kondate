@@ -7,11 +7,12 @@ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 test('auto sync is opt-in on each device, uploads local changes and downloads remote updates',()=>{
  assert.match(app,/id="drive-auto"/);
  assert.match(app,/保存・読み込み/);
- assert.match(app,/if\(!driveAutoBooting&&drive\.autoEnabled\)markDriveDirty\(\)/);
+ assert.match(app,/if\(!applyingFamily&&!driveAutoBooting&&drive\.autoEnabled\)markDriveDirty\(\)/);
  assert.match(app,/drive\.enableAuto\(\)/);
  assert.match(app,/async function autoDriveSync\(\)/);
  assert.match(app,/saveChecked\(localSnapshot,remoteRevision\)/);
  assert.match(app,/await applyRemoteSettings\(remoteRevision,remoteSnapshot\)/);
+ assert.match(app,/if\(type==='shopping'\)state\.shopping=applyShoppingEvents\(state\.shopping,operations,true\)/);
  assert.match(app,/window\.addEventListener\('focus'/);
  assert.match(app,/document\.addEventListener\('visibilitychange'/);
 });
