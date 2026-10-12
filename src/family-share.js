@@ -2,11 +2,23 @@ import {preferredGoogleAccount,rememberDriveAccount,forgetGoogleAccount} from '.
 // Serverless family collaboration. Google Sheets is the append-only change journal;
 // per-item operations avoid overwriting edits made by another device.
 export const SHARE_SCOPE='https://www.googleapis.com/auth/drive.file';
+export const SHARE_JOIN_SCOPE=SHARE_SCOPE+' https://www.googleapis.com/auth/spreadsheets';
 export const SHARED_KINDS=['master','shopping'];
 export const SHOPPING_SYNC_SECONDS=[3,5,10,15,30,60];
 const STORAGE='kondate.family-share.v1',TOKEN_STORAGE='kondate.family-share.token.v1';
 const MARKER='kondate-shared-v1';
 const validId=id=>/^[a-zA-Z0-9_-]{15,180}$/.test(String(id||''));
+/** Do not accept arbitrary URLs as a spreadsheet share link. */
+export function sharedSpreadsheetId(input){
+ const raw=String(input||'').trim();
+ if(validId(raw))return raw;
+ let url;try{url=new URL(raw);}catch{return '';}
+ if(url.protocol!=='https:')return '';
+ let id='';
+ if(url.hostname==='docs.google.com')id=/^\/spreadsheets\/d\/([a-zA-Z0-9_-]{15,180})(?:\/|$)/.exec(url.pathname)?.[1]||'';
+ if(url.hostname==='drive.google.com'&&url.pathname==='/open')id=url.searchParams.get('id')||'';
+ return validId(id)?id:'';
+}
 const clone=v=>JSON.parse(JSON.stringify(v));
 const equals=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const blank=()=>({id:'',owner:false,cursor:1,queue:[],shadow:{},seen:[]});
@@ -62,38 +74,40 @@ export function describeSharedApiFailure(status,payload,host,path,method='GET'){
 }
 
 export class FamilyDriveClient{
- constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';this.forceConsent=false;this.forceAccountChoice=false;}
+ constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';this.forceConsent=false;this.forceAccountChoice=false;this.scopes=SHARE_SCOPE;}
  get connected(){return !!this.token&&Date.now()<this.expires;}
  invalidateAccess({consent=false}={}){
-  this.token='';this.expires=0;this.forceConsent=consent;
+  this.token='';this.expires=0;this.scopes=SHARE_SCOPE;this.forceConsent=consent;
   try{sessionStorage.removeItem(TOKEN_STORAGE);}catch{}
  }
 
  restore(clientId){
   let s;try{s=JSON.parse(sessionStorage.getItem(TOKEN_STORAGE)||'null');}catch{}
   if(!s||s.clientId!==clientId||!s.token||s.expires<=Date.now())return false;
-  Object.assign(this,{token:s.token,expires:s.expires,clientId});return true;
+  Object.assign(this,{token:s.token,expires:s.expires,clientId,scopes:s.scopes===SHARE_JOIN_SCOPE?SHARE_JOIN_SCOPE:SHARE_SCOPE});return true;
  }
  chooseAccountAgain(clientId){
   forgetGoogleAccount(clientId,'share');
   this.invalidateAccess();
   this.forceAccountChoice=true;
  }
- authorize(clientId){
-  if(this.connected&&this.clientId===clientId&&!this.forceAccountChoice)return Promise.resolve();
+ authorize(clientId,{join=false}={}){
+  const requested=join?SHARE_JOIN_SCOPE:SHARE_SCOPE;
+  if(this.connected&&this.clientId===clientId&&!this.forceAccountChoice&&
+     (!join||this.scopes===SHARE_JOIN_SCOPE))return Promise.resolve();
   if(!clientId||!globalThis.google?.accounts?.oauth2)throw Error('Google認証を準備してください。');
   return new Promise((resolve,reject)=>{
    google.accounts.oauth2.initTokenClient({
-    client_id:clientId,scope:SHARE_SCOPE,
+    client_id:clientId,scope:requested,
     ...(!this.forceAccountChoice&&preferredGoogleAccount(clientId,'share')?{login_hint:preferredGoogleAccount(clientId,'share')}:{}),
     callback:r=>{
      if(r.error||!r.access_token){reject(Error('共有用Google認証を許可してください。'));return;}
-     if(!google.accounts.oauth2.hasGrantedAllScopes(r,SHARE_SCOPE)){reject(Error('Driveファイルの権限が必要です。'));return;}
-     this.token=r.access_token;this.clientId=clientId;
+     if(!google.accounts.oauth2.hasGrantedAllScopes(r,...requested.split(' '))){reject(Error('共有ファイルへのアクセス権限が必要です。'));return;}
+     this.token=r.access_token;this.clientId=clientId;this.scopes=requested;
      this.expires=Date.now()+Math.max(60,Number(r.expires_in||3600)-60)*1000;
      this.forceConsent=false;this.forceAccountChoice=false;
      void rememberDriveAccount(clientId,'share',this.token,this.fetcher);
-     try{sessionStorage.setItem(TOKEN_STORAGE,JSON.stringify({token:this.token,clientId,expires:this.expires}));}catch{}
+     try{sessionStorage.setItem(TOKEN_STORAGE,JSON.stringify({token:this.token,clientId,expires:this.expires,scopes:this.scopes}));}catch{}
      resolve();
     },error_callback:r=>reject(Error(r?.type==='popup_closed'?'Google認証画面が閉じられました。':'Google認証を開けませんでした。'))
    }).requestAccessToken({prompt:this.forceAccountChoice?'select_account':this.forceConsent?'consent':''});
@@ -148,25 +162,7 @@ export class FamilyDriveClient{
   const r=await this.sheets('/spreadsheets/'+encodeURIComponent(id)+'/values/'+encodeURIComponent('Ops!A'+start+':B')+'?valueRenderOption=UNFORMATTED_VALUE');
   return Array.isArray(r.values)?r.values:[];
  }
- async pick(apiKey,projectNumber){
-  if(!apiKey||!projectNumber)throw Error('参加するにはGoogle Picker APIキーとプロジェクト番号の設定が必要です。');
-  if(!this.connected)throw Error('Google認証が必要です。');
-  if(!globalThis.gapi?.load)throw Error('Google Pickerライブラリを読み込めませんでした。');
-  await new Promise((resolve,reject)=>gapi.load('picker',{callback:resolve,onerror:()=>reject(Error('Google Pickerを読み込めませんでした。'))}));
-  const p=globalThis.google?.picker;
-  if(!p)throw Error('Google Pickerを利用できません。');
-  return new Promise((resolve,reject)=>{
-   const view=new p.DocsView(p.ViewId.SPREADSHEETS).setMode(p.DocsViewMode.LIST);
-   const picker=new p.PickerBuilder().addView(view).setOAuthToken(this.token)
-    .setDeveloperKey(apiKey).setAppId(projectNumber).setOrigin(location.origin)
-    .setCallback(r=>{
-     if(r.action===p.Action.CANCEL)resolve(null);
-     if(r.action===p.Action.PICKED){const id=r.docs?.[0]?.id;
-      if(validId(id))resolve(id);else reject(Error('共有ファイルを選択できませんでした。'));}
-    }).build();
-   picker.setVisible(true);
-  });
- }
+
 }
 export function readFamilySettings(storage=globalThis.localStorage){
  let d;try{d=JSON.parse(storage?.getItem(STORAGE)||'null');}catch{}
