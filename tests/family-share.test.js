@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,SHARE_SCOPE,SHARE_JOIN_SCOPE,sharedSpreadsheetId,diffSnapshots,replayOps,validateSharedOp,describeSharedApiFailure} from '../src/family-share.js';
+import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,SHARE_SCOPE,SHARE_JOIN_SCOPE,sharedSpreadsheetId,sharedSpreadsheetUrl,ownedShareQuery,diffSnapshots,replayOps,validateSharedOp,describeSharedApiFailure} from '../src/family-share.js';
 import {shoppingSharedSnapshot,applyShoppingEvents,masterSharedSnapshot,applyMasterEvents} from '../src/family-data.js';
 import {shoppingItems} from '../src/shopping.js';
 import {buildMaster} from '../src/model.js';
@@ -412,4 +412,85 @@ test('manual shared sync confirms the acknowledged append and shows a success no
  assert.match(notifications.at(-1),/共有ファイルに反映/);
  const journal=client.files.get(id).slice(1).map(row=>JSON.parse(row[1]));
  assert.equal(replayOps({},journal)['dish:肉じゃが'].ingredients[0].quantity,140);
+});
+
+test('findOwned searches only the app-accessible spreadsheets owned by the account',async()=>{
+ const id='abcdefghijklmnop1234567890',id2='mnopqrstuvwxyzABCDEFGHIJKL';
+ const seen=[];
+ const client=new FamilyDriveClient(async(url,options)=>{
+  const parsed=new URL(url),q=parsed.searchParams.get('q'),page=parsed.searchParams.get('pageToken');
+  seen.push({url,auth:options.headers.Authorization,q,page});
+  if(!page)return {ok:true,json:async()=>({
+   nextPageToken:'next-page',
+   files:[
+    {id,name:'KonDate 共有料理マスター',mimeType:'application/vnd.google-apps.spreadsheet',ownedByMe:true},
+    {id:id2,name:'KonDate 共有料理マスター',mimeType:'application/vnd.google-apps.spreadsheet',ownedByMe:false},
+    {id:id2,name:'別のファイル',mimeType:'application/vnd.google-apps.spreadsheet',ownedByMe:true}
+   ]
+  })};
+  return {ok:true,json:async()=>({files:[
+   {id,name:'KonDate 共有料理マスター',mimeType:'application/vnd.google-apps.spreadsheet',ownedByMe:true},
+   {id:id2,name:'KonDate 共有料理マスター',mimeType:'application/vnd.google-apps.spreadsheet',ownedByMe:true}
+  ]})};
+ });
+ client.token='test-access';client.expires=Date.now()+60000;
+ const list=await client.findOwned('master');
+ assert.deepEqual(list.map(x=>x.id),[id,id2]);
+ assert.equal(seen.length,2,'Drive pagination and duplicate elimination');
+ assert.ok(seen.every(x=>x.auth==='Bearer test-access'));
+ assert.ok(seen.every(x=>x.q.includes("'me' in owners")));
+ assert.ok(seen.every(x=>x.q.includes("name = 'KonDate 共有料理マスター'")));
+ assert.match(ownedShareQuery('shopping'),/KonDate 共有買い物リスト/);
+ assert.equal(sharedSpreadsheetUrl(id),'https://docs.google.com/spreadsheets/d/'+id+'/edit');
+ assert.throws(()=>ownedShareQuery('other'),/不正/);
+});
+test('discovery does not automatically convert a recipient entry into an owner',()=>{
+ const src=file('src/app.js');
+ const start=src.indexOf('async function discoverOwnedFamily(type){');
+ const end=src.indexOf('function familyDialog(type){',start);
+ assert.ok(start>=0&&end>start);
+ const logic=src.slice(start,end);
+ assert.match(logic,/findOwned\(type\)/);
+ assert.doesNotMatch(logic,/current\.owner\s*=\s*true/);
+ assert.doesNotMatch(logic,/family\.join\(/);
+ assert.match(src,/button\(d\.owner&&linked\?'相手を追加':'共有を開始'/);
+});
+test('recipient mode persists despite an owned match until user explicitly switches',async()=>{
+ const client=fakeClient(),owner=new FamilySync(client,storage());
+ const id=await owner.start('master',{'dish:肉じゃが':{name:'肉じゃが',category:'main'}},'relative@example.com');
+ const joined=new FamilySync(client,storage());
+ await joined.join('master',id,async()=>{});
+ assert.equal(joined.entry('master').owner,false);
+ const app=file('src/app.js');
+ const joinCode=app.slice(app.indexOf('async function familyJoin(type){'),app.indexOf('\nfunction pollFamily(',app.indexOf('async function familyJoin(type){')));
+ assert.doesNotMatch(joinCode,/return familyUseOwned/,'URL joining must not imply owner mode');
+ await joined.join('master',id,async()=>{},{owner:true});
+ assert.equal(joined.entry('master').owner,true);
+ await joined.join('master',id,async()=>{});
+ assert.equal(joined.entry('master').owner,false,'explicit URL participation sets recipient mode');
+});
+test('switching recipient to a new owned share preserves original until successful invitation',async()=>{
+ const client=fakeClient(),first=new FamilySync(client,storage()),changing=new FamilySync(client,storage());
+ const id=await first.start('shopping',{servings:2},'relative@example.com');
+ await changing.join('shopping',id,async()=>{});
+ const original=client.invite;
+ client.invite=async()=>{throw Error('invitation failed');};
+ await assert.rejects(changing.start('shopping',{servings:4},'relative@example.com',{replace:true}),/invitation failed/);
+ assert.equal(changing.entry('shopping').id,id);
+ assert.equal(changing.entry('shopping').owner,false);
+ client.invite=original;
+ const newId=await changing.start('shopping',{servings:4},'relative@example.com',{replace:true});
+ assert.notEqual(newId,id);
+ assert.equal(changing.entry('shopping').owner,true);
+ assert.equal(replayOps({},client.files.get(newId).slice(1).map(row=>JSON.parse(row[1]))).servings,4);
+ assert.equal(replayOps({},client.files.get(id).slice(1).map(row=>JSON.parse(row[1]))).servings,2);
+});
+test('active recipient cannot abandon unsent changes when starting their own share',async()=>{
+ const client=fakeClient(),owner=new FamilySync(client,storage()),recipient=new FamilySync(client,storage());
+ const id=await owner.start('shopping',{servings:2},'relative@example.com');
+ await recipient.join('shopping',id,async()=>{});
+ recipient.observe('shopping',{servings:3});
+ await assert.rejects(recipient.start('shopping',{servings:4},'relative@example.com',{replace:true}),/未送信/);
+ assert.equal(recipient.entry('shopping').owner,false);
+ assert.equal(recipient.entry('shopping').queue.length,1);
 });
