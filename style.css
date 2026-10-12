@@ -1211,3 +1211,9 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .theme-tone-swatches{width:min(100%,257px);gap:4px}
  .theme-tone-swatches .swatch{width:29px;height:29px;min-height:29px}
 }
+
+/* Family share URL stays on one row with a fixed copy action on iPhone PWA. */
+#dialog .family-link-row{display:flex;align-items:center;gap:6px;min-width:0;width:100%}
+#dialog .family-link-row input{flex:1 1 auto;min-width:0;width:0;margin:0}
+#dialog .family-link-row button{flex:0 0 auto;white-space:nowrap;margin:0}
+#dialog [hidden]{display:none!important}
