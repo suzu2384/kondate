@@ -9,6 +9,8 @@ permissions:
   id-token: write
 env:
   GOOGLE_OAUTH_CLIENT_ID: ${{ vars.GOOGLE_OAUTH_CLIENT_ID }}
+  KONDATE_GOOGLE_PICKER_API_KEY: ${{ vars.KONDATE_GOOGLE_PICKER_API_KEY }}
+  KONDATE_GOOGLE_PROJECT_NUMBER: ${{ vars.KONDATE_GOOGLE_PROJECT_NUMBER }}
   KONDATE_AI_FIREBASE_CONFIG: ${{ vars.KONDATE_AI_FIREBASE_CONFIG }}
   KONDATE_AI_APP_CHECK_SITE_KEY: ${{ vars.KONDATE_AI_APP_CHECK_SITE_KEY }}
   KONDATE_AI_SPARK_VERIFIED: ${{ vars.KONDATE_AI_SPARK_VERIFIED }}
@@ -86,7 +88,14 @@ jobs:
                   `## KonDate ${tag}`,
                   '',
                   '### このバージョンの変更',
-                  ...(version === '1.13.3' ? [
+                  ...(version === '1.14.0' ? [
+                    '- 料理マスターと買い物リストを独立して家族共有し、Googleアカウントへの編集招待とPicker参加に対応',
+                    '- 共有ボタンを料理・買い物の各操作行の右側に追加し、狭い画面では設定画面から操作',
+                    '- 買い物リストの自動同期を標準5秒（3〜60秒に設定可能）、料理マスターはカレンダー更新間隔に統一',
+                    '- アプリのフォアグラウンド復帰時に同期し、バックグラウンド中は定期取得を停止',
+                    '- 複数人による異なる項目への同時編集を追記ログで統合し、未確認操作の再送と同一項目の競合通知を追加',
+                    '- Google Sheets・Drive・Pickerの設定ガイドと回帰テストを追加（実アカウント間の検証は別途）',
+                  ] : version === '1.13.3' ? [
                     '- 買い物リストの人数設定を1〜30人のプルダウンに変更',
                     '- 新規利用の初期値を1人分に変更し、既存の選択済み人数は維持',
                     '- 人数設定の端末保存・Google Driveバックアップ・復元機能は継続',
