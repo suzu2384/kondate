@@ -33,12 +33,12 @@ test('each dish shows last cooked date below its name and direct search/edit act
  assert.match(html,/<span class="master-dish-name">鶏の照り焼き<\/span>/);
  assert.match(html,/<small class="master-dish-meta">主菜.*最終調理日 2026\/10\/08.*3回<\/small>/);
  assert.match(html,/target="_blank" rel="noopener noreferrer"/);
- assert.match(html,/aria-label="鶏の照り焼きのレシピを検索">検索<\/a>/);
+ assert.match(html,/aria-label="鶏の照り焼きのレシピを検索" title="検索"><span class="master-action-icon master-action-icon-search" aria-hidden="true"><\/span><\/a>/);
  assert.match(html,/data-action="edit-master" data-key="teriyaki"/);
  const url=html.match(/href="([^"]+)"/)?.[1];
  assert.equal(new URL(url).searchParams.get('q'),'鶏の照り焼き レシピ');
  assert.ok(html.indexOf('master-dish-meta')<html.indexOf('master-actions'));
- assert.ok(html.indexOf('>検索</a>')<html.indexOf('>編集</button>'));
+ assert.ok(html.indexOf('master-action-icon-search')<html.indexOf('>編集</button>'));
 });
 
 test('uncooked dishes remain searchable and recipe names are HTML-escaped',()=>{
