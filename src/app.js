@@ -179,12 +179,19 @@ function familySnapshot(type){
     if(key.startsWith('ingredient:'))snapshot[key]=value;
   return snapshot;
  }
+ const entry=family.entry('master');
+ if(!entry.id)return masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)})));
+ // The shared journal is authoritative for unedited dishes. Regenerating the
+ // entire catalog on every unrelated local save can publish the recipient's
+ // private calendar data or stale local versions as accidental remote edits.
+ if(!editedFamilyDishes.size)return {...entry.shadow};
  const all=masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)})));
- if(!family.entry('master').id)return all; // Initial owner export includes the current catalog.
- // Joining a family does not automatically publish the recipient's private
- // Calendar-history recipes or built-in presets to everyone else.
- const allowed=new Set([...Object.keys(family.entry('master').shadow),...editedFamilyDishes]);
- return Object.fromEntries(Object.entries(all).filter(([key])=>allowed.has(key)));
+ const snapshot={...entry.shadow};
+ for(const key of editedFamilyDishes){
+  if(Object.hasOwn(all,key))snapshot[key]=all[key];
+  else delete snapshot[key];
+ }
+ return snapshot;
 }
 function persist(){
  if(!applyingFamily){
