@@ -11,7 +11,7 @@ const equals=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 const blank=()=>({id:'',cursor:1,queue:[],shadow:{},seen:[]});
 export function validateSharedOp(op,type){
  if(!op||typeof op!=='object'||typeof op.id!=='string'||!/^[\w-]{12,90}$/.test(op.id)||
-  op.kind!==type||typeof op.key!=='string'||op.key.length>280||
+  op.kind!==type||op.value===undefined||typeof op.key!=='string'||op.key.length>280||
   !(type==='master'?op.key.startsWith('dish:'):type==='shopping'?/^(servings$|selected:|manual:|checked:|excluded:)/.test(op.key):false)||
   !Number.isFinite(op.at)||op.at<0||op.at>1e15||JSON.stringify(op.value)?.length>18000||
   JSON.stringify(op.value)?.includes('"__proto__"'))throw Error('共有データの形式が不正です。');
