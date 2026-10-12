@@ -1042,3 +1042,12 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 #quick-preset-bar.shopping-filter-bar{
  justify-content:flex-start;
 }
+
+/* Family sharing in the same action row; narrow phones use Settings fallback. */
+.master-toolbar{align-items:center;min-width:0}
+.master-toolbar #master-search{flex:1 1 auto;min-width:72px;width:0}
+.master-toolbar .family-share-button{margin-left:auto;flex:0 0 auto;white-space:nowrap}
+.shopping-toolbar .family-share-button{margin-left:auto;flex:0 0 auto}
+@media(max-width:500px){
+ .master-toolbar .family-share-button,.shopping-toolbar .family-share-button{display:none}
+}
