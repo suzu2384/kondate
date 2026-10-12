@@ -86,3 +86,16 @@ test('other calendar visibility and preset ordering round-trip through Drive set
  assert.deepEqual(receiving.extraCalendarIds,source.extraCalendarIds);
  assert.deepEqual(receiving.iconRules.map(r=>r.id),['1111111111','2222222222']);
 });
+
+test('new main history and generated draft both survive Drive save and restore',()=>{
+ const original=state();
+ original.recentNewMains=['豚肉と豆のトマト煮','鯛の香草焼き'];
+ const snapshot=createDriveSnapshot(original);
+ assert.deepEqual(snapshot.settings.recentNewMains,original.recentNewMains);
+ const receiving=state();
+ receiving.draft=[];receiving.recentNewMains=[];
+ restoreDriveSnapshot(receiving,readDriveSnapshot(snapshot,receiving,()=>{}));
+ assert.deepEqual(receiving.draft,original.draft);
+ assert.deepEqual(receiving.recentNewMains,original.recentNewMains);
+ assert.throws(()=>readDriveSnapshot({...snapshot,settings:{...snapshot.settings,recentNewMains:['X'.repeat(101)]}},receiving,()=>{}),/新規料理履歴/);
+});
