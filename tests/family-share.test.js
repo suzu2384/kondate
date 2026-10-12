@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
-import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,diffSnapshots,replayOps,validateSharedOp,describeSharedApiFailure} from '../src/family-share.js';
+import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,SHARE_SCOPE,SHARE_JOIN_SCOPE,sharedSpreadsheetId,diffSnapshots,replayOps,validateSharedOp,describeSharedApiFailure} from '../src/family-share.js';
 import {shoppingSharedSnapshot,applyShoppingEvents,masterSharedSnapshot,applyMasterEvents} from '../src/family-data.js';
 import {shoppingItems} from '../src/shopping.js';
 const file=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
@@ -96,13 +96,14 @@ test('same-key collision is reported; last append remains deterministic',async()
  await b.sync('shopping',async()=>{});
  assert.equal(replayOps({},client.files.get(id).slice(1).map(r=>JSON.parse(r[1]))).servings,3);
 });
-test('Google APIs use drive.file authorization and only the Sheets append API for writes',()=>{
+test('Google APIs use limited owner authorization and the Sheets append API for writes',()=>{
  const src=file('src/family-share.js');
  assert.match(src,/https:\/\/www\.googleapis\.com\/auth\/drive\.file/);
  assert.match(src,/':append\?valueInputOption=RAW/);
  assert.match(src,/\bappendRows\(id,rows\)/);
  assert.match(src,/\/permissions\?sendNotificationEmail=true/);
- assert.match(src,/gapi\.load\('picker'/);
+ assert.doesNotMatch(src,/gapi\\.load\\('picker'/);
+ assert.match(src,/https:\\/\\/www\\.googleapis\\.com\\/auth\\/spreadsheets/);
  assert.deepEqual(SHOPPING_SYNC_SECONDS,[3,5,10,15,30,60]);
  assert.throws(()=>validateSharedOp({kind:'shopping',key:'servings',id:'xxx',value:1,at:Date.now()},'shopping'),/不正/);
 });
@@ -118,7 +119,7 @@ test('each tab opens its own share dialog, and foreground timer checks shopping 
  assert.match(app,/setInterval\(\(\)=>pollFamily\(\),1000\)/);
  assert.match(css,/\.shopping-toolbar \.family-share-button\{margin-left:auto/);
  assert.match(css,/@media\(max-width:500px\)/);
- assert.match(html,/apis\.google\.com\/js\/api\.js/);
+ assert.doesNotMatch(html,/apis\.google\.com\/js\/api\.js/);
 });
 
 test('shopping share includes computed auto ingredients, even if the recipient has no recipe master',()=>{
@@ -285,4 +286,47 @@ test('non-recipe edits never republish a joined device personal catalog',()=>{
  assert.equal(changed['dish:相手の個人用料理'],undefined,'private dish stays private');
  edits.clear();
  assert.deepEqual(snapshot('master'),shared);
+});
+
+test('shared spreadsheet IDs are extracted only from supported Google Sheets URLs',()=>{
+ const id='abcdEFGHijklMNOP123456789-_';
+ assert.equal(sharedSpreadsheetId('https://docs.google.com/spreadsheets/d/'+id+'/edit?usp=sharing'),id);
+ assert.equal(sharedSpreadsheetId('https://drive.google.com/open?id='+id),id);
+ assert.equal(sharedSpreadsheetId(id),id);
+ for(const raw of ['','not-a-spreadsheet','https://example.com/spreadsheets/d/'+id,
+  'http://docs.google.com/spreadsheets/d/'+id,'https://docs.google.com/other/d/'+id,
+  'https://docs.google.com.evil.invalid/spreadsheets/d/'+id]){
+  assert.equal(sharedSpreadsheetId(raw),'',raw);
+ }
+ assert.doesNotMatch(file('src/app.js'),/familyClient\\.pick\\(/);
+ const app=file('src/app.js');
+ assert.match(app,/familyClient\\.authorize\\(GOOGLE_CLIENT_ID,\\{join:true\\}\\)/);
+ assert.match(app,/id=sharedSpreadsheetId\\(/);
+ assert.match(app,/family-copy-link/);
+ assert.match(app,/family-renew/);
+});
+test('owner uses drive.file only, link participants request Sheets permission',async()=>{
+ const old=globalThis.google;
+ const seen=[];
+ globalThis.google={accounts:{oauth2:{
+  initTokenClient({scope,callback}){seen.push(scope);return {requestAccessToken(){callback({access_token:'fake',expires_in:1800});}};},
+  hasGrantedAllScopes(){return true;}
+ }}};
+ try{
+  const client=new FamilyDriveClient(async()=>({ok:false,status:403,json:async()=>({})}));
+  await client.authorize('mock-client-id');
+  assert.equal(seen[0],SHARE_SCOPE);
+  await client.authorize('mock-client-id',{join:true});
+  assert.equal(seen[1],SHARE_JOIN_SCOPE);
+  await client.authorize('mock-client-id',{join:true});
+  assert.equal(seen.length,2,'already elevated tokens are reused');
+  client.invalidateAccess();
+  assert.equal(client.scopes,SHARE_SCOPE);
+ }finally{globalThis.google=old;}
+});
+test('no Picker library or build key is required for shared link joining',()=>{
+ const html=file('index.html'),app=file('src/app.js'),build=file('scripts/build.js'),config=file('src/config.js'),workflow=file('.github/workflows/pages.yml');
+ for(const src of [html,app,build,config,workflow])assert.doesNotMatch(src,/GOOGLE_PICKER_API_KEY|GOOGLE_PROJECT_NUMBER|KONDATE_GOOGLE_PICKER|apis\\.google\\.com\\/js\\/api\\.js/);
+ assert.match(app,/共有リンク（参加するとき）/);
+ assert.match(app,/リンクをコピー/);
 });
