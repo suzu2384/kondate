@@ -4,6 +4,7 @@ import {readFileSync} from 'node:fs';
 import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,SHARE_SCOPE,SHARE_JOIN_SCOPE,sharedSpreadsheetId,diffSnapshots,replayOps,validateSharedOp,describeSharedApiFailure} from '../src/family-share.js';
 import {shoppingSharedSnapshot,applyShoppingEvents,masterSharedSnapshot,applyMasterEvents} from '../src/family-data.js';
 import {shoppingItems} from '../src/shopping.js';
+import {buildMaster} from '../src/model.js';
 const file=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const storage=()=>{const d=new Map();return {getItem:k=>d.get(k)||null,setItem:(k,v)=>d.set(k,v),removeItem:k=>d.delete(k)};};
 const fakeClient=()=>({
@@ -332,4 +333,83 @@ test('no Picker library or build key is required for shared link joining',()=>{
  }
  assert.match(app,/共有リンク（参加するとき）/);
  assert.match(app,/リンクをコピー/);
+});
+
+test('recipe ingredient edits are appended as JSON and confirmed by a second sync',async()=>{
+ const client=fakeClient(),sync=new FamilySync(client,storage());
+ const initial=masterSharedSnapshot([{name:'肉じゃが',category:'main',ingredients:[]}]);
+ const id=await sync.start('master',initial,'other@example.com');
+ const updatedMaster=buildMaster([],{},{'肉じゃが':{ingredients:[{name:'にんじん',quantity:80,unit:'g'}]}},
+  [{name:'肉じゃが',category:'main',protein:'肉',method:'煮る',genre:'和食'}]);
+ const modified=masterSharedSnapshot(updatedMaster.map(d=>({...d,categoryName:'主菜'})));
+ const shadow={...sync.entry('master').shadow};
+ const edited=new Set(['dish:肉じゃが']);
+ const current={...shadow};
+ for(const key of edited)current[key]=modified[key];
+ assert.equal(sync.observe('master',current),1);
+ assert.equal(sync.entry('master').queue.length,1);
+ const first=await sync.sync('master',async()=>{});
+ assert.equal(first.pending,1,'appending is not yet an acknowledgement');
+ assert.equal(sync.entry('master').queue.length,1);
+ const second=await sync.sync('master',async()=>{});
+ assert.equal(second.pending,0,'the subsequent read acknowledges the exact edit');
+ const tail=client.files.get(id).at(-1);
+ const operation=JSON.parse(tail[1]);
+ assert.equal(tail[0],operation.id);
+ assert.equal(operation.key,'dish:肉じゃが');
+ assert.deepEqual(operation.value.ingredients,[{name:'にんじん',quantity:80,unit:'g'}]);
+ const recipient=new FamilySync(client,storage()),applied=[];
+ await recipient.join('master',id,async rows=>applied.push(...rows));
+ const joinedScope={manual:[],metadata:{},aliases:{}};
+ applyMasterEvents(joinedScope,applied);
+ assert.equal(joinedScope.metadata['肉じゃが'].ingredients[0].quantity,80);
+});
+test('repeated edits by the same device do not create a false remote conflict',async()=>{
+ const client=fakeClient(),sync=new FamilySync(client,storage()),id=await sync.start('master',{'dish:肉じゃが':{name:'肉じゃが',category:'main',ingredients:[]}},'a@example.com');
+ const first={'dish:肉じゃが':{name:'肉じゃが',category:'main',ingredients:[{name:'大根',quantity:30,unit:'g'}]}};
+ const latest={'dish:肉じゃが':{name:'肉じゃが',category:'main',ingredients:[{name:'大根',quantity:60,unit:'g'}]}};
+ sync.observe('master',first);
+ await sync.sync('master',async()=>{});
+ sync.observe('master',latest);
+ const result=await sync.sync('master',async()=>{});
+ assert.deepEqual(result.conflicts,[],'an earlier unsent operation echo is not a competing user');
+ await sync.sync('master',async()=>{});
+ assert.equal(sync.entry('master').queue.length,0);
+ const rows=client.files.get(id).slice(1).map(row=>JSON.parse(row[1]));
+ assert.equal(replayOps({},rows)['dish:肉じゃが'].ingredients[0].quantity,60);
+});
+test('shared sync reports expired authentication without silently losing local edits',async()=>{
+ const app=file('src/app.js');
+ const start=app.indexOf('async function syncFamily(type,{manual=false}={}){'),end=app.indexOf('function familyDialog(',start);
+ assert.ok(start>=0&&end>start);
+ const entry={id:'abcdefghijklmnopqrstuvwxyz',queue:[{key:'dish:肉じゃが'}]};
+ const family={entry:()=>entry},notifications=[];
+ const run=new Function('family','familyClient','document','notify','tab','applyFamily','render','lastFamilyPoll',
+  app.slice(start,end)+'\\nreturn syncFamily;');
+ const sync=run(family,{connected:false},{hidden:false},message=>notifications.push(message),
+  'master',async()=>{},()=>{}, {master:0,shopping:0});
+ const idle=await sync('master');
+ assert.equal(idle.pending,1);
+ assert.equal(notifications.length,1);
+ assert.match(notifications[0].summary,/再認証・同期/);
+ await assert.rejects(sync('master',{manual:true}),/再認証・同期/);
+ assert.equal(entry.queue.length,1,'an unsent edit must remain durable');
+});
+test('manual shared sync confirms the acknowledged append and shows a success notice',async()=>{
+ const client=fakeClient(),family=new FamilySync(client,storage());
+ const old=masterSharedSnapshot([dish]),id=await family.start('master',old,'relative@example.com');
+ const edited={...old,'dish:肉じゃが':{...old['dish:肉じゃが'],ingredients:[{name:'牛肉',quantity:140,unit:'g'}]}};
+ family.observe('master',edited);
+ const app=file('src/app.js');
+ const start=app.indexOf('async function syncFamily(type,{manual=false}={}){'),end=app.indexOf('function familyDialog(',start);
+ const run=new Function('family','familyClient','document','notify','tab','applyFamily','render','lastFamilyPoll',
+  app.slice(start,end)+'\\nreturn syncFamily;');
+ const notifications=[],sync=run(family,client,{hidden:false},note=>notifications.push(note),
+  'master',async()=>{},()=>{}, {master:0,shopping:0});
+ const response=await sync('master',{manual:true});
+ assert.equal(response.pending,0);
+ assert.equal(family.entry('master').queue.length,0);
+ assert.match(notifications.at(-1),/共有ファイルに反映/);
+ const journal=client.files.get(id).slice(1).map(row=>JSON.parse(row[1]));
+ assert.equal(replayOps({},journal)['dish:肉じゃが'].ingredients[0].quantity,140);
 });
