@@ -20,7 +20,7 @@ test('AI prompt is concise, varies draft, and relies on prefiltered candidates',
  const prompt=createMenuRequest(context).prompt;
  assert.match(prompt,/days配列は必ず3日分/);
  assert.match(prompt,/候補から除外済み/);
- assert.match(prompt,/lockedは同じ日に必ず含めて/);
+ assert.match(prompt,/lockedは指定した日から動かさない/);
  assert.match(prompt,/前回から献立全体を大きく変える/);
  assert.ok(prompt.split('\n').length<16);
 });
