@@ -150,6 +150,17 @@ export function createMenuRequest(context){
  const previousSuggested=[...new Set(previous.flatMap(day=>(day?.dishes||[])
   .filter(d=>d&&!d.locked&&typeof d.name==='string')
   .map(d=>d.name.trim()).filter(Boolean)))].slice(0,120);
+ // The old sample had only one day, so the model often returned one day.
+ // Display the actual requested count without providing repeatable dish names.
+ const example={days:Array.from({length:days},(_,i)=>({
+  dishes:Object.entries(counts).flatMap(([category,n])=>Array.from({length:n},(_,j)=>({
+   name:`候補の料理名_${i+1}_${j+1}`,category
+  })))
+ }))};
+ if(rules.newMain){
+  const novel=example.days.at(-1).dishes.find(d=>d.category==='main');
+  if(novel){novel.name='AIが考える新しい主菜';novel.new=true;}
+ }
  const prompt=[
   '日本の家庭向けに、調理履歴に偏らない献立を完成させてください。JSONのみ返してください。',
   `必須: days配列は必ず${days}日分、${days}個の要素。途中で終えず、各日countsの品数を埋めてください。`,
