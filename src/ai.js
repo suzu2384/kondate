@@ -1,3 +1,4 @@
+import {validateMenuQuality} from './ai-menu.js';
 import {validateIngredients} from './ingredients.js';
 import {validatePlan} from './generator.js';
 import {validateDishes,normalize} from './model.js';
@@ -24,6 +25,7 @@ export class AIService {
    else match.locked=true;
   }
   errors.push(...validatePlan(plan,context.rules,context.master));
+  errors.push(...validateMenuQuality(plan,context));
   for(const day of plan)for(const [cat,count] of Object.entries(context.rules.counts))
    if(day.dishes.filter(d=>d.category===cat).length!==count)
     errors.push('AIの料理数が設定と一致しません。');
