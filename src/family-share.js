@@ -214,25 +214,27 @@ export class FamilySync{
  stop(type){this.settings[type]=blank();this.persist();}
  async sync(type,apply){
   const d=this.entry(type);
-  if(!d.id||this.busy[type]||!this.client.connected)return {changed:false,conflicts:[]};
+  if(!d.id||this.busy[type]||!this.client.connected)return {changed:false,conflicts:[],pending:d.queue.length,busy:this.busy[type]};
   this.busy[type]=true;
   try{
    const rows=await this.client.readRows(d.id,d.cursor);
-   const known=new Set(d.seen),remote=[],conflicts=[];
+   const known=new Set(d.seen),remote=[],conflicts=[],localEchoes=new Set();
+   const queuedById=new Set(d.queue.map(op=>op.id));
    for(const row of rows){if(!row?.[1])continue;
     const op=validateSharedOp(JSON.parse(row[1]),type);
     if(known.has(op.id))continue;
     remote.push(op);known.add(op.id);
-    // An echoed or independently identical edit is not a conflict. Compare
-    // the latest locally pending value, not just the shared recipe key.
-    const pending=d.queue.filter(x=>x.id!==op.id&&x.key===op.key).at(-1);
+    // Acknowledgement of our own earlier edit is never a concurrent conflict,
+    // even if a newer unsent edit of the same recipe exists in the queue.
+    if(queuedById.has(op.id)){localEchoes.add(op.id);continue;}
+    const pending=d.queue.filter(x=>x.key===op.key).at(-1);
     if(pending&&!equals(pending.value,op.value))conflicts.push(op.key);
    }
    d.cursor+=rows.length;d.seen=[...known].slice(-1500);
    const acknowledged=new Set(remote.map(op=>op.id));
    d.queue=d.queue.filter(op=>!acknowledged.has(op.id));
    const pendingKeys=new Set(d.queue.map(op=>op.key));
-   const accepted=remote.filter(op=>!pendingKeys.has(op.key));
+   const accepted=remote.filter(op=>!localEchoes.has(op.id)&&!pendingKeys.has(op.key));
    if(accepted.length)await apply(accepted,{initial:false});
    d.shadow=replayOps(d.shadow,remote);
    d.shadow=replayOps(d.shadow,d.queue);
