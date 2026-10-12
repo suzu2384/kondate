@@ -10,7 +10,7 @@ for(const [tab,path] of [
  ['calendar','icons/tabs/calendar-days.svg'],
  ['generate','icons/tabs/chef-hat.svg'],
  ['master','icons/tabs/cooking-pot.svg'],
- ['shopping','icons/presets/shopping_cart_2_fill.svg'],
+ ['shopping','icons/tabs/shopping-cart.svg'],
  ['settings','icons/tabs/settings.svg']
 ]){
  test(`tab ${tab} loads ${path} with themed mask and offline precache`,()=>{
