@@ -222,19 +222,43 @@ async function applyFamily(type,ops,{initial=false}={}){
   if(tab===type)render();
  }finally{applyingFamily=false;}
 }
-async function syncFamily(type){
- const d=family.entry(type);
- if(!d.id||!familyClient.connected||document.hidden)return;
+async function syncFamily(type,{manual=false}={}){
+ const d=family.entry(type),label=type==='master'?'料理マスター':'買い物リスト';
+ if(!d.id)return {changed:false,pending:0};
+ if(document.hidden&&!manual)return {changed:false,pending:d.queue.length};
+ if(!familyClient.connected){
+  const message=label+'の共有用Google認証が切れています。共有画面の「再認証・同期」で未送信の変更を送ってください。';
+  if(manual)throw Error(message);
+  if(d.queue.length)notify({summary:message,severity:'warning'});
+  return {changed:false,pending:d.queue.length};
+ }
+ const queuedBefore=d.queue.length;
  try{
-  const result=await family.sync(type,(ops,opts)=>applyFamily(type,ops,opts));
+  let result=await family.sync(type,(ops,opts)=>applyFamily(type,ops,opts));
+  if(result.busy){
+   if(manual)throw Error('共有の同期処理が実行中です。少し待ってから再試行してください。');
+   return result;
+  }
+  // An append succeeds before its operation IDs have been acknowledged.
+  // Read the new journal rows immediately so "synced" means confirmed.
+  if(result.pending){
+   const confirmation=await family.sync(type,(ops,opts)=>applyFamily(type,ops,opts));
+   result={changed:result.changed||confirmation.changed,
+    conflicts:[...new Set([...result.conflicts,...confirmation.conflicts])],
+    pending:confirmation.pending,busy:confirmation.busy};
+  }
   lastFamilyPoll[type]=Date.now();
-  // FamilySync updates its materialized shadow after applying operations.
   if(result.changed&&tab===type)render();
   if(result.conflicts.length)notify({summary:'同じ項目への同時変更を検出しました。共有データの更新順に反映されます。',severity:'warning'});
+  else if(queuedBefore>0&&result.pending===0)notify(label+'の変更を共有ファイルに反映しました。');
+  if(manual&&result.pending)throw Error('共有ファイルへの変更がまだ未送信です。少し待ってから再度同期してください。');
+  return result;
  }catch(error){
   lastFamilyPoll[type]=Date.now();
-  // The local operation queue remains durable; never silently discard edits.
-  if(tab===type)notify({summary:'共有同期：'+error.message,severity:'warning'});
+  // Never report local save as a cloud sync success when writes fail.
+  if(manual)throw error;
+  if(d.queue.length||tab===type)notify({summary:'共有同期：'+error.message,severity:'warning'});
+  return {changed:false,pending:d.queue.length,error};
  }
 }
 function familyDialog(type){
@@ -273,8 +297,8 @@ async function familyCopyLink(type){
 async function familyRenew(type){
  // Account authorization must start in the original click handler for iOS.
  await familyClient.authorize(GOOGLE_CLIENT_ID,{join:!family.entry(type).owner});
- await syncFamily(type);
- notify('共有の認証と同期を確認しました。');
+ await syncFamily(type,{manual:true});
+ notify('共有ファイルとの同期が完了しました。');
 }
 async function familyStart(type){
  const email=$('#family-share-email')?.value?.trim()||'';
