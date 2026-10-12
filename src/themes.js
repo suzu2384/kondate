@@ -23,7 +23,7 @@ export const colors={
 export function themeBackgroundColor({color='green',mode='auto'}={},prefersDark=false){
  const dark=mode==='dark'||(mode==='auto'&&prefersDark);
  const palette=colors[color]||colors.green;
- const fg=dark?palette.dark:palette.light,base=dark?'#0d1118':'#fbfcfe',fraction=palette.rich?(dark?0.07:0.05):(dark?0.04:0.03);
+ const fg=dark?palette.dark:palette.light,base=dark?'#0d1118':'#fbfcfe',fraction=palette.rich?(dark?0.07:0.03):(dark?0.04:0.03);
  const toRgb=hex=>[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16));
  return '#'+toRgb(fg).map((channel,i)=>Math.round(channel*fraction+toRgb(base)[i]*(1-fraction)).toString(16).padStart(2,'0')).join('');
 }
@@ -40,7 +40,7 @@ export function applyTheme({color='green',mode='auto'}={}){
  text:mix(24,'#f4f7fb'),muted:mix(16,'#c5ced8'),line:mix(19,'#495461'),
  accent,'on-accent':'#14202a',tint:mix(26,'#2b3544'),
  danger:'#ffaaa9',shadow:'0 8px 26px #00000045'}:{
- bg:mix(5,'#fbfcfe'),surface:mix(1.6,'#ffffff'),panel:mix(12,'#f5f8fc'),
+ bg:mix(3,'#fbfcfe'),surface:mix(2,'#ffffff'),panel:mix(9,'#f5f8fc'),
  text:mix(28,'#162633'),muted:mix(14,'#526071'),line:mix(18,'#e2e8f0'),
  accent,'on-accent':'#fff',tint:mix(22,'#f4f8fc'),
  danger:'#a53940',shadow:'0 6px 22px #1b2c4010'}):dark?{
