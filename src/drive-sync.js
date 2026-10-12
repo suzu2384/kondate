@@ -30,9 +30,9 @@ export function decideDriveSync({remoteExists,localDigest,remoteDigest,baseDiges
 
 /** Fingerprints for safe, independent editing of a draft vs other settings. */
 export async function driveSectionDigests(snapshot){
- const {draft=[],recentNewMains=[],...otherSettings}=snapshot?.settings||{};
+ const {draft=[],recentNewMains=[],recentSuggested=[],...otherSettings}=snapshot?.settings||{};
  const [plan,other]=await Promise.all([
-  driveSettingsDigest({settings:{draft,recentNewMains}}),
+  driveSettingsDigest({settings:{draft,recentNewMains,recentSuggested}}),
   driveSettingsDigest({settings:otherSettings,master:snapshot?.master||{}})
  ]);
  return {plan,other};
@@ -51,11 +51,13 @@ export async function mergeIndependentDriveChanges(local,remote,base){
  if(localPlan&&!remotePlan&&!localOther&&remoteOther)
   return {...remote,settings:{...remote.settings,
    draft:structuredClone(local.settings.draft),
-   recentNewMains:structuredClone(local.settings.recentNewMains||[])}};
+   recentNewMains:structuredClone(local.settings.recentNewMains||[]),
+   recentSuggested:structuredClone(local.settings.recentSuggested||[])}};
  if(remotePlan&&!localPlan&&localOther&&!remoteOther)
   return {...remote,settings:{...local.settings,
    draft:structuredClone(remote.settings.draft),
-   recentNewMains:structuredClone(remote.settings.recentNewMains||[])},
+   recentNewMains:structuredClone(remote.settings.recentNewMains||[]),
+   recentSuggested:structuredClone(remote.settings.recentSuggested||[])},
    master:structuredClone(local.master||{})};
  return null;
 }
