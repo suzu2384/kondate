@@ -545,18 +545,40 @@ function categoryCalendarSettings(){
  return '<h3>分類別カレンダー</h3><p>分類ごとにGoogleカレンダーを指定します。未設定の分類には書き込みません。同じカレンダーを複数の分類に割り当てられます。</p>'+
  state.categories.map(category=>`<label class="field"><span>${esc(category.name)}</span><select data-category-calendar="${esc(category.id)}"><option value="">未設定（保存先なし）</option>${calendars.filter(c=>['owner','writer'].includes(c.accessRole)).map(c=>`<option value="${esc(c.id)}" ${state.categoryCalendars[category.id]===c.id?'selected':''}>${esc(c.summary)}</option>`).join('')}${state.categoryCalendars[category.id]&&!calendars.some(c=>c.id===state.categoryCalendars[category.id])?`<option selected value="${esc(state.categoryCalendars[category.id])}">保存済みの設定（${esc(state.categoryCalendars[category.id])}）</option>`:''}</select></label>`).join('');
 }
+// Keep the default two-column layout, but give long entries a complete row.
+function layoutPresetLegend(){
+ const grid=$('#dialog[open] .preset-legend-grid');
+ if(!grid)return;
+ const items=[...grid.querySelectorAll('.preset-legend-item')];
+ for(const item of items)item.classList.remove('preset-legend-wide');
+ // A new full-width row may introduce a dialog scrollbar, so recheck widths.
+ for(let pass=0;pass<2;pass++){
+  let changed=false;
+  for(const item of items){
+   if(item.classList.contains('preset-legend-wide'))continue;
+   const text=item.querySelector('.preset-legend-text');
+   if(text&&text.scrollWidth>text.clientWidth+1){
+    item.classList.add('preset-legend-wide');
+    changed=true;
+   }
+  }
+  if(!changed)break;
+ }
+}
 function openPresetLegend(){
  const items=state.iconRules.map(rule=>{
   const title=String(rule.keyword||'').trim(),memo=String(rule.memo||'').trim();
   if(!title&&!memo)return '';
-  return '<div class="preset-legend-item" role="listitem">'+
+  const label=[title,memo].filter(Boolean).join('／');
+  return '<div class="preset-legend-item" role="listitem" title="'+esc(label)+'" aria-label="'+esc(label)+'">'+
    '<span class="preset-legend-icon">'+iconMarkup(rule.icon,rule.color)+'</span>'+
    '<span class="preset-legend-text"><strong class="preset-legend-title">'+esc(title||'（タイトルなし）')+'</strong>'+
-   (memo?'<span class="preset-legend-memo">'+esc(memo)+'</span>':'')+
+   (memo?'<span class="preset-legend-memo">（'+esc(memo.replace(/\\s+/g,' '))+'）</span>':'')+
    '</span></div>';
  }).filter(Boolean).join('');
  modal('プリセット一覧','<div class="preset-legend-grid" role="list" aria-label="アイコンとタイトル・メモの対応">'+
   (items||'<p class="hint preset-legend-empty">プリセットはまだありません。</p>')+'</div>');
+ layoutPresetLegend();
 }
 function openExtraCalendarPicker(){
  const candidates=calendars.map(c=>`<label class="check-row"><input type="checkbox" data-extra-calendar="${esc(c.id)}" ${state.extraCalendarIds.includes(c.id)?'checked':''}><span>${esc(c.summary)}${['owner','writer'].includes(c.accessRole)?'':'（読み取り専用）'}</span></label>`).join('');
@@ -1848,6 +1870,7 @@ document.addEventListener('scroll',e=>{
  if($('#dialog').open&&e.target.closest?.('.dialog-body'))positionPlaceSuggestions();
 },true);
 window.addEventListener('resize',positionPlaceSuggestions);
+window.addEventListener('resize',layoutPresetLegend);
 globalThis.visualViewport?.addEventListener('resize',positionPlaceSuggestions);
 globalThis.visualViewport?.addEventListener('scroll',positionPlaceSuggestions);
 document.addEventListener('focusin',e=>{

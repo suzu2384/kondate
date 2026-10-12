@@ -18,11 +18,24 @@ test('legend uses the live icon preset collection and displays icon, title, and 
  assert.match(body,/state\.iconRules\.map/);
  assert.match(body,/iconMarkup\(rule\.icon,rule\.color\)/);
  assert.match(body,/esc\(title/);
- assert.match(body,/esc\(memo\)/);
+ assert.match(body,/esc\(memo\.replace/);
  assert.match(body,/modal\('プリセット一覧'/);
 });
-test('legend uses a two-column grid and wraps long text on mobile',()=>{
- assert.match(css,/\.preset-legend-grid\s*\{[^}]*grid-template-columns:repeat\(2,minmax\(0,1fr\)\)/);
- assert.match(css,/\.preset-legend-memo\s*\{[^}]*overflow-wrap:anywhere/);
- assert.match(css,/@media\(max-width:760px\)\s*\{\s*\.month-heading \.calendar-heading-actions/);
+test('legend uses borderless one-line rows in two columns',()=>{
+ assert.match(css,/\\.preset-legend-grid\\s*\\{[^}]*grid-template-columns:repeat\\(2,minmax\\(0,1fr\\)\\)/);
+ const row=css.match(/\\.preset-legend-item\\s*\\{([^}]+)\\}/)?.[1];
+ assert.ok(row);
+ assert.doesNotMatch(row,/border|background|border-radius/);
+ assert.match(css,/\\.preset-legend-text\\s*\\{[^}]*white-space:nowrap/);
+ assert.match(css,/\\.preset-legend-title\\{display:inline/);
+ assert.match(css,/\\.preset-legend-memo\\{display:inline/);
+ assert.match(app,/memo\\.replace\\(\\/\\\\s\\+\\/g/);
+});
+test('items too long for a column expand to a full row after actual measurement',()=>{
+ assert.match(css,/\\.preset-legend-item\\.preset-legend-wide\\{grid-column:1\\/-1\\}/);
+ assert.match(app,/text\\.scrollWidth>text\\.clientWidth\\+1/);
+ assert.match(app,/item\\.classList\\.add\\('preset-legend-wide'\\)/);
+ assert.match(app,/layoutPresetLegend\\(\\);/);
+ assert.match(app,/window\\.addEventListener\\('resize',layoutPresetLegend\\)/);
+ assert.match(css,/@media\\(max-width:760px\\)/);
 });
