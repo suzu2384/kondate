@@ -7,17 +7,9 @@ await rm('dist',{recursive:true,force:true});
 await mkdir('dist');
 for(const path of ['index.html','style.css','manifest.webmanifest','sw.js','icons','src'])
  await cp(path,`dist/${path}`,{recursive:true});
-const pickerKey=(process.env.KONDATE_GOOGLE_PICKER_API_KEY||'').trim();
-const projectNumber=(process.env.KONDATE_GOOGLE_PROJECT_NUMBER||'').trim();
-if(pickerKey&&!/^AIza[A-Za-z0-9_-]{20,}$/.test(pickerKey))
- throw Error('KONDATE_GOOGLE_PICKER_API_KEY が不正です。');
-if(projectNumber&&!/^[0-9]{6,25}$/.test(projectNumber))
- throw Error('KONDATE_GOOGLE_PROJECT_NUMBER は数字のみで指定してください。');
 await writeFile('dist/src/config.js',
- '/** Public OAuth, Picker key and Cloud project number. */\n'+
- 'export const GOOGLE_CLIENT_ID = '+JSON.stringify(clientId)+';\n'+
- 'export const GOOGLE_PICKER_API_KEY = '+JSON.stringify(pickerKey)+';\n'+
- 'export const GOOGLE_PROJECT_NUMBER = '+JSON.stringify(projectNumber)+';\n');
+ '/** Public OAuth app identifier. */\\n'+
+ 'export const GOOGLE_CLIENT_ID = '+JSON.stringify(clientId)+';\\n');
 // Shared AI is opt-in only after the project owner explicitly verifies the
 // isolated Firebase project is Spark AND has no linked billing account.
 const firebaseJson=(process.env.KONDATE_AI_FIREBASE_CONFIG||'').trim();
