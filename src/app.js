@@ -272,6 +272,16 @@ const ownedFamilyMatches={master:[],shopping:[]};
 const ownedFamilyState={master:'idle',shopping:'idle'};
 let ownedFamilyLookupSerial=0;
 
+function updateFamilyUrlAction(type){
+ const input=$('#family-join-link'),action=$('#family-url-action');
+ if(!input||!action||input.dataset.kind!==type)return;
+ const id=sharedSpreadsheetId(input.value);
+ const currentId=family.entry(type).id;
+ const same=!!id&&id===currentId;
+ action.dataset.action=same?'family-copy-link':'family-join';
+ action.textContent=same?'コピー':'参加';
+ action.disabled=!id;
+}
 function updateFamilyDialog(type){
  const container=$('#family-owned-results');
  if(!$('#dialog')?.open||container?.dataset.kind!==type)return;
@@ -282,8 +292,7 @@ function updateFamilyDialog(type){
   '共有ファイルには未接続です。';
  const url=$('#family-join-link');
  if(url&&linked&&!url.value.trim())url.value=sharedSpreadsheetUrl(d.id);
- const copy=$('#family-copy-current');
- if(copy)copy.disabled=!linked;
+ updateFamilyUrlAction(type);
  const open=$('#family-current-file');
  if(open){open.hidden=!linked;if(linked)open.href=sharedSpreadsheetUrl(d.id);}
  for(const action of ['family-stop','family-renew']){
@@ -291,7 +300,7 @@ function updateFamilyDialog(type){
   if(button)button.hidden=!linked;
  }
  const start=$('#dialog [data-action="family-start"]');
- if(start)start.textContent=d.owner&&linked?'相手を追加':'共有を開始';
+ if(start)start.textContent=d.owner&&linked?'追加':'共有';
 }
 function ownedFamilyResults(type){
  const status=ownedFamilyState[type];
@@ -365,18 +374,18 @@ function familyDialog(type){
   (!linked?'<section aria-label="自分の共有ファイルを検索"><div id="family-owned-results" data-kind="'+type+'">自分のGoogle Driveから共有ファイルを検索しています…</div>'+
     button('再検索','family-find-own','mini','data-kind="'+type+'"')+'</section>':
     '<div id="family-owned-results" data-kind="'+type+'" hidden></div>')+
-  '<label class="field"><span>共有相手のGoogleメールアドレス（招待するとき）</span><input id="family-share-email" type="email" autocomplete="email" placeholder="family@gmail.com"></label>'+
+  '<label class="field" for="family-share-email"><span>共有相手のGoogleメールアドレス</span></label>'+
+  '<div class="family-email-row"><input id="family-share-email" type="email" autocomplete="email" placeholder="family@gmail.com" aria-label="共有相手のGoogleメールアドレス">'+
+  button(d.owner&&linked?'追加':'共有','family-start','mini','data-kind="'+type+'"')+'</div>'+
   '<label class="field" for="family-join-link"><span>共有ファイルのURL</span></label>'+
-  '<div class="family-link-row"><input id="family-join-link" type="url" inputmode="url" autocapitalize="off" autocomplete="off" aria-label="共有ファイルのURL" value="'+(linked?esc(sharedSpreadsheetUrl(d.id)):'')+'" placeholder="https://docs.google.com/spreadsheets/d/...">'+
-  button('コピー','family-copy-link','mini','id="family-copy-current" data-kind="'+type+'" '+(linked?'':'disabled') )+'</div>'+
-  '<p class="hint">現在のURLを表示しています。別のURLを入力して「共有URLに参加」を押せば接続先を切り替えられます。</p>'+
+  '<div class="family-link-row"><input id="family-join-link" data-kind="'+type+'" type="url" inputmode="url" autocapitalize="off" autocomplete="off" aria-label="共有ファイルのURL" value="'+(linked?esc(sharedSpreadsheetUrl(d.id)):'')+'" placeholder="https://docs.google.com/spreadsheets/d/...">'+
+  button(linked?'コピー':'参加',linked?'family-copy-link':'family-join','mini','id="family-url-action" data-kind="'+type+'" '+(linked?'':'disabled'))+'</div>'+
+  '<p class="hint">現在のURLは「コピー」、別の共有URLを入力すると「参加」に切り替わります。</p>'+
   (type==='shopping'?'<label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">'+SHOPPING_SYNC_SECONDS.map(n=>'<option value="'+n+'"'+(family.settings.seconds===n?' selected':'')+'>'+n+'秒</option>').join('')+'</select><small>買い物タブの表示中だけ定期確認。復帰時にも更新します。</small></label>':'<p class="hint">料理マスターはカレンダーの更新間隔に合わせて同期します。</p>'),
   button('閉じる','close-dialog')+
   button('共有をやめる','family-stop','mini','data-kind="'+type+'" '+(linked?'':'hidden'))+
   button('再認証・同期','family-renew','mini','data-kind="'+type+'" '+(linked?'':'hidden'))+
-  button('アカウントを変更','family-account-change','mini','data-kind="'+type+'"')+
-  button('共有URLに参加','family-join','mini','data-kind="'+type+'"')+
-  button(d.owner&&linked?'相手を追加':'共有を開始','family-start','primary','data-kind="'+type+'"'));
+  button('アカウントを変更','family-account-change','mini','data-kind="'+type+'"'));
  if(!linked)void discoverOwnedFamily(type);
 }
 async function copyFamilyUrl(id){
@@ -2099,6 +2108,7 @@ document.addEventListener('touchcancel',()=>{
 $('#connection').addEventListener('click',()=>run(api.connected?'settings':'connect'));
 $('#dialog').addEventListener('cancel',()=>{editor=null;presetEditDraft=null;presetEditOriginalId=null;});
 document.addEventListener('input',e=>{const el=e.target;
+ if(el.id==='family-join-link'){updateFamilyUrlAction(el.dataset.kind);return;}
  if(el.id==='preset-edit-color'){updatePresetEditorIconPreview();return;}
  if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;showDishSuggestions(el);}
  if(editor&&(el.id==='record-location'||el.id==='place-search-active')){
