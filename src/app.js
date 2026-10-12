@@ -159,9 +159,15 @@ function extraEvents(){
 }
 
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
+const editedFamilyDishes=new Set();
 function familySnapshot(type){
- return type==='master'?masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)}))):
-  shoppingSharedSnapshot(state.shopping);
+ if(type==='shopping')return shoppingSharedSnapshot(state.shopping);
+ const all=masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)})));
+ if(!family.entry('master').id)return all; // Initial owner export includes the current catalog.
+ // Joining a family does not automatically publish the recipient's private
+ // Calendar-history recipes or built-in presets to everyone else.
+ const allowed=new Set([...Object.keys(family.entry('master').shadow),...editedFamilyDishes]);
+ return Object.fromEntries(Object.entries(all).filter(([key])=>allowed.has(key)));
 }
 function persist(){
  if(!applyingFamily){
@@ -171,6 +177,7 @@ function persist(){
     setTimeout(()=>{void syncFamily(type);},180);}
    catch(error){notify({summary:error.message,severity:'error'});}
   }
+  editedFamilyDishes.clear();
  }
  saveState(state);
  if(!applyingFamily&&!driveAutoBooting&&drive.autoEnabled)markDriveDirty();
@@ -229,6 +236,7 @@ async function familyStart(type){
  closeModal();render();notify('共有の招待を送信しました。相手は「共有に参加」から共有ファイルを選択してください。');
 }
 async function familyJoin(type){
+ if(type==='shopping'&&!window.confirm('この端末の買い物リストを共有リストに切り替えます。未共有の品目やチェック状態は共有先の内容に置き換わります。続行しますか？'))return;
  // Start OAuth synchronously while the browser still sees the user's click.
  const auth=familyClient.authorize(GOOGLE_CLIENT_ID);await auth;
  const id=await familyClient.pick(GOOGLE_PICKER_API_KEY,GOOGLE_PROJECT_NUMBER);
@@ -922,6 +930,7 @@ function saveMaster(){
  const buy=pendingMasterBuy;
  if(buy&&ingredients.length)state.shopping.selected=addShoppingDish(state.shopping.selected,dish.name);
  if(!ingredients.length)state.shopping.selected=state.shopping.selected.filter(name=>normalize(resolveName(name,data().aliases))!==key);
+ if(family.entry('master').id){editedFamilyDishes.add('dish:'+key);if(editingMaster)editedFamilyDishes.add('dish:'+editingMaster);}
  pendingMasterBuy=false;
  persist();closeModal();render();notify(buy?(ingredients.length?'材料を保存し、買い物リストに料理を追加しました。':'材料がないため料理だけを保存し、買い物リストには追加していません。'):'料理マスターを更新しました。');
 }
