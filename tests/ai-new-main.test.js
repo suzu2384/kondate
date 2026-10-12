@@ -21,10 +21,10 @@ const good=response([existing('カレー','main'),existing('味噌汁','soup')],
 
 test('AI prompt explicitly asks for one original main dish, with existing categories constrained',()=>{
  const {prompt}=createMenuRequest(base);
- assert.match(prompt,/新しい主菜をちょうど1品だけ創作/);
+ assert.match(prompt,/主菜をちょうど1品だけ新しく創作/);
  assert.match(prompt,/new:true/);
  assert.match(prompt,/new:true/);
- assert.match(prompt,/その他の料理は新規作成しない/);
+ assert.match(prompt,/他の料理はすべて既存候補から選ぶ/);
 });
 
 test('AI can propose a dish not in the master, without first registering it',async()=>{
@@ -109,7 +109,7 @@ test('an AI-original main must change when regenerated, even if other dishes cha
  const prompt=createMenuRequest(context).prompt;
  const data=JSON.parse(prompt.split('データ:\n')[1]);
  assert.deepEqual(data.recentNewMains,[oldName]);
- assert.match(prompt,/recentNewMainsとは別の料理/);
+ assert.match(prompt,/recentNewMainsと同一またはほぼ同じ料理は避ける/);
  assert.throws(()=>parseMenuResponse(good,context),/前回までと同じ新しい主菜/);
  const changed=good.replace(oldName,'タラとごぼうの香味蒸し');
  assert.equal(parseMenuResponse(changed,context)[1].dishes[0].name,'タラとごぼうの香味蒸し');
@@ -135,4 +135,10 @@ test('history is deduplicated, bounded and does not treat locked historical dish
  assert.equal(remembered.filter(n=>n==='創作料理4').length,1);
  const fixed={...base,previous:[{dishes:[{name:'固定主菜',category:'main',isNew:true,locked:true}]}]};
  assert.deepEqual(recentNewMainNames(fixed),[]);
+});
+
+test('minimally renamed main recipes are not treated as different new dishes',()=>{
+ const ctx={...base,rules:{...base.rules,unique:false},recentNewMains:['鶏肉とキャベツの塩炒め']};
+ const responseText=good.replace('柚子香る鶏肉とれんこんの照り煮','鶏もも肉とキャベツの塩炒め');
+ assert.throws(()=>parseMenuResponse(responseText,ctx),/前回までと同じ新しい主菜/);
 });
