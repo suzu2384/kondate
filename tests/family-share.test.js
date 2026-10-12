@@ -326,7 +326,10 @@ test('owner uses drive.file only, link participants request Sheets permission',a
 });
 test('no Picker library or build key is required for shared link joining',()=>{
  const html=file('index.html'),app=file('src/app.js'),build=file('scripts/build.js'),config=file('src/config.js'),workflow=file('.github/workflows/pages.yml');
- for(const src of [html,app,build,config,workflow])assert.doesNotMatch(src,/GOOGLE_PICKER_API_KEY|GOOGLE_PROJECT_NUMBER|KONDATE_GOOGLE_PICKER|apis\\.google\\.com\\/js\\/api\\.js/);
+ for(const src of [html,app,build,config,workflow]){
+  for(const key of ['GOOGLE_PICKER_API_KEY','GOOGLE_PROJECT_NUMBER','KONDATE_GOOGLE_PICKER','apis.google.com/js/api.js'])
+   assert.equal(src.includes(key),false,key);
+ }
  assert.match(app,/共有リンク（参加するとき）/);
  assert.match(app,/リンクをコピー/);
 });
