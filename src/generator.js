@@ -1,7 +1,7 @@
 import {normalize,addDays,today} from './model.js';
 export function validatePlan(plan,rules,master=[],reference=today()){
  const errors=[],seen=new Set(),byName=new Map(master.map(d=>[normalize(d.name),d]));
- for(const [i,day]of plan.entries())for(const dish of day.dishes){const key=normalize(dish.name);if(!key){errors.push(`${i+1}日目に空の料理名があります。`);continue;}if(rules.unique&&seen.has(key))errors.push(`${dish.name}が重複しています。`);seen.add(key);const last=byName.get(key)?.lastDate;if(rules.excludeRecent&&last&&last>=addDays(reference,-rules.recentDays))errors.push(`${dish.name}は直近${rules.recentDays}日以内の実績です。`);}
+ for(const [i,day]of plan.entries())for(const dish of day.dishes){const key=normalize(dish.name);if(!key){errors.push(`${i+1}日目に空の料理名があります。`);continue;}if(rules.unique&&seen.has(key))errors.push(`${dish.name}が重複しています。`);seen.add(key);const last=byName.get(key)?.lastDate;if(rules.excludeRecent&&!dish.locked&&last&&last>=addDays(reference,-rules.recentDays))errors.push(`${dish.name}は直近${rules.recentDays}日以内の実績です。`);}
  return [...new Set(errors)];
 }
 export function generate(master,rules,previous=[],reference=today(),random=Math.random){
