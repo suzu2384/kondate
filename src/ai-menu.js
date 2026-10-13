@@ -110,10 +110,15 @@ export function createMenuRequest(context){
   const need=Math.max(0,days*perDay-locked-(rules.newMain&&cat==='main'?1:0));
   const minRemaining=Math.min(need,all.filter(d=>!fixedNames.has(normalize(d.name))).length);
   let remaining=all.filter(d=>!fixedNames.has(normalize(d.name))).length;
+  const previousCount=new Set(all.filter(d=>!fixedNames.has(normalize(d.name))&&
+   lastDraftNames.has(normalize(d.name))).map(d=>normalize(d.name))).size;
+  let draw=0;
   const pool=all.filter(d=>{
    const key=normalize(d.name);
-   if(!seeded||fixedNames.has(key)||!lastDraftNames.has(key)||roll(key)>=.7||
-      remaining<=minRemaining)return true;
+   if(!seeded||fixedNames.has(key)||!lastDraftNames.has(key))return true;
+   const probability=previousCount<=1?0:0.7*(1-draw/(previousCount-1));
+   draw++;
+   if(roll(key)>=probability||remaining<=minRemaining)return true;
    remaining--;return false;
   });
   return [cat,pool];
