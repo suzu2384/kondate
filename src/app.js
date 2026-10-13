@@ -1325,6 +1325,7 @@ async function sync({automatic=false}={}){
  lastCalendarAttempt=Date.now();
  busy=true;updateConnection();
  if(!automatic)notify('カレンダーの履歴を取得しています…');
+ let renameResult={renamed:0,pending:false};
  try{
   const year=Math.max(new Date().getFullYear()+2,month.getFullYear()+1);
   const ids=syncedCalendarIds();
@@ -1342,7 +1343,7 @@ async function sync({automatic=false}={}){
   }
   // Keep retrying failed calendars after the interval, even if other calendars succeeded.
   if(!failed.length)lastCalendarSync=completedAt;
-  const renameResult=await applyPendingCalendarRenames(batches,failed);
+  renameResult=await applyPendingCalendarRenames(batches,failed);
   if(!automatic||changed||renameResult.renamed)render();
   const count=batches.reduce((n,b)=>n+b.events.length,0);
   if(renameResult.pending){
