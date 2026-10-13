@@ -1456,3 +1456,38 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .generation-screen .generation-controls .generation-submit-button{min-width:32px;padding:3px 2px}
  .generation-screen .generation-controls{gap:2px;padding:0 2px}
 }
+
+/* v1.14.29 — add breathing room without breaking toolbar alignment.
+   Vertical padding belongs to the three matching toolbar rows, not #main:
+   tab switches keep the first control and list aligned. */
+.generation-screen,.master-screen,.shopping-screen{gap:5px}
+.generation-screen .generation-controls.kondate-tab-toolbar,
+.master-screen .master-toolbar.kondate-tab-toolbar,
+.shopping-screen .shopping-toolbar.kondate-tab-toolbar{
+ height:calc(var(--kondate-top-control-height) + 10px);
+ min-height:calc(var(--kondate-top-control-height) + 10px);
+ flex:0 0 calc(var(--kondate-top-control-height) + 10px);
+ padding-top:5px;
+ padding-bottom:5px;
+}
+/* Shopping and recipe entries have the same height budget. Grid rows can
+   still grow for exceptionally long names instead of clipping content. */
+.master-screen .master-entry,
+.shopping-screen .shopping-item{min-height:54px}
+.shopping-screen .shopping-item{
+ padding:4px 7px;
+ row-gap:1px;
+}
+@media(max-width:760px){
+ /* iOS Safari zooms text inputs with computed font sizes below 16px. */
+ .master-screen .master-toolbar #master-search{
+  font-size:16px;
+  line-height:normal;
+ }
+ .master-screen .master-entry,
+ .shopping-screen .shopping-item{min-height:54px}
+ .shopping-screen .shopping-item{
+  padding:4px 5px;
+  row-gap:1px;
+ }
+}
