@@ -1277,7 +1277,7 @@ async function generateMasterIngredients(){
 function editPlanDish(dayIndex,dishIndex=null){editingPlan={dayIndex,dishIndex};const d=state.draft[dayIndex].dishes[dishIndex]||{name:'',category:'main'};modal(dishIndex===null?'料理を追加':'料理を差し替える',`<label class="field"><span>料理名</span><input id="plan-name" value="${esc(d.name)}" list="plan-options" maxlength="100" placeholder="料理名を入力・候補から選択"></label><datalist id="plan-options">${master().map(d=>`<option value="${esc(d.name)}">${esc(categoryName(d.category))}</option>`).join('')}</datalist><label class="field"><span>分類</span><select id="plan-category">${categoryOptions(d.category)}</select></label><p class="hint">変更は下書きに反映されます。カレンダーには登録されません。</p>`,`${dishIndex!==null?button('この料理を削除','delete-plan-dish','danger'):''}${button('反映','save-plan-dish','primary')}`);}
 function checkDraft(){issues=validatePlan(state.draft,state.rules,master());persist();render();notify(issues.length?generationIssuesNotice(issues):'献立の確認事項が解消しました。');}
 async function applyPendingCalendarRenames(batches,failed){
- const pending=state.pendingCalendarRenames;
+ const pending=state.pendingCalendarRenames.map(item=>({...item}));
  if(!pending.length)return {attempted:false,renamed:0,pending:false};
  const selectedCalendars=new Set(assignedIds());
  const targets=pending.map(item=>item.to);
@@ -1304,7 +1304,10 @@ async function applyPendingCalendarRenames(batches,failed){
   batches.filter(({calendarId})=>selectedCalendars.has(calendarId)).length!==selectedCalendars.size;
  const incomplete=!!(errors||missing);
  if(!incomplete){
-  state.pendingCalendarRenames=[];
+  // Another rename may be saved while these Calendar requests are in flight.
+  // Clear only the operations included in this batch.
+  state.pendingCalendarRenames=state.pendingCalendarRenames.filter(current=>
+   !pending.some(done=>done.from===current.from&&done.to===current.to));
   persist();
  }
  return {attempted:true,renamed,pending:incomplete,error:lastError};
