@@ -270,6 +270,11 @@ export class CalendarClient {
   }
  }
 
+ patchEvent(calendarId,event,patch){
+  if(!event.etag)throw Error('予定の更新情報がありません。カレンダーを同期してから編集してください。');
+  if(!patch||!Object.keys(patch).length)throw Error('更新する料理名がありません。');
+  return this.request(this.path(calendarId,event.id),{method:'PATCH',body:patch,etag:event.etag});
+ }
  update(calendarId,record){
   if(!record.etag)throw Error('予定の更新情報がありません。カレンダーを同期してから編集してください。');
   const payload=eventPayload(record);
