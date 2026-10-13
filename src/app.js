@@ -1276,6 +1276,40 @@ async function generateMasterIngredients(){
 }
 function editPlanDish(dayIndex,dishIndex=null){editingPlan={dayIndex,dishIndex};const d=state.draft[dayIndex].dishes[dishIndex]||{name:'',category:'main'};modal(dishIndex===null?'料理を追加':'料理を差し替える',`<label class="field"><span>料理名</span><input id="plan-name" value="${esc(d.name)}" list="plan-options" maxlength="100" placeholder="料理名を入力・候補から選択"></label><datalist id="plan-options">${master().map(d=>`<option value="${esc(d.name)}">${esc(categoryName(d.category))}</option>`).join('')}</datalist><label class="field"><span>分類</span><select id="plan-category">${categoryOptions(d.category)}</select></label><p class="hint">変更は下書きに反映されます。カレンダーには登録されません。</p>`,`${dishIndex!==null?button('この料理を削除','delete-plan-dish','danger'):''}${button('反映','save-plan-dish','primary')}`);}
 function checkDraft(){issues=validatePlan(state.draft,state.rules,master());persist();render();notify(issues.length?generationIssuesNotice(issues):'献立の確認事項が解消しました。');}
+async function applyPendingCalendarRenames(batches,failed){
+ const pending=state.pendingCalendarRenames;
+ if(!pending.length)return {attempted:false,renamed:0,pending:false};
+ const selectedCalendars=new Set(assignedIds());
+ const targets=pending.map(item=>item.to);
+ let renamed=0,errors=0,lastError='';
+ for(const {calendarId,events} of batches){
+  if(!selectedCalendars.has(calendarId))continue;
+  for(const event of events){
+   const update=calendarDishRename(event,data().aliases,targets,state.categories,state.timeZone);
+   if(!update)continue;
+   if(update.kind==='unsupported'){
+    errors++;lastError='一部の古い予定は料理名の書式を判別できませんでした。';
+    continue;
+   }
+   try{
+    const result=update.kind==='owned'?
+     await api.update(calendarId,update.record):await api.patchEvent(calendarId,event,update.patch);
+    const bucket=dataFor(calendarId),index=bucket.events.findIndex(item=>item.id===event.id);
+    if(index>=0)bucket.events[index]=result;
+    renamed++;
+   }catch(error){errors++;lastError=error.message;}
+  }
+ }
+ const missing=failed.some(({calendarId})=>selectedCalendars.has(calendarId))||
+  batches.filter(({calendarId})=>selectedCalendars.has(calendarId)).length!==selectedCalendars.size;
+ const incomplete=!!(errors||missing);
+ if(!incomplete){
+  state.pendingCalendarRenames=[];
+  persist();
+ }
+ return {attempted:true,renamed,pending:incomplete,error:lastError};
+}
+
 async function sync({automatic=false}={}){
  if(automatic&&presetFlushing)return;
  if(!automatic&&presetQueue.size&&!presetFlushing)await flushPendingPresets();
@@ -1308,9 +1342,14 @@ async function sync({automatic=false}={}){
   }
   // Keep retrying failed calendars after the interval, even if other calendars succeeded.
   if(!failed.length)lastCalendarSync=completedAt;
-  if(!automatic||changed)render();
+  const renameResult=await applyPendingCalendarRenames(batches,failed);
+  if(!automatic||changed||renameResult.renamed)render();
   const count=batches.reduce((n,b)=>n+b.events.length,0);
-  if(failed.length){
+  if(renameResult.pending){
+   notify({summary:'料理名の統一を一部の予定に反映できませんでした。次のカレンダー同期で自動再試行します。'+(renameResult.error?' '+renameResult.error:''),severity:'warning'});
+  }else if(renameResult.renamed){
+   notify('Googleカレンダーの'+renameResult.renamed+'件の調理実績を統一しました。');
+  }else if(failed.length){
    const names=failed.map(({calendarId})=>calendars.find(c=>c.id===calendarId)?.summary||calendarId).join('、');
    notify(`カレンダーの${automatic?'自動更新':'同期'}に一部失敗しました（成功 ${batches.length}件／失敗 ${failed.length}件：${names}）。成功したカレンダーの予定は反映済みです。`);
   }else if(!automatic){
@@ -1322,6 +1361,7 @@ async function sync({automatic=false}={}){
   if(!automatic)throw error;
   notify('カレンダーの自動更新に失敗しました：'+error.message);
  }finally{busy=false;updateConnection();}
+ return {renamed:renameResult.renamed,pending:renameResult.pending};
 }
 function autoRefreshCalendar(){return sync({automatic:true});}
 
