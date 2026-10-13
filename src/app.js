@@ -174,7 +174,7 @@ function familyInitialOwnerSnapshot(type){
  if(type==='plan')return planSharedSnapshot(state.draft,state.categories);
  if(type==='shopping'){
   const items=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
-  return shoppingSharedSnapshot(state.shopping,items.items);
+  return shoppingSharedSnapshot(state.shopping,items.items,{pruneStale:true});
  }
  return masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)})));
 }
@@ -183,18 +183,19 @@ function familySnapshot(type){
  if(type==='shopping'){
   const current=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
   const entry=family.entry('shopping');
-  // A recipient without the shared recipe master uses the shared ingredient
-  // IDs to decide which purchase/exclusion flags remain relevant.
-  const remoteOnly=!!entry.id&&!entry.owner&&!family.entry('master').id;
-  const remoteAuto=remoteOnly?Object.entries(entry.shadow).filter(([key,item])=>
+  // For recipients the displayed ingredient list is the remote sheet,
+  // even if this device has different local recipe metadata.
+  const isRecipient=!!entry.id&&!entry.owner;
+  const remoteOnly=isRecipient&&!family.entry('master').id;
+  const remoteAuto=isRecipient?Object.entries(entry.shadow).filter(([key,item])=>
    key.startsWith('ingredient:')&&item?.kind==='auto'&&item.id&&item.name&&item.baseUnit):[];
-  const liveItems=remoteOnly?
-   [...current.items.filter(item=>item.kind==='manual'),...remoteAuto.map(([,item])=>item)]:
-   current.items;
-  const snapshot=shoppingSharedSnapshot(state.shopping,liveItems,{pruneStale:true});
+  const manual=current.items.filter(item=>item.kind==='manual');
+  const sourceItems=remoteOnly?manual:current.items;
+  const activeItems=isRecipient?[...manual,...remoteAuto.map(([,item])=>item)]:current.items;
+  const snapshot=shoppingSharedSnapshot(state.shopping,sourceItems,{pruneStale:true,activeItems});
   // Joining the checklist alone must never erase its source ingredient data
   // when this device does not have the corresponding recipe master.
-  for(const [key,value] of remoteAuto)snapshot[key]=value;
+  if(remoteOnly)for(const [key,value] of remoteAuto)snapshot[key]=value;
   return snapshot;
  }
  const entry=family.entry('master');
