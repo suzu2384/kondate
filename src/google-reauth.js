@@ -1,6 +1,6 @@
 import {preferredGoogleAccount} from './account-hint.js';
 import {SCOPES} from './google.js';
-import {DRIVE_SCOPE} from './drive.js';
+import {DRIVE_UNIFIED_SCOPES} from './drive.js';
 
 // A service is renewed only when its previous authorization has expired.
 // Drive without auto sync is included only if it was authorized in this session.
@@ -13,7 +13,7 @@ export function expiredGoogleServices(calendar,drive){
 export function expiredGoogleScopes(services){
  const scopes=[];
  if(services.calendar)scopes.push(...SCOPES.split(' '));
- if(services.drive)scopes.push(DRIVE_SCOPE);
+ if(services.drive)scopes.push(...DRIVE_UNIFIED_SCOPES.split(' '));
  return scopes;
 }
 export function renewExpiredGoogleServices(calendar,drive,clientId,services=expiredGoogleServices(calendar,drive)){
@@ -42,7 +42,7 @@ export function renewExpiredGoogleServices(calendar,drive,clientId,services=expi
      calendar.rememberSession();
     }
     if(refresh.drive){
-     drive.clientId=clientId;drive.token=result.access_token;drive.expires=expires;
+     drive.clientId=clientId;drive.token=result.access_token;drive.expires=expires;drive.scopes=DRIVE_UNIFIED_SCOPES;
      drive.saveAutoToken();
     }
     resolve(refresh);
