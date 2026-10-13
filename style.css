@@ -1491,3 +1491,78 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
   row-gap:1px;
  }
 }
+
+/* v1.14.30 — icon-only share actions using the supplied SVGs.
+   Keep the text nodes in the buttons as screen-reader labels, while masking
+   the artwork with currentColor to match the active KonDate theme. */
+.generation-screen .generation-controls .family-share-button,
+.master-screen .master-toolbar .family-share-button,
+.shopping-screen .shopping-toolbar .family-share-button{
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ flex:0 0 36px;
+ width:36px;
+ min-width:36px;
+ padding:0;
+ font-size:0;
+ line-height:0;
+ white-space:nowrap;
+}
+.generation-screen .generation-controls .family-share-button::before,
+.master-screen .master-toolbar .family-share-button::before,
+.shopping-screen .shopping-toolbar .family-share-button::before,
+#dialog .family-email-row [data-action="family-start"]::before,
+#dialog .family-link-row #family-url-action::before{
+ content:"";
+ display:block;
+ flex:0 0 20px;
+ width:20px;
+ height:20px;
+ background-color:currentColor;
+ -webkit-mask-repeat:no-repeat;
+ mask-repeat:no-repeat;
+ -webkit-mask-position:center;
+ mask-position:center;
+ -webkit-mask-size:contain;
+ mask-size:contain;
+}
+.generation-screen .generation-controls .family-share-button::before,
+.master-screen .master-toolbar .family-share-button::before,
+.shopping-screen .shopping-toolbar .family-share-button::before{
+ -webkit-mask-image:url('./icons/actions/users-round.svg');
+ mask-image:url('./icons/actions/users-round.svg');
+}
+#dialog .family-email-row [data-action="family-start"],
+#dialog .family-link-row #family-url-action{
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ flex:0 0 38px;
+ width:38px;
+ min-width:38px;
+ min-height:38px;
+ height:38px;
+ padding:0;
+ font-size:0;
+ line-height:0;
+}
+#dialog .family-email-row [data-action="family-start"]::before{
+ -webkit-mask-image:url('./icons/actions/user-round-plus.svg');
+ mask-image:url('./icons/actions/user-round-plus.svg');
+}
+#dialog .family-link-row #family-url-action[data-action="family-copy-link"]::before{
+ -webkit-mask-image:url('./icons/actions/copy.svg');
+ mask-image:url('./icons/actions/copy.svg');
+}
+#dialog .family-link-row #family-url-action[data-action="family-join"]::before{
+ -webkit-mask-image:url('./icons/actions/link-2.svg');
+ mask-image:url('./icons/actions/link-2.svg');
+}
+@media(max-width:760px){
+ .generation-screen .generation-controls .family-share-button,
+ .master-screen .master-toolbar .family-share-button,
+ .shopping-screen .shopping-toolbar .family-share-button{
+  flex-basis:34px;width:34px;min-width:34px;
+ }
+}
