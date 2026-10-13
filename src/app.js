@@ -7,7 +7,7 @@ import {CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefre
 import {GOOGLE_CLIENT_ID} from './config.js';
 import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,sharedSpreadsheetId,sharedSpreadsheetUrl} from './family-share.js';
 import {rememberCalendarAccount} from './account-hint.js';
-import {masterSharedSnapshot,shoppingSharedSnapshot,applyShoppingEvents,applyMasterEvents} from './family-data.js';
+import {masterSharedSnapshot,shoppingSharedSnapshot,applyShoppingEvents,applyMasterEvents,planSharedSnapshot,applyPlanEvents} from './family-data.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES,normalizeIcon,normalizeIconColor,isSupportedIcon} from './calendar-display.js';
 import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEvent,presetEventPayload} from './icon-presets.js';
@@ -56,7 +56,7 @@ state.calendarRefreshMinutes=normalizeCalendarRefreshMinutes(state.calendarRefre
 const api=new CalendarClient(),ai=new AIService(createAIProvider(AI_PUBLIC_CONFIG)),drive=new DriveSettingsClient();
 // Family shares use exactly the same Drive OAuth token as settings backup.
 const familyClient=new FamilyDriveClient(undefined,drive),family=new FamilySync(familyClient);
-let applyingFamily=false,lastFamilyPoll={master:0,shopping:0};
+let applyingFamily=false,lastFamilyPoll={master:0,shopping:0,plan:0};
 if(!ai.available)state.menuGenerationMode='rules';
 const restoredGoogleSession=api.restoreSession(GOOGLE_CLIENT_ID);
 const restoredDriveSession=drive.restoreAuto(GOOGLE_CLIENT_ID);
@@ -171,6 +171,7 @@ function extraEvents(){
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
 const editedFamilyDishes=new Set();
 function familyInitialOwnerSnapshot(type){
+ if(type==='plan')return planSharedSnapshot(state.draft);
  if(type==='shopping'){
   const items=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
   return shoppingSharedSnapshot(state.shopping,items.items);
@@ -178,6 +179,7 @@ function familyInitialOwnerSnapshot(type){
  return masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)})));
 }
 function familySnapshot(type){
+ if(type==='plan')return planSharedSnapshot(state.draft);
  if(type==='shopping'){
   const current=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
   const entry=family.entry('shopping');
@@ -206,7 +208,7 @@ function familySnapshot(type){
 }
 function persist(){
  if(!applyingFamily){
-  for(const type of ['master','shopping']){
+  for(const type of ['master','shopping','plan']){
    if(!family.entry(type).id)continue;
    try{if(family.observe(type,familySnapshot(type)))
     setTimeout(()=>{void syncFamily(type);},180);}
@@ -221,7 +223,11 @@ async function applyFamily(type,ops,{initial=false}={}){
  applyingFamily=true;
  try{
   if(type==='shopping')state.shopping=applyShoppingEvents(state.shopping,ops,initial);
-  else{
+  else if(type==='plan'){
+   state.draft=applyPlanEvents(state.draft,ops,initial);
+   if(state.draft.length)state.rules.days=normalizeGenerationDays(state.draft.length);
+   issues=validatePlan(state.draft,state.rules,master());
+  }else{
    for(const op of ops){
     const d=op.value;
     if(d&&/^[a-z][a-z0-9-]*$/.test(d.category)&&!state.categories.some(c=>c.id===d.category))
@@ -230,11 +236,11 @@ async function applyFamily(type,ops,{initial=false}={}){
    applyMasterEvents(data(),ops,state.categories.map(c=>c.id));
   }
   saveState(state);
-  if(tab===type)render();
+  if(tab===type||(type==='plan'&&tab==='generate'))render();
  }finally{applyingFamily=false;}
 }
 async function syncFamily(type,{manual=false}={}){
- const d=family.entry(type),label=type==='master'?'料理マスター':'買い物リスト';
+ const d=family.entry(type),label=type==='master'?'料理マスター':type==='shopping'?'買い物リスト':'献立';
  if(!d.id)return {changed:false,pending:0};
  if(document.hidden&&!manual)return {changed:false,pending:d.queue.length};
  if(!familyClient.connected){
@@ -259,7 +265,7 @@ async function syncFamily(type,{manual=false}={}){
     pending:confirmation.pending,busy:confirmation.busy};
   }
   lastFamilyPoll[type]=Date.now();
-  if(result.changed&&tab===type)render();
+  if(result.changed&&(tab===type||(type==='plan'&&tab==='generate')))render();
   if(result.conflicts.length)notify({summary:'同じ項目への同時変更を検出しました。共有データの更新順に反映されます。',severity:'warning'});
   else if(queuedBefore>0&&result.pending===0)notify(label+'の変更を共有ファイルに反映しました。');
   if(manual&&result.pending)throw Error('共有ファイルへの変更がまだ未送信です。少し待ってから再度同期してください。');
@@ -272,8 +278,8 @@ async function syncFamily(type,{manual=false}={}){
   return {changed:false,pending:d.queue.length,error};
  }
 }
-const ownedFamilyMatches={master:[],shopping:[]};
-const ownedFamilyState={master:'idle',shopping:'idle'};
+const ownedFamilyMatches={master:[],shopping:[],plan:[]};
+const ownedFamilyState={master:'idle',shopping:'idle',plan:'idle'};
 let ownedFamilyLookupSerial=0;
 
 function updateFamilyUrlAction(type){
@@ -367,7 +373,7 @@ async function discoverOwnedFamily(type){
  showOwnedFamilyResults(type,serial);
 }
 function familyDialog(type){
- const label=type==='master'?'料理マスター':'買い物リスト',d=family.entry(type);
+ const label=type==='master'?'料理マスター':type==='shopping'?'買い物リスト':'献立',d=family.entry(type);
  const linked=!!d.id;
  if(!linked){ownedFamilyMatches[type]=[];ownedFamilyState[type]='searching';}
  modal(label+'の共有',
@@ -385,7 +391,7 @@ function familyDialog(type){
   '<div class="family-link-row"><input id="family-join-link" data-kind="'+type+'" type="url" inputmode="url" autocapitalize="off" autocomplete="off" aria-label="共有ファイルのURL" value="'+(linked?esc(sharedSpreadsheetUrl(d.id)):'')+'" placeholder="https://docs.google.com/spreadsheets/d/...">'+
   button(linked?'コピー':'参加',linked?'family-copy-link':'family-join','mini','id="family-url-action" data-kind="'+type+'" '+(linked?'':'disabled'))+'</div>'+
   '<p class="hint">現在のURLは「コピー」、別の共有URLを入力すると「参加」に切り替わります。</p>'+
-  (type==='shopping'?'<label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">'+SHOPPING_SYNC_SECONDS.map(n=>'<option value="'+n+'"'+(family.settings.seconds===n?' selected':'')+'>'+n+'秒</option>').join('')+'</select><small>買い物タブの表示中だけ定期確認。復帰時にも更新します。</small></label>':'<p class="hint">料理マスターはカレンダーの更新間隔に合わせて同期します。</p>'),
+  (type==='shopping'?'<label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">'+SHOPPING_SYNC_SECONDS.map(n=>'<option value="'+n+'"'+(family.settings.seconds===n?' selected':'')+'>'+n+'秒</option>').join('')+'</select><small>買い物タブの表示中だけ定期確認。復帰時にも更新します。</small></label>':type==='plan'?'<p class="hint">献立タブの表示中は買い物と同じ更新間隔で共有内容を確認します。</p>':'<p class="hint">料理マスターはカレンダーの更新間隔に合わせて同期します。</p>'),
   button('閉じる','close-dialog')+
   button('共有をやめる','family-stop','mini','data-kind="'+type+'" '+(linked?'':'hidden')));
  if(!linked)void discoverOwnedFamily(type);
@@ -442,7 +448,7 @@ async function familyStart(type){
  if(current.id&&!window.confirm('共有された側から共有する側に切り替えます。元の共有ファイルは削除されません。続行しますか？'))return;
  const email=$('#family-share-email')?.value?.trim()||'';
  if(!/^[-\w.+]+@[-\w.]+\.[a-z]{2,}$/i.test(email))throw Error('共有相手のGoogleメールアドレスを入力してから共有を開始してください。');
- const joinedOther=['master','shopping'].some(kind=>family.entry(kind).id&&!family.entry(kind).owner);
+ const joinedOther=['master','shopping','plan'].some(kind=>family.entry(kind).id&&!family.entry(kind).owner);
  await familyClient.authorize(GOOGLE_CLIENT_ID,{join:joinedOther});
  await family.start(type,familyInitialOwnerSnapshot(type),email,{replace:!!current.id});
  closeModal();render();notify('自分の共有ファイルを作成し、招待しました。URLは共有画面からコピーできます。');
@@ -457,8 +463,8 @@ async function familyJoin(type){
  if(current.queue.length||family.busy[type])throw Error('切り替える前に未送信の変更を同期してください。');
  // Choosing "join by URL" always means recipient mode, regardless of file
  // ownership. The user explicitly chooses owner mode from the Drive results.
- if((current.id||type==='shopping')&&!window.confirm(
-  'この端末の'+(type==='shopping'?'買い物リスト':'同じ料理の情報')+
+ if((current.id||type==='shopping'||type==='plan')&&!window.confirm(
+  'この端末の'+(type==='shopping'?'買い物リスト':type==='plan'?'献立':'同じ料理の情報')+
   'を共有リンク先の内容に切り替えます。現在の共有ファイル自体は削除されません。続行しますか？'))return;
  // The recipient uses Sheets permission to access a file that the app did not create.
  const auth=familyClient.authorize(GOOGLE_CLIENT_ID,{join:true});await auth;
@@ -469,10 +475,10 @@ async function familyJoin(type){
 function pollFamily(force=false){
  if(document.hidden||!familyClient.connected)return;
  const now=Date.now();
- for(const type of ['master','shopping']){
+ for(const type of ['master','shopping','plan']){
   if(!family.entry(type).id)continue;
-  const interval=type==='shopping'?family.settings.seconds*1000:state.calendarRefreshMinutes*60000;
-  if(((type==='master'||tab==='shopping')&&interval>0&&now-lastFamilyPoll[type]>=interval)||force)
+  const interval=(type==='shopping'||type==='plan')?family.settings.seconds*1000:state.calendarRefreshMinutes*60000;
+  if(((type==='master'||(type==='shopping'&&tab==='shopping')||(type==='plan'&&tab==='generate'))&&interval>0&&now-lastFamilyPoll[type]>=interval)||force)
    void syncFamily(type);
  }
 }
@@ -647,6 +653,7 @@ function generateScreen(){
   <select aria-label="選定モード" id="generate-mode" ${aiGenerating?'disabled':''}><option value="rules" ${state.menuGenerationMode==='rules'?'selected':''}>ルールベース</option><option value="ai" ${ai.available?'':'disabled'} ${state.menuGenerationMode==='ai'?'selected':''}>AI${ai.available?'':'（未設定）'}</option></select>
   ${button('ルール調整','rules','text-button mini generation-rule-button',aiGenerating?'disabled':'')}
   ${button('生成','generate','primary mini generation-submit-button',aiGenerating?'disabled aria-busy="true"':'')}
+  ${button('共有','family-dialog','family-share-button mini generation-share-button','data-kind="plan"'+(drive.connected?'':' disabled title="設定画面でGoogle Driveに接続してください"'))}
  </div>
  <div class="plan-grid compact-plan-grid scroll">
  ${state.draft.length?state.draft.map((day,i)=>`<article class="plan-card compact-plan-card card" aria-label="${i+1}日目の献立" data-dish-count="${day.dishes.length}">
@@ -864,7 +871,7 @@ function openCalendarCreation(ruleId){
   <p class="hint">Googleカレンダーに新規作成して、編集中のプリセットの登録先に選びます。プリセット自体の登録は「決定」で行います。</p>`,
   button('戻る','return-preset-editor')+button('作成して選択','confirm-create-calendar','primary',`data-rule-id="${esc(ruleId)}"`));
 }
-function settingsScreen(){return `<section class="screen"><div class="settings-grid scroll"><section class="settings-card card"><h2>Googleカレンダー</h2><p>Googleでログインし、分類ごとのカレンダーを設定してください。</p>${!GOOGLE_CLIENT_ID?'<p class="hint">Googleログインの初期設定が完了していません。開発者による設定が必要です。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">この端末で接続を保持（有効期限内）</label></div><p class="hint">オンにすると短期のGoogle認証情報を端末のブラウザに保存し、アプリを閉じても期限内は認証画面を出さずに接続します。共有端末ではオフを推奨します。</p>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<label class="field"><span>カレンダーの自動更新間隔</span><select id="calendar-refresh-minutes">${CALENDAR_REFRESH_MINUTES.map(minutes=>`<option value="${minutes}" ${state.calendarRefreshMinutes===minutes?'selected':''}>${minutes===0?'自動更新しない':minutes+'分ごと'}</option>`).join('')}</select><small>画面の表示中、Googleに接続しているときだけ自動取得します。画面に戻ったときや通信復帰時も、更新間隔を過ぎていれば再取得します。入力途中の内容は変更しません。</small></label><label class="field"><span>履歴の取得開始日</span><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div><small>この日以降の履歴を料理マスターに利用します。取得対象は日本時間の日付基準です。</small></label>${button('履歴を再取得','sync','full',busy||!api.connected||!hasSyncedCalendars()?'disabled':'')}<p class="hint" style="margin-top:12px">接続を保持する場合、短期アクセストークンをブラウザに保存します。Googleカレンダーの内容は保存しません。認証の期限切れ時は、共通ステータスバーから再接続できます。</p></section><section class="settings-card card"><h2>他の端末へ設定を引き継ぐ</h2><p>Googleドライブのアプリ専用領域に設定をバックアップします。共有機能も同じDrive認証を利用します。</p><div class="toolbar">${button(drive.connected?'Drive接続済み':'Driveに接続','drive-reconnect','mini')}${button('Driveにバックアップ','drive-save','mini primary')}${button('Driveから復元','drive-load','mini')}</div><p class="hint">分類・カレンダーの割り当て・生成ルール・配色・表示設定・手動登録した料理マスター・献立生成の下書きを共有します。調理実績やGoogleの認証情報は含みません。</p><div class="check-row"><input id="drive-auto" type="checkbox" ${drive.autoEnabled?'checked':''}><label for="drive-auto">Driveの設定を自動同期する（保存・読み込み）</label></div><div class="drive-sync-tools"><span id="drive-sync-state" class="hint" role="status"></span>${button('今すぐ同期','drive-sync-now','mini',drive.autoEnabled?'':'disabled')}</div><p class="hint">この端末で有効にすると、設定変更をDriveへ自動保存し、アプリ起動時・復帰時に他端末の変更を自動取得します。各端末で個別に有効化してください。初回はDriveに既存のバックアップがあればそちらを取り込みます。</p><p class="hint">同時変更で食い違った場合は自動上書きせず、手動で保存・復元を選べます。</p><p class="hint">認証は短時間だけ有効です。期限切れ後はステータスバーから再接続してください。バックグラウンドでは同期しません。手動保存・復元も引き続き利用できます。</p></section><section class="settings-card card"><h2>配色テーマ</h2><p>背景や通常の文字色はそのまま、ボタンなどのアクセントカラーだけ切り替えます。</p><div class="theme-options">${[['暗め',false],['明るめ',true]].map(([label,rich])=>`<div class="theme-tone-row"><span class="theme-tone-label">${label}</span><div class="theme-tone-swatches">${Object.entries(colors).filter(([,c])=>!!c.rich===rich).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.rich?c.dark:c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div></div>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label><h3 style="margin-top:30px">献立の初期候補</h3><div class="check-row"><input id="seed-enabled" type="checkbox" ${state.seedEnabled?'checked':''}><label for="seed-enabled">初期候補の料理を使う</label></div><p>初期候補は実績ではありません。過去の履歴はカレンダーから自動でまとめます。</p>${''}</section><section class="settings-card card"><h2>献立生成ルール</h2>${rulesFields()}</section><section class="settings-card card"><h2>料理の分類</h2><p>分類名を変えても、これまでの料理との対応は維持します。</p>${state.categories.map(c=>`<div class="category-row"><input aria-label="${esc(c.name)}の分類名" data-category-name="${c.id}" value="${esc(c.name)}" maxlength="20">${button('削除','remove-category','mini danger',`data-category="${c.id}" ${c.id==='main'?'disabled':''}`)}</div>`).join('')}${button('＋ 分類を追加','add-category','full')}<h2 style="margin-top:28px">AI拡張</h2><span class="tag neutral">${ai.available?'接続済み':'未設定'}</span><p style="margin-top:12px">献立選定と写真解析の接続基盤を用意しています。キーの保存方針が決まるまでは入力・保存しません。通常の献立管理はAIなしで利用できます。</p><h3>この端末のデータ</h3><p>分類・カレンダーの選択・下書き・表示設定は端末に保存します。認証期限が切れても、分類の設定は保持されます。実績の正本はGoogleカレンダーです。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"><p class="hint" style="margin-top:12px">書き出しには料理履歴を含みません。確定した料理の情報はGoogleカレンダーが正本です。</p></section>${additionalCalendarSettings()}<section class="settings-card card"><h2>家族共有</h2><p>料理マスターと買い物リストは別々のファイルとして共有します。画面が狭い場合もここから共有できます。</p><div class="toolbar">${button('料理マスターを共有','family-dialog','mini','data-kind="master"')}${button('買い物リストを共有','family-dialog','mini','data-kind="shopping"')}</div><label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">${SHOPPING_SYNC_SECONDS.map(n=>`<option value="${n}"${family.settings.seconds===n?' selected':''}>${n}秒</option>`).join('')}</select><small>買い物タブの表示中は設定間隔で確認し、アプリに戻った際にも同期します。</small></label></section></div></section>`;} 
+function settingsScreen(){return `<section class="screen"><div class="settings-grid scroll"><section class="settings-card card"><h2>Googleカレンダー</h2><p>Googleでログインし、分類ごとのカレンダーを設定してください。</p>${!GOOGLE_CLIENT_ID?'<p class="hint">Googleログインの初期設定が完了していません。開発者による設定が必要です。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">この端末で接続を保持（有効期限内）</label></div><p class="hint">オンにすると短期のGoogle認証情報を端末のブラウザに保存し、アプリを閉じても期限内は認証画面を出さずに接続します。共有端末ではオフを推奨します。</p>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<label class="field"><span>カレンダーの自動更新間隔</span><select id="calendar-refresh-minutes">${CALENDAR_REFRESH_MINUTES.map(minutes=>`<option value="${minutes}" ${state.calendarRefreshMinutes===minutes?'selected':''}>${minutes===0?'自動更新しない':minutes+'分ごと'}</option>`).join('')}</select><small>画面の表示中、Googleに接続しているときだけ自動取得します。画面に戻ったときや通信復帰時も、更新間隔を過ぎていれば再取得します。入力途中の内容は変更しません。</small></label><label class="field"><span>履歴の取得開始日</span><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div><small>この日以降の履歴を料理マスターに利用します。取得対象は日本時間の日付基準です。</small></label>${button('履歴を再取得','sync','full',busy||!api.connected||!hasSyncedCalendars()?'disabled':'')}<p class="hint" style="margin-top:12px">接続を保持する場合、短期アクセストークンをブラウザに保存します。Googleカレンダーの内容は保存しません。認証の期限切れ時は、共通ステータスバーから再接続できます。</p></section><section class="settings-card card"><h2>他の端末へ設定を引き継ぐ</h2><p>Googleドライブのアプリ専用領域に設定をバックアップします。共有機能も同じDrive認証を利用します。</p><div class="toolbar">${button(drive.connected?'Drive接続済み':'Driveに接続','drive-reconnect','mini')}${button('Driveにバックアップ','drive-save','mini primary')}${button('Driveから復元','drive-load','mini')}</div><p class="hint">分類・カレンダーの割り当て・生成ルール・配色・表示設定・手動登録した料理マスター・献立生成の下書きを共有します。調理実績やGoogleの認証情報は含みません。</p><div class="check-row"><input id="drive-auto" type="checkbox" ${drive.autoEnabled?'checked':''}><label for="drive-auto">Driveの設定を自動同期する（保存・読み込み）</label></div><div class="drive-sync-tools"><span id="drive-sync-state" class="hint" role="status"></span>${button('今すぐ同期','drive-sync-now','mini',drive.autoEnabled?'':'disabled')}</div><p class="hint">この端末で有効にすると、設定変更をDriveへ自動保存し、アプリ起動時・復帰時に他端末の変更を自動取得します。各端末で個別に有効化してください。初回はDriveに既存のバックアップがあればそちらを取り込みます。</p><p class="hint">同時変更で食い違った場合は自動上書きせず、手動で保存・復元を選べます。</p><p class="hint">認証は短時間だけ有効です。期限切れ後はステータスバーから再接続してください。バックグラウンドでは同期しません。手動保存・復元も引き続き利用できます。</p></section><section class="settings-card card"><h2>配色テーマ</h2><p>背景や通常の文字色はそのまま、ボタンなどのアクセントカラーだけ切り替えます。</p><div class="theme-options">${[['暗め',false],['明るめ',true]].map(([label,rich])=>`<div class="theme-tone-row"><span class="theme-tone-label">${label}</span><div class="theme-tone-swatches">${Object.entries(colors).filter(([,c])=>!!c.rich===rich).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.rich?c.dark:c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div></div>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label><h3 style="margin-top:30px">献立の初期候補</h3><div class="check-row"><input id="seed-enabled" type="checkbox" ${state.seedEnabled?'checked':''}><label for="seed-enabled">初期候補の料理を使う</label></div><p>初期候補は実績ではありません。過去の履歴はカレンダーから自動でまとめます。</p>${''}</section><section class="settings-card card"><h2>献立生成ルール</h2>${rulesFields()}</section><section class="settings-card card"><h2>料理の分類</h2><p>分類名を変えても、これまでの料理との対応は維持します。</p>${state.categories.map(c=>`<div class="category-row"><input aria-label="${esc(c.name)}の分類名" data-category-name="${c.id}" value="${esc(c.name)}" maxlength="20">${button('削除','remove-category','mini danger',`data-category="${c.id}" ${c.id==='main'?'disabled':''}`)}</div>`).join('')}${button('＋ 分類を追加','add-category','full')}<h2 style="margin-top:28px">AI拡張</h2><span class="tag neutral">${ai.available?'接続済み':'未設定'}</span><p style="margin-top:12px">献立選定と写真解析の接続基盤を用意しています。キーの保存方針が決まるまでは入力・保存しません。通常の献立管理はAIなしで利用できます。</p><h3>この端末のデータ</h3><p>分類・カレンダーの選択・下書き・表示設定は端末に保存します。認証期限が切れても、分類の設定は保持されます。実績の正本はGoogleカレンダーです。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"><p class="hint" style="margin-top:12px">書き出しには料理履歴を含みません。確定した料理の情報はGoogleカレンダーが正本です。</p></section>${additionalCalendarSettings()}<section class="settings-card card"><h2>家族共有</h2><p>料理マスターと買い物リストは別々のファイルとして共有します。画面が狭い場合もここから共有できます。</p><div class="toolbar">${button('料理マスターを共有','family-dialog','mini','data-kind="master"')}${button('買い物リストを共有','family-dialog','mini','data-kind="shopping"')}${button('献立を共有','family-dialog','mini','data-kind="plan"')}</div><label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">${SHOPPING_SYNC_SECONDS.map(n=>`<option value="${n}"${family.settings.seconds===n?' selected':''}>${n}秒</option>`).join('')}</select><small>買い物タブの表示中は設定間隔で確認し、アプリに戻った際にも同期します。</small></label></section></div></section>`;} 
 function modal(title,body,foot=''){
  const dialog=$('#dialog');
  $('#dialog-content').innerHTML=`<div class="dialog-head"><h2 id="dialog-title" tabindex="-1">${esc(title)}</h2>${button('×','close-dialog','icon-button','aria-label="閉じる"')}</div><div class="dialog-body">${body}<p class="form-error" id="dialog-error" role="alert"></p></div>${foot?`<div class="dialog-foot">${foot}</div>`:''}`;
@@ -2119,7 +2126,7 @@ document.addEventListener('click',e=>{
  }
  if(Date.now()<suppressPresetClickUntil&&e.target.closest?.('.icon-preset-row')){e.preventDefault();return;}
  const tabButton=e.target.closest('[data-tab]');
- if(tabButton){cancelCalendarSwipe();const next=tabButton.dataset.tab;if(next==='master'&&tab!=='master'){openMasterTab();}else{tab=next;render();}notify('');if(tab==='settings')prepareGoogleIdentity();return;}
+ if(tabButton){cancelCalendarSwipe();const next=tabButton.dataset.tab;if(next==='master'&&tab!=='master'){openMasterTab();}else{tab=next;render();}notify('');if(tab==='settings')prepareGoogleIdentity();if(tab==='generate')pollFamily(true);return;}
  const b=e.target.closest('[data-action]');
  if(!b)return;
  // iOS may synthesize a click after touchend even when the grid was swiped.
