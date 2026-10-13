@@ -303,7 +303,8 @@ export class FamilySync{
  stop(type){this.settings[type]=blank();this.persist();}
  async compact(type,{force=false}={}){
   const entry=this.entry(type),now=Date.now();
-  if(!entry.id||!entry.owner||entry.queue.length||this.busy[type]||!this.client.connected)
+  if(!entry.id||!entry.owner||entry.queue.length||this.busy[type]||!this.client.connected||
+     typeof this.client.clearObsoleteJournalValues!=='function')
    return {clearedRanges:0,skipped:true};
   if(!force&&now-(this.lastCompaction[type]||0)<10*60*1000)
    return {clearedRanges:0,skipped:true};
