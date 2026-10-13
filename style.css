@@ -1422,3 +1422,37 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
   font-size:10px;
  }
 }
+
+/* v1.14.27 — menu sharing uses the same shared top row as cooking/shopping. */
+.generation-screen .generation-controls .generation-submit-button{margin-left:0}
+.generation-screen .generation-controls .generation-share-button{
+ display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 58px;width:58px;min-width:58px;
+ height:var(--kondate-top-control-height);
+ min-height:var(--kondate-top-control-height);
+ padding:0 7px;margin-left:auto;
+ font-size:12px;font-weight:650;line-height:1;white-space:nowrap;
+}
+@media(max-width:760px){
+ .generation-screen .generation-controls .generation-share-button{
+  flex:0 0 48px;width:48px;min-width:48px;padding:0 3px;font-size:11px;
+ }
+ .generation-screen .generation-controls #generate-mode{
+  flex:1 1 112px;width:auto;min-width:92px;max-width:132px;
+ }
+ .generation-screen .generation-controls .generation-rule-button{
+  padding:4px 3px;font-size:11px;
+ }
+ .generation-screen .generation-controls{gap:3px;padding:0 4px}
+}
+@media(max-width:350px){
+ .generation-screen .generation-controls .generation-share-button{
+  flex:0 0 44px;width:44px;min-width:44px;padding:0 2px;font-size:10px;
+ }
+ .generation-screen .generation-controls #generate-mode{
+  flex:1 1 98px;width:auto;min-width:90px;max-width:116px;
+ }
+ .generation-screen .generation-controls .generation-rule-button{padding:3px 2px;font-size:10px}
+ .generation-screen .generation-controls .generation-submit-button{min-width:32px;padding:3px 2px}
+ .generation-screen .generation-controls{gap:2px;padding:0 2px}
+}
