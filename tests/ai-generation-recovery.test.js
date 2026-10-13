@@ -108,7 +108,7 @@ test('the app persists only recent proposed names and increases model variety',(
  assert.match(firebase,/temperature:0\.95/);
 });
 
-test('seven-day response is rejected if it merely repeats a prior draft despite many fresh alternatives',async()=>{
+test('seven-day repeated draft is repaired with fresh candidates instead of prompting twice',async()=>{
  const large=Array.from({length:28},(_,i)=>({name:'料理'+i,category:'main',lastDate:'2025-01-01'}));
  const prior=Array.from({length:7},(_,i)=>({dishes:[{name:'料理'+i,category:'main'}]}));
  const repeat=JSON.stringify({days:Array.from({length:7},(_,i)=>({
@@ -116,6 +116,10 @@ test('seven-day response is rejected if it merely repeats a prior draft despite 
  }))});
  const modified={...context,master:large,rules:{...context.rules,preferOld:false},previous:prior};
  const {service,calls}=provider([repeat,repeat]);
- await assert.rejects(new AIService(service).generate(modified),/ほぼ同じ料理/);
- assert.equal(calls.length,2);
+ const plan=await new AIService(service).generate(modified);
+ assert.equal(calls.length,1);
+ assert.equal(plan.length,7);
+ assert.equal(plan[6].dishes[0].isNew,true);
+ assert.ok(plan.slice(0,6).every(day=>!prior.some(old=>old.dishes[0].name===day.dishes[0].name)));
+ assert.ok(plan.warnings.some(message=>message.includes('候補内の別の料理に変更')));
 });
