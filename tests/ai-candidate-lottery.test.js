@@ -49,7 +49,7 @@ test('lottery never removes locked items and does not deplete a limited category
  }
 });
 
-test('quality repair replaces repeated past choices with eligible unused dishes',()=>{
+test('quality repair replaces repeated past choices with eligible unused dishes',async()=>{
  const repeated=menu(dishes.slice(0,7).map(d=>d.name));
  const sampled={...context,selectionSeed:111};
  const plan=parseMenuResponse(JSON.stringify({days:repeated.map(d=>({dishes:d.dishes}))}),sampled);
