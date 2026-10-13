@@ -212,6 +212,52 @@ export function createMenuRequest(context){
  return {prompt,candidates:chosen};
 }
 
+/**
+ * The model can still copy a dish from previousSuggested instead of choosing
+ * an available alternative. Repair that soft violation locally, not by paying
+ * for another identical AI request. Never change fixed dishes or the one
+ * AI-original main; preserve category, count and recently-cooked exclusions.
+ */
+export function repairMenuSelections(plan,context){
+ const rules=context?.rules||{};
+ const candidates=createMenuRequest(context).candidates;
+ const historic=new Set([
+  ...(Array.isArray(context.recentSuggested)?context.recentSuggested:[]),
+  ...(context.previous||[]).flatMap(day=>(day?.dishes||[])
+   .filter(d=>!d.locked&&!d.isNew).map(d=>d.name))
+ ].map(normalize));
+ const isFixed=(dayIndex,d)=>(context.previous?.[dayIndex]?.dishes||[])
+  .some(x=>x.locked&&x.category===d.category&&normalize(x.name)===normalize(d.name));
+ const occupied=new Map();
+ const adjust=(key,delta)=>{const count=(occupied.get(key)||0)+delta;
+  if(count>0)occupied.set(key,count);else occupied.delete(key);
+ };
+ for(const day of plan||[])for(const dish of day.dishes||[])adjust(normalize(dish.name),1);
+ let changed=0;
+ for(const [dayIndex,day] of (plan||[]).entries())for(let index=0;index<day.dishes.length;index++){
+  const dish=day.dishes[index],key=normalize(dish.name);
+  if(dish.isNew||isFixed(dayIndex,dish))continue;
+  if(!historic.has(key)&&(!rules.unique||(occupied.get(key)||0)===1))continue;
+  // Prefer genuinely fresh names; a duplicate can also be replaced with a
+  // different historic name if the current choice violates uniqueness.
+  const eligible=candidates.filter(x=>x.category===dish.category&&
+   !occupied.has(normalize(x.name))&&!historic.has(normalize(x.name)));
+  const alternatives=eligible.length?eligible:
+   rules.unique&&(occupied.get(key)||0)>1?
+    candidates.filter(x=>x.category===dish.category&&!occupied.has(normalize(x.name))):[];
+  if(!alternatives.length)continue;
+  const replacement=alternatives[0];
+  adjust(key,-1);
+  day.dishes[index]={
+   name:replacement.name,category:replacement.category,protein:replacement.protein,
+   method:replacement.method,genre:replacement.genre,locked:false,isNew:false
+  };
+  adjust(normalize(replacement.name),1);
+  changed++;
+ }
+ return changed;
+}
+
 // Reject low-variety results only when there are enough unused candidates to
 // do better. Avoid failing on a genuinely small family recipe catalog.
 export function validateMenuQuality(plan,context){
@@ -264,6 +310,9 @@ export function parseMenuResponse(text,context){
   throw Error(`AIが指定日数と異なる献立を返しました（要求${requested}日・返答${output.days.length}日）。`);
  const {candidates}=createMenuRequest(context);
  const byName=new Map(candidates.map(d=>[normalize(d.name),d]));
+ const fullEligible=Number.isSafeInteger(context.selectionSeed)
+  ?new Map(createMenuRequest({...context,selectionSeed:null}).candidates.map(d=>[normalize(d.name),d]))
+  :byName;
  // Validate novel main dishes against the entire master, not only the 160 sent candidates.
  const allKnown=new Set((context.master||[]).map(d=>normalize(d.name)));
  const previousNewMains=new Set(recentNewMainNames(context).map(normalize));
@@ -279,7 +328,7 @@ export function parseMenuResponse(text,context){
    id:context.previous?.[i]?.id||`day-${i}`,
    dishes:day.dishes.map(d=>{
     const name=typeof d?.name==='string'?d.name.trim():'';
-    const key=normalize(name),matched=byName.get(key);
+    const key=normalize(name),matched=byName.get(key)||fullEligible.get(key);
     if(matched){
      if(matched.category!==d.category||d.new===true)
       throw Error('AIが登録候補の料理名・分類を正しく返しませんでした。');
