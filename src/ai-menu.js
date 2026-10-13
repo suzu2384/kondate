@@ -92,12 +92,38 @@ export function createMenuRequest(context){
    protein:dish.protein||'不明',method:dish.method||'不明',genre:dish.genre||'不明'
   });
  }
+ // Only the choices in the immediately preceding draft are randomly held
+ // back. Older suggestions still influence ranking, but are not all excluded.
+ // A stable per-request seed is vital: parsing, retrying, and validating must
+ // never redraw the candidate pool from which the prompt was made.
+ const lastDraftNames=new Set(previousNonlocked.map(normalize));
+ const fixed=previous.flatMap(day=>(day?.dishes||[]).filter(d=>d.locked));
+ const fixedNames=new Set(fixed.map(d=>normalize(d.name)));
+ const seeded=Number.isSafeInteger(context.selectionSeed)&&context.selectionSeed>=0;
+ const roll=name=>{
+  let hash=context.selectionSeed>>>0;
+  for(const ch of normalize(name))hash=Math.imul(hash^ch.codePointAt(0),16777619)>>>0;
+  return hash/4294967296;
+ };
+ const sampled=Object.fromEntries(Object.entries(counts).map(([cat,perDay])=>{
+  const all=available.filter(d=>d.category===cat),locked=fixed.filter(d=>d.category===cat).length;
+  const need=Math.max(0,days*perDay-locked-(rules.newMain&&cat==='main'?1:0));
+  const minRemaining=Math.min(need,all.filter(d=>!fixedNames.has(normalize(d.name))).length);
+  let remaining=all.filter(d=>!fixedNames.has(normalize(d.name))).length;
+  const pool=all.filter(d=>{
+   const key=normalize(d.name);
+   if(!seeded||fixedNames.has(key)||!lastDraftNames.has(key)||roll(key)>=.7||
+      remaining<=minRemaining)return true;
+   remaining--;return false;
+  });
+  return [cat,pool];
+ }));
  // Divide the limited candidate capacity proportionally across categories.
  // Rank all eligible recipes using the age setting, previous suggestions and
  // protein/method/genre variety rather than trusting the calendar sort order.
  const chosen=[];
  const usage={protein:new Map(),method:new Map(),genre:new Map()};
- const categoryPools=Object.fromEntries(Object.keys(counts).map(k=>[k,available.filter(d=>d.category===k)]));
+ const categoryPools=sampled;
  const age=d=>!d.lastDate?3650:Math.max(0,Math.round(
   (Date.parse(reference)-Date.parse(d.lastDate))/86400000));
  const score=d=>{
@@ -168,7 +194,7 @@ export function createMenuRequest(context){
   '既存料理はcandidates内のnameとcategoryだけをそのまま使用。lockedは指定した日から動かさない。',
   'excludeRecent=trueのとき直近recentDays日以内の料理は候補から除外済み。選ばない。',
   'preferOld=trueならoldDays日以上作っていない料理・未調理料理を優先。',
-  '以前の提案履歴recentSuggestedと直前のpreviousSuggestedは調理実績ではない。選択肢がある限り再利用せず、前回から献立全体を大きく変える。',
+  '以前の提案履歴recentSuggestedと直前のpreviousSuggestedは調理実績ではない。candidatesから外した料理は選ばず、候補内に選択肢がある限り再利用を抑え、前回から献立全体を大きく変える。',
   'balance=trueなら、同じ主食材・調理法・ジャンルを連続させず、7日間を通して偏らないように組み合わせる。',
   'unique=trueなら同じ料理名を繰り返さない。',
   ...(rules.newMain?[
