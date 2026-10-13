@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {DriveSettingsClient} from '../src/drive.js';
+import {DriveSettingsClient,DRIVE_UNIFIED_SCOPES} from '../src/drive.js';
 const reply=obj=>new Response(JSON.stringify(obj),{status:200,headers:{'Content-Type':'application/json'}});
 function storage(map){return {getItem:key=>map.get(key)||null,setItem:(key,v)=>map.set(key,String(v)),removeItem:key=>map.delete(key)};}
 test('Drive auto sync is independently opt-in on each device and restores a valid token',()=>{
  const old=globalThis.localStorage;
  const map=new Map();globalThis.localStorage=storage(map);
  try{
-  const deviceA=new DriveSettingsClient();deviceA.clientId='test-id';deviceA.token='drive-access-token';deviceA.expires=Date.now()+150000;
+  const deviceA=new DriveSettingsClient();deviceA.clientId='test-id';deviceA.token='drive-access-token';deviceA.expires=Date.now()+150000;deviceA.scopes=DRIVE_UNIFIED_SCOPES;
   assert.equal(deviceA.autoEnabled,false);
   deviceA.enableAuto();
   assert.equal(deviceA.autoEnabled,true);
@@ -72,4 +72,20 @@ test('saveChecked trusts the upload version instead of a stale file-list result'
  assert.equal(await client.saveChecked({settings:{theme:'green'}},'12'),'13');
  assert.equal(lists,1,'no metadata fetch after an authoritative PATCH response');
  assert.equal(uploads,1);
+});
+
+test('legacy settings-only Drive token cannot be restored for family sharing',()=>{
+ const old=globalThis.localStorage,map=new Map();globalThis.localStorage=storage(map);
+ try{
+  const validUntil=Date.now()+120000;
+  map.set('kondate.drive-autosync.v1','1');
+  map.set('kondate.drive-autosync-token.v1',JSON.stringify({
+   clientId:'test-id',token:'legacy-drive-token',expires:validUntil
+  }));
+  const client=new DriveSettingsClient();
+  assert.equal(client.restoreAuto('test-id'),false);
+  assert.equal(client.connected,false);
+  assert.equal(client.autoEnabled,true,'the opt-in preference remains after an auth upgrade');
+  assert.equal(map.has('kondate.drive-autosync-token.v1'),false);
+ }finally{if(old===undefined)delete globalThis.localStorage;else globalThis.localStorage=old;}
 });
