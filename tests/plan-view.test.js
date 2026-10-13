@@ -6,12 +6,12 @@ const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 const match=source.match(/function generateScreen\(\)\{([\s\S]*?)\n\}\nfunction buyMasterDish\(/);
 assert.ok(match,'generator screen template is available');
-const view=new Function('state','ai','issues','button','esc','categoryName','empty','aiGenerating','MAX_GENERATION_DAYS',match[1]);
+const view=new Function('state','ai','issues','button','esc','categoryName','empty','aiGenerating','MAX_GENERATION_DAYS','drive',match[1]);
 const button=(text,action,cls='',attrs='')=>'<button class="'+cls+'" data-action="'+action+'" '+attrs+'>'+text+'</button>';
 const escape=v=>String(v);
 function screen(days,mode='rules',generating=false,problems=[]){
  const state={rules:{days:days.length},menuGenerationMode:mode,draft:days.map(dishes=>({dishes}))};
- return view(state,{available:mode==='ai'},problems,button,escape,c=>({main:'主菜',side:'副菜'}[c]||c),()=>'<div>empty</div>',generating,MAX_GENERATION_DAYS);
+ return view(state,{available:mode==='ai'},problems,button,escape,c=>({main:'主菜',side:'副菜'}[c]||c),()=>'<div>empty</div>',generating,MAX_GENERATION_DAYS,{connected:true});
 }
 test('one Main dish per day generates exactly seven compact rows',()=>{
  const html=screen(Array.from({length:7},(_,i)=>[{category:'main',name:'料理'+i,locked:i===0}]));
