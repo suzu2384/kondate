@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {CalendarClient,SCOPES} from '../src/google.js';
-import {DriveSettingsClient,DRIVE_SCOPE} from '../src/drive.js';
+import {DriveSettingsClient,DRIVE_UNIFIED_SCOPES} from '../src/drive.js';
 import {expiredGoogleServices,expiredGoogleScopes,renewExpiredGoogleServices} from '../src/google-reauth.js';
 const clientId='test.apps.googleusercontent.com';
 function clients(){
@@ -22,7 +22,7 @@ test('expired services scope detection never prompts Drive if not previously aut
  assert.deepEqual(expiredGoogleScopes(expiredGoogleServices(c,d)),SCOPES.split(' '));
  d.token='previous-drive-token';d.expires=0;
  assert.deepEqual(expiredGoogleServices(c,d),{calendar:true,drive:true});
- assert.deepEqual(expiredGoogleScopes(expiredGoogleServices(c,d)),[...SCOPES.split(' '),DRIVE_SCOPE]);
+ assert.deepEqual(expiredGoogleScopes(expiredGoogleServices(c,d)),[...SCOPES.split(' '),...DRIVE_UNIFIED_SCOPES.split(' ')]);
 });
 test('Drive auto-sync expiry is recognized without an in-memory token',()=>{
  const prev=globalThis.localStorage;
@@ -65,7 +65,7 @@ test('only Drive expired: request only appdata, keep valid Calendar token',async
   assert.deepEqual(await renewExpiredGoogleServices(c,d,clientId),{calendar:false,drive:true});
   assert.equal(c.token,'calendar-token');
   assert.equal(d.token,'refreshed-token');
-  assert.equal(calls[0].scopes,DRIVE_SCOPE);
+  assert.equal(calls[0].scopes,DRIVE_UNIFIED_SCOPES);
   assert.equal(calls.length,1);
  });
 });
@@ -77,7 +77,7 @@ test('both expired: one OAuth popup covers both scopes and shares token',async()
   assert.deepEqual(await completed,{calendar:true,drive:true});
   assert.equal(c.token,'refreshed-token');assert.equal(d.token,'refreshed-token');
   assert.equal(c.needsReauth,false);
-  assert.deepEqual(calls[0].scopes.split(' '),[...SCOPES.split(' '),DRIVE_SCOPE]);
+  assert.deepEqual(calls[0].scopes.split(' '),[...SCOPES.split(' '),...DRIVE_UNIFIED_SCOPES.split(' ')]);
   assert.equal(calls.length,1);
  });
 });
