@@ -171,7 +171,7 @@ function extraEvents(){
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
 const editedFamilyDishes=new Set();
 function familyInitialOwnerSnapshot(type){
- if(type==='plan')return planSharedSnapshot(state.draft);
+ if(type==='plan')return planSharedSnapshot(state.draft,state.categories);
  if(type==='shopping'){
   const items=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
   return shoppingSharedSnapshot(state.shopping,items.items);
@@ -179,7 +179,7 @@ function familyInitialOwnerSnapshot(type){
  return masterSharedSnapshot(master().map(d=>({...d,categoryName:categoryName(d.category)})));
 }
 function familySnapshot(type){
- if(type==='plan')return planSharedSnapshot(state.draft);
+ if(type==='plan')return planSharedSnapshot(state.draft,state.categories);
  if(type==='shopping'){
   const current=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
   const entry=family.entry('shopping');
@@ -225,6 +225,11 @@ async function applyFamily(type,ops,{initial=false}={}){
   if(type==='shopping')state.shopping=applyShoppingEvents(state.shopping,ops,initial);
   else if(type==='plan'){
    state.draft=applyPlanEvents(state.draft,ops,initial);
+   for(const dish of state.draft.flatMap(day=>day.dishes)){
+    if(!state.categories.some(category=>category.id===dish.category))
+     state.categories.push({id:dish.category,name:dish.categoryName||dish.category});
+    if(!Object.hasOwn(state.rules.counts,dish.category))state.rules.counts[dish.category]=0;
+   }
    if(state.draft.length)state.rules.days=normalizeGenerationDays(state.draft.length);
    issues=validatePlan(state.draft,state.rules,master());
   }else{
