@@ -7,7 +7,7 @@ const MEAL_PREFIX=/^((?:【|\[)?(?:献立|晩御飯|晩ご飯|夕食|夕飯|昼�
  * 「サバの味噌煮」 must not rewrite unrelated calendar notes or titles.
  */
 function renameTokens(value,aliases,targetKeys,{mealPrefix=false}={}){
- const pieces=String(value||'').split(/([、,\n／/])/);
+ const pieces=String(value||'').split(/([、,\n／\/])/);
  return pieces.map((part,index)=>{
   if(index%2)return part;
   const leading=part.match(/^\s*/)?.[0]||'';
