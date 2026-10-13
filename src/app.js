@@ -187,15 +187,17 @@ function familySnapshot(type){
   // even if this device has different local recipe metadata.
   const isRecipient=!!entry.id&&!entry.owner;
   const remoteOnly=isRecipient&&!family.entry('master').id;
-  const remoteAuto=isRecipient?Object.entries(entry.shadow).filter(([key,item])=>
-   key.startsWith('ingredient:')&&item?.kind==='auto'&&item.id&&item.name&&item.baseUnit):[];
+  const remoteEntries=isRecipient?Object.entries(entry.shadow).filter(([key])=>
+   key.startsWith('ingredient:')):[];
+  const remoteAuto=remoteEntries.filter(([,item])=>
+   item?.kind==='auto'&&item.id&&item.name&&item.baseUnit);
   const manual=current.items.filter(item=>item.kind==='manual');
   const sourceItems=remoteOnly?manual:current.items;
   const activeItems=isRecipient?[...manual,...remoteAuto.map(([,item])=>item)]:current.items;
   const snapshot=shoppingSharedSnapshot(state.shopping,sourceItems,{pruneStale:true,activeItems});
   // Joining the checklist alone must never erase its source ingredient data
   // when this device does not have the corresponding recipe master.
-  if(remoteOnly)for(const [key,value] of remoteAuto)snapshot[key]=value;
+  if(remoteOnly)for(const [key,value] of remoteEntries)snapshot[key]=value;
   return snapshot;
  }
  const entry=family.entry('master');
