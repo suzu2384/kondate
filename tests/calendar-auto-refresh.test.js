@@ -37,7 +37,8 @@ test('UI, event handlers, Drive persistence and service worker are wired',()=>{
  assert.match(app,/window\.addEventListener\('focus',[^\n]*autoRefreshCalendar/);
  assert.match(app,/visibilitychange/);
  assert.match(app,/setInterval\([^\n]*autoRefreshCalendar/);
- assert.match(app,/if\(!automatic\|\|changed\)render\(\)/);
+ assert.match(app,/if\(!automatic\|\|changed\|\|renameResult\.renamed\)render\(\)/);
+ assert.match(app,/renameResult=await applyPendingCalendarRenames\(batches,failed\)/);
  assert.match(app,/fetchCalendarUpdates\(ids/);
  assert.match(app,/\.\.\.state\.extraCalendarIds/);
  assert.doesNotMatch(app,/automatic&&\(presetFlushing\|\|presetQueue\.size\)/);
