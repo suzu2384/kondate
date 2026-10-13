@@ -43,6 +43,39 @@ export function diffSnapshots(old={},now={},kind,idFactory=()=>crypto.randomUUID
   .filter(k=>!equals(old[k],now[k]))
   .map(key=>({id:idFactory(),at:Date.now(),kind,key,value:Object.hasOwn(now,key)?clone(now[key]):null}));
 }
+/**
+ * Identify older JSON values that are superseded by a later operation for
+ * the same key. We clear column B only: column A remains populated, keeping
+ * Sheets' logical append table and every existing cursor row stable.
+ * Tombstones (null values) are retained if they are the latest per key, so
+ * clients returning after a long offline period still receive deletions.
+ *
+ * If a duplicated operation ID is seen, fail closed. Old retry echoes can
+ * appear after newer values, and their logical order is not the row order.
+ */
+export function obsoleteSharedJournalRanges(rows,type){
+ if(rows[0]?.[0]!==MARKER||rows[0]?.[1]!==type)
+  throw Error('共有ファイルの形式が変更されています。整理を中止しました。');
+ const latest=new Map(),operations=[],seen=new Set();
+ for(let i=1;i<rows.length;i++){
+  const row=rows[i];
+  if(!row?.[1])continue;
+  const op=validateSharedOp(JSON.parse(row[1]),type);
+  if(seen.has(op.id))return [];
+  seen.add(op.id);
+  latest.set(op.key,i);
+  operations.push({index:i,key:op.key});
+ }
+ const obsolete=operations.filter(({index,key})=>latest.get(key)!==index).map(({index})=>index+1);
+ const ranges=[];
+ for(const line of obsolete){
+  const last=ranges.at(-1);
+  if(last&&line===last.end+1)last.end=line;
+  else ranges.push({start:line,end:line});
+ }
+ return ranges.map(({start,end})=>'Ops!B'+start+':B'+end);
+}
+
 export function replayOps(before={},ops=[]){
  const result={...before},seen=new Set();
  for(const op of ops){if(seen.has(op.id))continue;seen.add(op.id);
@@ -197,6 +230,16 @@ export class FamilyDriveClient{
    ':append?valueInputOption=RAW&insertDataOption=INSERT_ROWS',{
    method:'POST',body:{majorDimension:'ROWS',values:rows}});
  }
+ async clearObsoleteJournalValues(id,ranges){
+  if(!validId(id)||!Array.isArray(ranges)||!ranges.length||
+     ranges.length>300||!ranges.every(range=>/^Ops!B[2-9][0-9]*:B[2-9][0-9]*$/.test(range)))
+   throw Error('共有履歴の整理範囲が不正です。');
+  // Only the obsolete JSON payload in column B is erased. Operation IDs in
+  // column A preserve the append table and existing row-based cursors.
+  return this.sheets('/spreadsheets/'+encodeURIComponent(id)+'/values:batchClear',{
+   method:'POST',body:{ranges}
+  });
+ }
  async readRows(id,start=1){
   if(!validId(id)||!Number.isInteger(start)||start<1)throw Error('共有ファイルのIDが不正です。');
   const r=await this.sheets('/spreadsheets/'+encodeURIComponent(id)+'/values/'+encodeURIComponent('Ops!A'+start+':B')+'?valueRenderOption=UNFORMATTED_VALUE');
@@ -218,7 +261,7 @@ export function readFamilySettings(storage=globalThis.localStorage){
  return r;
 }
 export class FamilySync{
- constructor(client,storage=globalThis.localStorage){this.client=client;this.storage=storage;this.settings=readFamilySettings(storage);this.busy={master:false,shopping:false,plan:false};}
+ constructor(client,storage=globalThis.localStorage){this.client=client;this.storage=storage;this.settings=readFamilySettings(storage);this.busy={master:false,shopping:false,plan:false};this.lastCompaction={};}
  persist(){this.storage?.setItem(STORAGE,JSON.stringify(this.settings));}
  entry(type){if(!SHARED_KINDS.includes(type))throw Error('共有対象が不正です。');return this.settings[type];}
  observe(type,current){
@@ -258,6 +301,22 @@ export class FamilySync{
   this.persist();return id;
  }
  stop(type){this.settings[type]=blank();this.persist();}
+ async compact(type,{force=false}={}){
+  const entry=this.entry(type),now=Date.now();
+  if(!entry.id||!entry.owner||entry.queue.length||this.busy[type]||!this.client.connected)
+   return {clearedRanges:0,skipped:true};
+  if(!force&&now-(this.lastCompaction[type]||0)<10*60*1000)
+   return {clearedRanges:0,skipped:true};
+  this.lastCompaction[type]=now;
+  const id=entry.id;
+  const rows=await this.client.readRows(id,1);
+  // Never clean the journal after a share was switched while reading.
+  if(this.entry(type).id!==id||this.entry(type).queue.length)return {clearedRanges:0,skipped:true};
+  const ranges=obsoleteSharedJournalRanges(rows,type);
+  for(let index=0;index<ranges.length;index+=100)
+   await this.client.clearObsoleteJournalValues(id,ranges.slice(index,index+100));
+  return {clearedRanges:ranges.length,skipped:false};
+ }
  async sync(type,apply){
   const d=this.entry(type);
   if(!d.id||this.busy[type]||!this.client.connected)return {changed:false,conflicts:[],pending:d.queue.length,busy:this.busy[type]};
