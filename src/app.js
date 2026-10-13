@@ -1202,7 +1202,7 @@ function editMaster(key=null,{buy=false,fallback=null}={}){
    <p class="hint">数量は1/2や0.5でも入力できます。大さじ・小さじ・kg・Lは保存時に計算用の量へ変換します。材料は保存前に修正できます。${ai.available?'AI生成は推定値です。保存前に内容を確認してください。':'AIでの生成はAI接続が有効な場合に利用できます。'}</p>
   </section>
   ${d.dates.length?`<details><summary>過去の調理日（${d.count}回）</summary><p class="hint">${d.dates.join(' / ')}</p></details>`:''}
-  <p class="hint">同じ名前へ変更すると、調理履歴を統合して表示します。</p>${buy?'<p class="hint">材料を1件以上保存すると買い物リストへ追加します。空欄のまま保存した場合は追加されません。</p>':''}`, 
+  <p class="hint">料理名を変更して保存すると、調理履歴を統合し、Googleカレンダーの予定名も自動的に統一します。</p>${buy?'<p class="hint">材料を1件以上保存すると買い物リストへ追加します。空欄のまま保存した場合は追加されません。</p>':''}`, 
   button('キャンセル','close-dialog')+button(buy?'確定':'保存','save-master','primary'));
 }
 async function saveMaster(){
