@@ -17,16 +17,20 @@ export function masterSharedSnapshot(rows=[]){
  }
  return out;
 }
-export function shoppingSharedSnapshot(input={},computed=[]){
+export function shoppingSharedSnapshot(input={},computed=[],{pruneStale=false}={}){
  const s=shoppingSettings(input),out={servings:s.servings};
+ // Purchase/exclusion flags for removed items must not outlive the list.
+ // Joining a shopping-only share may supply the active auto items from the
+ // shared sheet rather than from the recipient's private recipe catalogue.
+ const liveIds=new Set([...computed.map(i=>i.id),...s.manual.map(i=>'manual:'+i.id)]);
  for(const i of computed.filter(i=>i.kind==='auto')){
   out['ingredient:'+i.id]={id:i.id,kind:'auto',name:i.name,
    baseUnit:i.baseUnit,baseQuantity:i.baseQuantity,sourceNames:i.sourceNames||[]};
  }
  for(const name of s.selected)out['selected:'+normalize(name)]=name;
  for(const i of s.manual)out['manual:'+i.id]={...i};
- for(const [id,value] of Object.entries(s.checked))out['checked:'+id]=value;
- for(const [id,value] of Object.entries(s.excluded))if(value)out['excluded:'+id]=true;
+ for(const [id,value] of Object.entries(s.checked))if(!pruneStale||liveIds.has(id))out['checked:'+id]=value;
+ for(const [id,value] of Object.entries(s.excluded))if(value&&(!pruneStale||liveIds.has(id)))out['excluded:'+id]=true;
  return out;
 }
 export function applyShoppingEvents(input={},ops=[],reset=false){
