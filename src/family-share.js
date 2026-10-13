@@ -232,7 +232,7 @@ export class FamilyDriveClient{
  }
  async clearObsoleteJournalValues(id,ranges){
   if(!validId(id)||!Array.isArray(ranges)||!ranges.length||
-     ranges.length>300||!ranges.every(range=>/^Ops!B[2-9][0-9]*:B[2-9][0-9]*$/.test(range)))
+     ranges.length>300||!ranges.every(range=>/^Ops!B(?:[2-9]|[1-9][0-9]+):B(?:[2-9]|[1-9][0-9]+)$/.test(range)))
    throw Error('共有履歴の整理範囲が不正です。');
   // Only the obsolete JSON payload in column B is erased. Operation IDs in
   // column A preserve the append table and existing row-based cursors.
