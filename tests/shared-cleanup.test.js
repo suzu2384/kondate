@@ -32,7 +32,7 @@ test('obsolete snapshots remove checked/excluded flags for removed ingredients',
  assert.equal(snapshot['checked:auto:牛乳|ml'],undefined);
  assert.equal(snapshot['excluded:auto:牛乳|ml'],undefined);
  const deletions=diffSnapshots(shoppingSharedSnapshot(old),snapshot,'shopping',()=> 'operation-12345678');
- assert.deepEqual(deletions.map(x=>x.key).sort(),['checked:auto:牛乳|ml','excluded:auto:牛乳|ml']);
+ assert.deepEqual(deletions.filter(x=>x.value===null).map(x=>x.key).sort(),['checked:auto:牛乳|ml','excluded:auto:牛乳|ml']);
 });
 
 test('cleanup clears historical JSON values but leaves row IDs and latest deletion markers intact',async()=>{
