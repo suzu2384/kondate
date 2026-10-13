@@ -78,6 +78,7 @@ test('Google authentication paths and family UI all use hints',()=>{
  assert.match(drive,/login_hint:preferredGoogleAccount\(clientId,'drive'\)/);
  assert.match(renewal,/login_hint:preferredGoogleAccount\(clientId,refresh.calendar\?'calendar':'drive'\)/);
  assert.match(app,/rememberCalendarAccount\(GOOGLE_CLIENT_ID,found\)/);
- assert.match(app,/familyClient.chooseAccountAgain\(GOOGLE_CLIENT_ID\)/);
+ assert.match(app,/new FamilyDriveClient\(undefined,drive\)/);
+ assert.doesNotMatch(app,/familyClient\.chooseAccountAgain\(/);
  assert.match(sw,/src\/account-hint.js/);
 });
