@@ -134,7 +134,7 @@ test('shopping share includes computed auto ingredients, even if the recipient h
  const app=file('src/app.js');
  assert.match(app,/const sharedRows=auto\.map/);
  assert.match(app,/checked:state\.shopping\.checked\[i\.id\]===signature/);
- assert.match(app,/if\(entry\.id&&!entry\.owner&&!family\.entry\('master'\)\.id\)/);
+ assert.match(app,/const remoteOnly=isRecipient&&!family\.entry\('master'\)\.id/);
 });
 
 test('family sharing buttons remain visible in both tab toolbars on phones',()=>{
