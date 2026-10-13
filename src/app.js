@@ -2,6 +2,7 @@ import {MAX_GENERATION_DAYS,normalizeGenerationDays,today,localDate,addDays,uid,
 import {readState,saveState,storedState,calendarKey} from './storage.js';
 import {generate,reroll,validatePlan} from './generator.js';
 import {CalendarClient,calendarCreatePayload} from './google.js';
+import {calendarDishRename} from './recipe-rename.js';
 import {CALENDAR_REFRESH_MINUTES,normalizeCalendarRefreshMinutes,isCalendarRefreshDue,calendarEventsChanged,fetchCalendarUpdates} from './calendar-auto-refresh.js';
 import {GOOGLE_CLIENT_ID} from './config.js';
 import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,sharedSpreadsheetId,sharedSpreadsheetUrl} from './family-share.js';
@@ -32,8 +33,11 @@ import {DEFAULT_SHOPPING_SERVINGS,MAX_SHOPPING_SERVINGS,shoppingSettings,shoppin
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme,normalizeThemeColor,isSupportedThemeColor} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
-const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],recentNewMains:[],recentSuggested:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,...loaded};
+const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],recentNewMains:[],recentSuggested:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,pendingCalendarRenames:[],...loaded};
 state.rules={...defaultRules,...loaded.rules,counts:{...defaultRules.counts,...loaded.rules?.counts}};
+state.pendingCalendarRenames=(Array.isArray(loaded.pendingCalendarRenames)?loaded.pendingCalendarRenames:[]).filter(item=>
+ item&&typeof item.from==='string'&&item.from.length>0&&item.from.length<=100&&
+ typeof item.to==='string'&&item.to.length>0&&item.to.length<=100).slice(-100);
 state.rules.days=normalizeGenerationDays(state.rules.days);
 state.theme.color=normalizeThemeColor(state.theme.color);
 state.shopping=shoppingSettings(state.shopping);
@@ -1201,13 +1205,26 @@ function editMaster(key=null,{buy=false,fallback=null}={}){
   <p class="hint">同じ名前へ変更すると、調理履歴を統合して表示します。</p>${buy?'<p class="hint">材料を1件以上保存すると買い物リストへ追加します。空欄のまま保存した場合は追加されません。</p>':''}`, 
   button('キャンセル','close-dialog')+button(buy?'確定':'保存','save-master','primary'));
 }
-function saveMaster(){
+async function saveMaster(){
  const dish=validateDishes([{name:$('#master-name').value,category:$('#master-category').value,protein:$('#master-protein').value,method:$('#master-method').value,genre:$('#master-genre').value}])[0];
  const ingredients=validateIngredients(readIngredientRows());
  const key=normalize(dish.name);
- if(editingMaster&&editingMaster!==key){
-  if(resolveName(dish.name,data().aliases)&&normalize(resolveName(dish.name,data().aliases))===editingMaster)throw Error('この名前は元の料理へ統一済みです。別の名前を指定してください。');
+ const previousName=editingMaster?master().find(d=>d.key===editingMaster)?.name:null;
+ const renamed=!!previousName&&previousName!==dish.name;
+ if(renamed){
+  if(editingMaster!==key&&normalize(resolveName(dish.name,data().aliases))===editingMaster)
+   throw Error('この名前は元の料理へ統一済みです。別の名前を指定してください。');
+  // Persist the rename immediately. Calendar writes are queued across reloads.
   data().aliases[editingMaster]=dish.name;
+  state.pendingCalendarRenames.push({from:previousName,to:dish.name});
+  state.pendingCalendarRenames=state.pendingCalendarRenames.slice(-100);
+  for(const day of state.draft)for(const entry of day.dishes){
+   if(normalize(resolveName(entry.name,data().aliases))===key)entry.name=dish.name;
+  }
+  state.shopping.selected=[...new Map(state.shopping.selected.map(name=>{
+   const actual=normalize(resolveName(name,data().aliases))===key?dish.name:name;
+   return [normalize(actual),actual];
+  })).values()];
  }
  const old=data().metadata[editingMaster]||{},previous=data().metadata[key]||{};
  data().metadata[key]={...old,...previous,category:dish.category,protein:dish.protein,method:dish.method,genre:dish.genre,ingredients};
@@ -1217,7 +1234,23 @@ function saveMaster(){
  if(!ingredients.length)state.shopping.selected=state.shopping.selected.filter(name=>normalize(resolveName(name,data().aliases))!==key);
  if(family.entry('master').id){editedFamilyDishes.add('dish:'+key);if(editingMaster)editedFamilyDishes.add('dish:'+editingMaster);}
  pendingMasterBuy=false;
- persist();closeModal();render();notify(buy?(ingredients.length?'材料を保存し、買い物リストに料理を追加しました。':'材料がないため料理だけを保存し、買い物リストには追加していません。'):'料理マスターを更新しました。');
+ persist();closeModal();render();
+ if(!renamed){
+  notify(buy?(ingredients.length?'材料を保存し、買い物リストに料理を追加しました。':'材料がないため料理だけを保存し、買い物リストには追加していません。'):'料理マスターを更新しました。');
+  return;
+ }
+ if(!api.connected||!hasSyncedCalendars()||busy){
+  notify({summary:'料理名を統一しました。Googleカレンダーの更新は次の接続・同期で自動実行します。',severity:'warning'});
+  return;
+ }
+ try{
+  const outcome=await sync();
+  if(state.pendingCalendarRenames.length)
+   notify({summary:'料理名を統一しましたが、一部のGoogleカレンダー更新が未完了です。次回の同期で自動再試行します。',severity:'warning'});
+  else notify('料理名を統一し、Googleカレンダーの'+(outcome?.renamed||0)+'件の予定を更新しました。');
+ }catch(error){
+  notify({summary:'料理名は統一しました。Googleカレンダーの更新は次回の同期で再試行します：'+error.message,severity:'warning'});
+ }
 }
 async function generateMasterIngredients(){
  const list=$('#master-ingredients'),name=$('#master-name')?.value.trim();
