@@ -24,7 +24,7 @@ const ctx={
  state:{draft,shopping:{selected:[]},categories:[{id:'main',name:'主菜'},{id:'soup',name:'汁物'},{id:'side',name:'副菜'}]},
  hasPlannedDishes,masterFilterItems,master:()=>cooked,data:()=>({aliases:{}}),normalize,resolveName,
  esc,button,categoryName:id=>({main:'主菜',soup:'汁物',side:'副菜'})[id],recipeSearchUrl,
- masterFilter:'plan',masterQuery:'',tab:'calendar',render:()=>{},
+ drive:{connected:true},masterFilter:'plan',masterQuery:'',tab:'calendar',render:()=>{},
  initialMasterFilter,
 };
 const source=app.slice(app.indexOf('function masterItems()'),app.indexOf('let editingMaster=null'));
