@@ -82,24 +82,34 @@ export function describeSharedApiFailure(status,payload,host,path,method='GET'){
 }
 
 export class FamilyDriveClient{
- constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';this.forceConsent=false;this.forceAccountChoice=false;this.scopes=SHARE_SCOPE;}
- get connected(){return !!this.token&&Date.now()<this.expires;}
+ constructor(fetcher=(...args)=>globalThis.fetch(...args),driveAuth=null){this.fetcher=fetcher;this.driveAuth=driveAuth;this.token='';this.expires=0;this.clientId='';this.forceConsent=false;this.forceAccountChoice=false;this.scopes=SHARE_SCOPE;}
+ get token(){return this.driveAuth?this.driveAuth.token:this._token;}
+ set token(value){this._token=value;}
+ get connected(){return this.driveAuth?this.driveAuth.connected:!!this.token&&Date.now()<this.expires;}
  invalidateAccess({consent=false}={}){
+  if(this.driveAuth){this.driveAuth.forgetToken();return;}
   this.token='';this.expires=0;this.scopes=SHARE_SCOPE;this.forceConsent=consent;
   try{sessionStorage.removeItem(TOKEN_STORAGE);}catch{}
  }
 
  restore(clientId){
+  if(this.driveAuth)return this.driveAuth.connected;
   let s;try{s=JSON.parse(sessionStorage.getItem(TOKEN_STORAGE)||'null');}catch{}
   if(!s||s.clientId!==clientId||!s.token||s.expires<=Date.now())return false;
   Object.assign(this,{token:s.token,expires:s.expires,clientId,scopes:s.scopes===SHARE_JOIN_SCOPE?SHARE_JOIN_SCOPE:SHARE_SCOPE});return true;
  }
  chooseAccountAgain(clientId){
+  if(this.driveAuth){this.driveAuth.forgetToken();return;}
   forgetGoogleAccount(clientId,'share');
   this.invalidateAccess();
   this.forceAccountChoice=true;
  }
  authorize(clientId,{join=false}={}){
+  if(this.driveAuth){
+   if(!this.driveAuth.connected||this.driveAuth.clientId!==clientId)
+    return Promise.reject(Error('設定画面でGoogle Driveの認証を行ってください。'));
+   return Promise.resolve();
+  }
   const requested=join?SHARE_JOIN_SCOPE:SHARE_SCOPE;
   if(this.connected&&this.clientId===clientId&&!this.forceAccountChoice&&
      (!join||this.scopes===SHARE_JOIN_SCOPE))return Promise.resolve();
@@ -122,7 +132,7 @@ export class FamilyDriveClient{
   });
  }
  async request(host,path,{method='GET',body}={}){
-  if(!this.connected)throw Error('共有用Google認証の有効期限が切れました。共有ボタンから再認証してください。');
+  if(!this.connected)throw Error('Google Driveの認証が切れました。設定画面から再接続してください。');
   let r;try{r=await this.fetcher(host+path,{method,headers:{Authorization:'Bearer '+this.token,
    ...(body!==undefined?{'Content-Type':'application/json'}:{})},
    body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(25000)});}
