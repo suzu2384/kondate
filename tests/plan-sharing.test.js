@@ -29,6 +29,9 @@ test('a menu-only snapshot preserves order and locks, never exposing personal ca
  for(const privateField of ['lastDate','location','secretToken','2026-10-01','count'])
   assert.equal(JSON.stringify(saved).includes(privateField),false,privateField);
  assert.equal(ownedShareQuery('plan').includes('共有献立'),true);
+ const categorized=planSharedSnapshot(sample,[{id:'main',name:'主菜'}]);
+ assert.equal(categorized['day:0'].dishes[0].categoryName,'主菜');
+ assert.equal(applyPlanEvents([],diffSnapshots({},categorized,'plan',()=> 'cat-plan-123456'),true)[0].dishes[0].categoryName,'主菜');
 });
 
 test('joining a shared meal plan replaces the local draft and preserves dish flags',()=>{
@@ -96,7 +99,7 @@ test('meal tab has share action and Sheets sync without requiring Calendar permi
  const app=file('src/app.js'),css=file('style.css');
  assert.match(app,/button\('共有','family-dialog','family-share-button mini generation-share-button','data-kind="plan"'/);
  assert.match(app,/button\('献立を共有','family-dialog','mini','data-kind="plan"'/);
- assert.match(app,/planSharedSnapshot\(state\.draft\)/);
+ assert.match(app,/planSharedSnapshot\(state\.draft,state\.categories\)/);
  assert.match(app,/applyPlanEvents\(state\.draft,ops,initial\)/);
  assert.match(app,/type==='plan'&&tab==='generate'/);
  assert.match(css,/\.generation-screen \.generation-controls \.generation-share-button/);
