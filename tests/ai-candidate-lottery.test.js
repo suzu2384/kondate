@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createMenuRequest,parseMenuResponse,repairMenuSelections,validateMenuQuality} from '../src/ai-menu.js';
@@ -33,6 +34,17 @@ test('same seed always creates the same AI pool, while changing seed rotates lot
  }
  assert.ok(new Set(pools).size>1,'Fresh generations can contain different previous dishes');
  assert.ok(pools.some(v=>v.split(',').filter(Boolean).length<7),'Prior choices are held back individually');
+});
+
+test('previous dish exclusion odds decay to zero for the final eligible dish',()=>{
+ const text=readFileSync(new URL('../src/ai-menu.js',import.meta.url),'utf8');
+ assert.match(text,/previousCount<=1\?0:0\.7\*\(1-draw\/\(previousCount-1\)\)/);
+ assert.match(text,/draw\+\+;/);
+ const probabilities=n=>Array.from({length:n},(_,i)=>n===1?0:0.7*(1-i/(n-1)));
+ assert.deepEqual(probabilities(1),[0]);
+ assert.equal(probabilities(7)[0],0.7);
+ assert.equal(probabilities(7)[6],0);
+ assert.ok(probabilities(7).every((p,i,a)=>i===0||p<=a[i-1]));
 });
 
 test('lottery never removes locked items and does not deplete a limited category',()=>{
