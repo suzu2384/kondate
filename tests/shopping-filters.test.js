@@ -18,7 +18,7 @@ const sample={
 };
 sample.items=[...sample.pending,...sample.bought,...sample.excluded];
 function screen(filter,view=sample){
- const ctx={shoppingFilter:filter,shoppingData:()=>view,button,esc:s=>String(s),MAX_SHOPPING_SERVINGS};
+ const ctx={shoppingFilter:filter,shoppingData:()=>view,button,esc:s=>String(s),MAX_SHOPPING_SERVINGS,drive:{connected:true}};
  const compiled=runInNewContext(source+';({shoppingScreen,shoppingFilterButtons})',ctx);
  return {screen:compiled.shoppingScreen(),filterBar:compiled.shoppingFilterButtons()};
 }
