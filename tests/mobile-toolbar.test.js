@@ -6,7 +6,7 @@ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 const html=readFileSync(new URL('../index.html',import.meta.url),'utf8');
 const sw=readFileSync(new URL('../sw.js',import.meta.url),'utf8');
-const version='1.14.29';
+const version='1.14.30';
 const rules=css.slice(css.indexOf('/* v1.14.26'));
 
 test('three upper tab toolbars use one shared alignment class',()=>{
