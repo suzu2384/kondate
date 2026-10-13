@@ -318,6 +318,7 @@ function updateFamilyUrlAction(type){
  const same=!!id&&id===currentId;
  action.dataset.action=same?'family-copy-link':'family-join';
  action.textContent=same?'コピー':'参加';
+ action.title=same?'共有URLをコピー':'共有URLに参加';
  action.disabled=!id;
 }
 function updateFamilyDialog(type){
@@ -338,7 +339,7 @@ function updateFamilyDialog(type){
   if(button)button.hidden=!linked;
  }
  const start=$('#dialog [data-action="family-start"]');
- if(start)start.textContent=d.owner&&linked?'追加':'共有';
+ if(start){start.textContent=d.owner&&linked?'追加':'共有';start.title=d.owner&&linked?'共有相手を追加':'メールアドレスで共有';}
 }
 function ownedFamilyResults(type){
  const status=ownedFamilyState[type];
@@ -414,10 +415,10 @@ function familyDialog(type){
     '<div id="family-owned-results" data-kind="'+type+'" hidden></div>')+
   '<label class="field" for="family-share-email"><span>共有相手のGoogleメールアドレス</span></label>'+
   '<div class="family-email-row"><input id="family-share-email" type="email" autocomplete="email" placeholder="family@gmail.com" aria-label="共有相手のGoogleメールアドレス">'+
-  button(d.owner&&linked?'追加':'共有','family-start','mini','data-kind="'+type+'"')+'</div>'+
+  button(d.owner&&linked?'追加':'共有','family-start','mini','data-kind="'+type+'" title="'+(d.owner&&linked?'共有相手を追加':'メールアドレスで共有')+'"')+'</div>'+
   '<label class="field" for="family-join-link"><span>共有ファイルのURL</span></label>'+
   '<div class="family-link-row"><input id="family-join-link" data-kind="'+type+'" type="url" inputmode="url" autocapitalize="off" autocomplete="off" aria-label="共有ファイルのURL" value="'+(linked?esc(sharedSpreadsheetUrl(d.id)):'')+'" placeholder="https://docs.google.com/spreadsheets/d/...">'+
-  button(linked?'コピー':'参加',linked?'family-copy-link':'family-join','mini','id="family-url-action" data-kind="'+type+'" '+(linked?'':'disabled'))+'</div>'+
+  button(linked?'コピー':'参加',linked?'family-copy-link':'family-join','mini','id="family-url-action" data-kind="'+type+'" title="'+(linked?'共有URLをコピー':'共有URLに参加')+'" '+(linked?'':'disabled'))+'</div>'+
   '<p class="hint">現在のURLは「コピー」、別の共有URLを入力すると「参加」に切り替わります。</p>'+
   (type==='shopping'?'<label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">'+SHOPPING_SYNC_SECONDS.map(n=>'<option value="'+n+'"'+(family.settings.seconds===n?' selected':'')+'>'+n+'秒</option>').join('')+'</select><small>買い物タブの表示中だけ定期確認。復帰時にも更新します。</small></label>':type==='plan'?'<p class="hint">献立タブの表示中は買い物と同じ更新間隔で共有内容を確認します。</p>':'<p class="hint">料理マスターはカレンダーの更新間隔に合わせて同期します。</p>'),
   button('閉じる','close-dialog')+
@@ -681,7 +682,7 @@ function generateScreen(){
   <select aria-label="選定モード" id="generate-mode" ${aiGenerating?'disabled':''}><option value="rules" ${state.menuGenerationMode==='rules'?'selected':''}>ルールベース</option><option value="ai" ${ai.available?'':'disabled'} ${state.menuGenerationMode==='ai'?'selected':''}>AI${ai.available?'':'（未設定）'}</option></select>
   ${button('ルール調整','rules','text-button mini generation-rule-button',aiGenerating?'disabled':'')}
   ${button('生成','generate','primary mini generation-submit-button',aiGenerating?'disabled aria-busy="true"':'')}
-  ${button('共有','family-dialog','family-share-button mini generation-share-button','data-kind="plan"'+(drive.connected?'':' disabled title="設定画面でGoogle Driveに接続してください"'))}
+  ${button('共有','family-dialog','family-share-button mini generation-share-button','data-kind="plan"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle Driveに接続してください"'))}
  </div>
  <div class="plan-grid compact-plan-grid scroll">
  ${state.draft.length?state.draft.map((day,i)=>`<article class="plan-card compact-plan-card card" aria-label="${i+1}日目の献立" data-dish-count="${day.dishes.length}">
@@ -763,7 +764,7 @@ function shoppingScreen(){
    <label class="shopping-servings">人数 <select id="shopping-servings" aria-label="買い物に必要な人数">${Array.from({length:MAX_SHOPPING_SERVINGS},(_,i)=>i+1).map(n=>`<option value="${n}"${n===view.servings?' selected':''}>${n}</option>`).join('')}</select> 人分</label>
    ${button('＋ 品目追加','shopping-add','mini primary')}
    ${button('未購入をコピー','shopping-copy','mini')}
-   ${button('共有','family-dialog','family-share-button mini','data-kind="shopping"'+(drive.connected?'':' disabled title="設定画面でGoogle Driveに接続してください"'))}
+   ${button('共有','family-dialog','family-share-button mini','data-kind="shopping"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle Driveに接続してください"'))}
   </div>
   <div class="shopping-list card scroll">
    <ul class="shopping-items">${items.map(shoppingRow).join('')||`<li class="shopping-empty">${emptyMessage}</li>`}</ul>
@@ -1185,7 +1186,7 @@ function masterFilterButtons(){
 function masterScreen(){
  const items=masterItems();
  return `<section class="screen master-screen" aria-label="料理">
-  <div class="master-toolbar kondate-tab-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}${button('共有','family-dialog','family-share-button mini', 'data-kind="master"'+(drive.connected?'':' disabled title="設定画面でGoogle Driveに接続してください"'))}</div>
+  <div class="master-toolbar kondate-tab-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}${button('共有','family-dialog','family-share-button mini', 'data-kind="master"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle Driveに接続してください"'))}</div>
   <div class="master-list-wrap card scroll"><ul class="master-list" id="master-rows">${masterRows(items)}</ul></div>
  </section>`;
 }
