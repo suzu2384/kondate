@@ -1,4 +1,4 @@
-import {normalize} from './model.js';
+import {normalize,MAX_GENERATION_DAYS,validateDishes} from './model.js';
 import {shoppingSettings} from './shopping.js';
 import {validateIngredients} from './ingredients.js';
 
@@ -85,4 +85,46 @@ export function applyMasterEvents(scope,ops,allowedCategories=['main']){
   if(index>=0)scope.manual[index]=safe;else scope.manual.push(safe);
   scope.metadata[key]={...(scope.metadata[key]||{}),...safe,ingredients};
  }
+}
+
+/**
+ * Only the visible menu draft is shared. Calendar history, local suggestion
+ * scores and the recipe catalogue stay on the original device.
+ * Each day is a separate Sheets journal key so edits to different days merge.
+ */
+function safePlanDay(value,index){
+ if(!value||typeof value!=='object'||Array.isArray(value)||!Array.isArray(value.dishes)||
+  value.dishes.length>30)throw Error('共有献立の日付データが不正です。');
+ const id=typeof value.id==='string'&&value.id.length<=100?value.id:'day-'+index;
+ const dishes=value.dishes.map(item=>{
+  if(!item||typeof item!=='object'||Array.isArray(item))throw Error('共有献立の料理情報が不正です。');
+  if(typeof item.category!=='string'||!/^[a-z][a-z0-9-]*$/.test(item.category))throw Error('共有献立の料理分類が不正です。');
+  const dish=validateDishes([item])[0];
+  for(const field of ['protein','method','genre'])if(dish[field].length>100)throw Error('共有献立の料理情報が長すぎます。');
+  return {...dish,locked:item.locked===true,isNew:item.isNew===true};
+ });
+ return {id,dishes};
+}
+export function planSharedSnapshot(draft=[]){
+ if(!Array.isArray(draft)||draft.length>MAX_GENERATION_DAYS)throw Error('共有できる献立は最大15日分です。');
+ const snapshot={length:draft.length};
+ for(const [index,day] of draft.entries())snapshot['day:'+index]=safePlanDay(day,index);
+ return snapshot;
+}
+export function applyPlanEvents(current=[],ops=[],reset=false){
+ const initial=planSharedSnapshot(reset?[]:current);
+ const changed={...initial};
+ for(const op of ops){
+  const key=op?.key;
+  if(key==='length'){
+   if(!Number.isInteger(op.value)||op.value<0||op.value>MAX_GENERATION_DAYS)
+    throw Error('共有献立の日数が不正です。');
+   changed.length=op.value;
+  }else if(/^day:(?:[0-9]|1[0-4])$/.test(key||'')){
+   if(op.value===null)delete changed[key];
+   else changed[key]=safePlanDay(op.value,Number(key.slice(4)));
+  }else throw Error('共有献立の項目が不正です。');
+ }
+ return Array.from({length:changed.length},(_,index)=>changed['day:'+index]||
+  {id:'day-'+index,dishes:[]});
 }
