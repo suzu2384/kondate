@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,SHARE_SCOPE,SHARE_JOIN_SCOPE,sharedSpreadsheetId,sharedSpreadsheetUrl,ownedShareQuery,diffSnapshots,replayOps,validateSharedOp,describeSharedApiFailure} from '../src/family-share.js';
 import {shoppingSharedSnapshot,applyShoppingEvents,masterSharedSnapshot,applyMasterEvents} from '../src/family-data.js';
+import {DriveSettingsClient,DRIVE_UNIFIED_SCOPES} from '../src/drive.js';
 import {shoppingItems} from '../src/shopping.js';
 import {buildMaster} from '../src/model.js';
 const file=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
@@ -609,4 +610,37 @@ test('share dialog places email sharing and URL connect actions beside inputs, n
  assert.doesNotMatch(footer,/family-start|family-join/);
  assert.match(app,/async function familyJoin\(type\)\{/);
  assert.match(app,/await family\.join\(type,id,\(ops,opts\)=>applyFamily\(type,ops,opts\)\)/);
+});
+
+test('settings and family sharing use exactly the same OAuth token, not separate share storage',async()=>{
+ const requests=[];
+ const fetcher=async(url,opts)=>{
+  requests.push({url,token:opts.headers.Authorization});
+  return {ok:true,status:200,json:async()=>({values:[['kondate-shared-v1','master']]})};
+ };
+ const drive=new DriveSettingsClient(fetcher);
+ const share=new FamilyDriveClient(fetcher,drive);
+ drive.clientId='unified.apps.googleusercontent.com';
+ drive.token='shared-oauth-token';drive.scopes=DRIVE_UNIFIED_SCOPES;drive.expires=Date.now()+120000;
+ assert.equal(share.connected,true);
+ await share.authorize(drive.clientId,{join:true});
+ await share.readRows('abcdefghijklmnopqrstuvwxyz1234567890');
+ assert.equal(requests.length,1);
+ assert.equal(requests[0].token,'Bearer shared-oauth-token');
+ drive.expires=Date.now()-1;
+ assert.equal(share.connected,false);
+ await assert.rejects(share.authorize(drive.clientId),/設定画面/);
+ await assert.rejects(share.readRows('abcdefghijklmnopqrstuvwxyz1234567890'),/再接続/);
+ assert.equal(drive.token,'shared-oauth-token','offline sharing must not erase the Drive token before explicit invalidation');
+});
+test('sharing UI has no separate account or reauthorization controls and is gated by Drive',()=>{
+ const app=file('src/app.js'),drive=file('src/drive.js');
+ assert.match(app,/new FamilyDriveClient\(undefined,drive\)/);
+ assert.match(app,/b\.disabled=!drive\.connected/);
+ assert.match(app,/if\(!drive\.connected\)throw Error\('設定画面でGoogle Driveに接続してください。'\)/);
+ assert.doesNotMatch(app,/family-account-change|family-renew/);
+ assert.match(app,/button\(drive\.connected\?'Drive接続済み':'Driveに接続','drive-reconnect'/);
+ assert.match(drive,/export const DRIVE_UNIFIED_SCOPES/);
+ assert.match(drive,/auth\/spreadsheets/);
+ assert.match(drive,/auth\/drive\.file/);
 });
