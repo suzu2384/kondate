@@ -114,8 +114,8 @@ test('each tab opens its own share dialog, and foreground timer checks shopping 
  assert.match(app,/button\('共有','family-dialog','family-share-button mini', 'data-kind="master"'/);
  assert.match(app,/button\('共有','family-dialog','family-share-button mini','data-kind="shopping"'/);
  assert.match(app,/family\.settings\.seconds\*1000/);
- assert.match(app,/type==='master'\|\|tab==='shopping'/);
- assert.match(app,/type==='shopping'\?family\.settings\.seconds\*1000:state\.calendarRefreshMinutes\*60000/);
+ assert.match(app,/type==='master'\|\|\(type==='shopping'&&tab==='shopping'\)\|\|\(type==='plan'&&tab==='generate'\)/);
+ assert.match(app,/\(type==='shopping'\|\|type==='plan'\)\?family\.settings\.seconds\*1000:state\.calendarRefreshMinutes\*60000/);
  assert.match(app,/if\(document\.hidden\|\|!familyClient\.connected\)return/);
  assert.match(app,/pollFamily\(true\)/);
  assert.match(app,/setInterval\(\(\)=>pollFamily\(\),1000\)/);
