@@ -17,12 +17,12 @@ export function masterSharedSnapshot(rows=[]){
  }
  return out;
 }
-export function shoppingSharedSnapshot(input={},computed=[],{pruneStale=false}={}){
+export function shoppingSharedSnapshot(input={},computed=[],{pruneStale=false,activeItems=computed}={}){
  const s=shoppingSettings(input),out={servings:s.servings};
  // Purchase/exclusion flags for removed items must not outlive the list.
  // Joining a shopping-only share may supply the active auto items from the
  // shared sheet rather than from the recipient's private recipe catalogue.
- const liveIds=new Set([...computed.map(i=>i.id),...s.manual.map(i=>'manual:'+i.id)]);
+ const liveIds=new Set([...activeItems.map(i=>i.id),...s.manual.map(i=>'manual:'+i.id)]);
  for(const i of computed.filter(i=>i.kind==='auto')){
   out['ingredient:'+i.id]={id:i.id,kind:'auto',name:i.name,
    baseUnit:i.baseUnit,baseQuantity:i.baseQuantity,sourceNames:i.sourceNames||[]};
