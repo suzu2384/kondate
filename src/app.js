@@ -183,13 +183,18 @@ function familySnapshot(type){
  if(type==='shopping'){
   const current=shoppingItems({master:master(),aliases:data().aliases,shopping:state.shopping});
   const entry=family.entry('shopping');
-  const snapshot=shoppingSharedSnapshot(state.shopping,
-   (!entry.id||entry.owner||family.entry('master').id)?current.items:[]);
+  // A recipient without the shared recipe master uses the shared ingredient
+  // IDs to decide which purchase/exclusion flags remain relevant.
+  const remoteOnly=!!entry.id&&!entry.owner&&!family.entry('master').id;
+  const remoteAuto=remoteOnly?Object.entries(entry.shadow).filter(([key,item])=>
+   key.startsWith('ingredient:')&&item?.kind==='auto'&&item.id&&item.name&&item.baseUnit):[];
+  const liveItems=remoteOnly?
+   [...current.items.filter(item=>item.kind==='manual'),...remoteAuto.map(([,item])=>item)]:
+   current.items;
+  const snapshot=shoppingSharedSnapshot(state.shopping,liveItems,{pruneStale:true});
   // Joining the checklist alone must never erase its source ingredient data
   // when this device does not have the corresponding recipe master.
-  if(entry.id&&!entry.owner&&!family.entry('master').id)
-   for(const [key,value] of Object.entries(entry.shadow))
-    if(key.startsWith('ingredient:'))snapshot[key]=value;
+  for(const [key,value] of remoteAuto)snapshot[key]=value;
   return snapshot;
  }
  const entry=family.entry('master');
