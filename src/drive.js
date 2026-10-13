@@ -14,7 +14,7 @@ const AUTO_KEY='kondate.drive-autosync.v1';
 const TOKEN_KEY='kondate.drive-autosync-token.v1';
 export class DriveSettingsClient{
  constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';this.scopes='';}
- get connected(){return !!this.token&&Date.now()<this.expires&&this.scopes===SCOPE;}
+ get connected(){return !!this.token&&Date.now()<this.expires;}
  get autoEnabled(){
   try{return globalThis.localStorage?.getItem(AUTO_KEY)==='1';}catch{return false;}
  }
