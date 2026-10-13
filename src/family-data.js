@@ -92,7 +92,7 @@ export function applyMasterEvents(scope,ops,allowedCategories=['main']){
  * scores and the recipe catalogue stay on the original device.
  * Each day is a separate Sheets journal key so edits to different days merge.
  */
-function safePlanDay(value,index){
+function safePlanDay(value,index,categories=[]){
  if(!value||typeof value!=='object'||Array.isArray(value)||!Array.isArray(value.dishes)||
   value.dishes.length>30)throw Error('共有献立の日付データが不正です。');
  const id=typeof value.id==='string'&&value.id.length<=100?value.id:'day-'+index;
@@ -101,14 +101,16 @@ function safePlanDay(value,index){
   if(typeof item.category!=='string'||!/^[a-z][a-z0-9-]*$/.test(item.category))throw Error('共有献立の料理分類が不正です。');
   const dish=validateDishes([item])[0];
   for(const field of ['protein','method','genre'])if(dish[field].length>100)throw Error('共有献立の料理情報が長すぎます。');
-  return {...dish,locked:item.locked===true,isNew:item.isNew===true};
+  const categoryName=String(item.categoryName||categories.find(c=>c.id===dish.category)?.name||dish.category);
+  if(!categoryName||categoryName.length>20)throw Error('共有献立の分類名が不正です。');
+  return {...dish,categoryName,locked:item.locked===true,isNew:item.isNew===true};
  });
  return {id,dishes};
 }
-export function planSharedSnapshot(draft=[]){
+export function planSharedSnapshot(draft=[],categories=[]){
  if(!Array.isArray(draft)||draft.length>MAX_GENERATION_DAYS)throw Error('共有できる献立は最大15日分です。');
  const snapshot={length:draft.length};
- for(const [index,day] of draft.entries())snapshot['day:'+index]=safePlanDay(day,index);
+ for(const [index,day] of draft.entries())snapshot['day:'+index]=safePlanDay(day,index,categories);
  return snapshot;
 }
 export function applyPlanEvents(current=[],ops=[],reset=false){
