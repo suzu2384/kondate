@@ -1217,3 +1217,121 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 #dialog .family-link-row input,#dialog .family-email-row input{flex:1 1 auto;min-width:0;width:0;margin:0}
 #dialog .family-link-row button,#dialog .family-email-row button{flex:0 0 auto;white-space:nowrap;margin:0}
 #dialog [hidden]{display:none!important}
+
+/* v1.14.25 — align the recipe and shopping toolbars with the menu generator.
+   All three tabs begin at the same y-position and reserve one control-height
+   row. Reclaimed vertical padding is returned to the scrollable lists. */
+.generation-screen,.master-screen,.shopping-screen{
+ --kondate-top-control-height:36px;
+}
+.master-screen,.shopping-screen{
+ padding:0;
+ gap:4px;
+}
+.generation-screen .generation-controls,
+.master-screen .master-toolbar,
+.shopping-screen .shopping-toolbar{
+ height:var(--kondate-top-control-height);
+ min-height:var(--kondate-top-control-height);
+ flex:0 0 var(--kondate-top-control-height);
+ display:flex;
+ flex-wrap:nowrap;
+ align-items:center;
+ box-sizing:border-box;
+ margin:0;
+ padding:0 4px;
+ min-width:0;
+}
+.generation-screen .generation-controls select,
+.generation-screen .generation-controls>button,
+.master-screen .master-toolbar input,
+.master-screen .master-toolbar button,
+.shopping-screen .shopping-toolbar #shopping-servings,
+.shopping-screen .shopping-toolbar button{
+ height:var(--kondate-top-control-height);
+ min-height:var(--kondate-top-control-height);
+ box-sizing:border-box;
+}
+.master-screen .master-toolbar{gap:5px}
+.shopping-screen .shopping-toolbar{gap:5px}
+.master-screen .master-toolbar #master-search{
+ flex:1 1 0;
+ width:0;
+ min-width:48px;
+}
+.master-screen .master-toolbar .master-count{flex:0 0 auto}
+/* Same share-button width, height, font and padding in both lists. */
+.master-screen .master-toolbar .family-share-button,
+.shopping-screen .shopping-toolbar .family-share-button{
+ flex:0 0 58px;
+ width:58px;
+ min-width:58px;
+ height:var(--kondate-top-control-height);
+ min-height:var(--kondate-top-control-height);
+ margin-left:auto;
+ padding:0 7px;
+ font-size:12px;
+ font-weight:650;
+ line-height:1;
+ text-align:center;
+}
+.master-screen .master-list-wrap,
+.shopping-screen .shopping-list{
+ flex:1 1 0;
+ min-height:0;
+ margin:0;
+}
+.master-screen .master-list-wrap{padding:0 9px}
+.shopping-screen .shopping-list{padding:0 9px 3px}
+.master-screen .master-entry{min-height:58px;padding:8px 10px}
+.shopping-screen .shopping-item{min-height:44px;padding:5px 3px}
+@media(max-width:760px){
+ .master-screen,.shopping-screen{padding:0;gap:3px}
+ .master-screen .master-toolbar,
+ .shopping-screen .shopping-toolbar{padding:0 4px;gap:4px}
+ .master-screen .master-list-wrap{padding:0 4px;border-radius:10px}
+ .shopping-screen .shopping-list{padding:0 5px 2px}
+ .master-screen .master-entry{min-height:54px;padding:6px 6px}
+ .shopping-screen .shopping-item{min-height:44px;padding:4px 1px}
+}
+@media(max-width:520px){
+ .generation-screen,.master-screen,.shopping-screen{
+  --kondate-top-control-height:34px;
+ }
+ .master-screen .master-toolbar,
+ .shopping-screen .shopping-toolbar{gap:3px}
+ .master-screen .master-toolbar button,
+ .shopping-screen .shopping-toolbar button{
+  padding:4px 5px;
+  font-size:10px;
+ }
+ .master-screen .master-toolbar #master-search{
+  padding:5px 7px;
+  min-width:40px;
+ }
+ .shopping-screen .shopping-toolbar #shopping-servings{
+  width:53px;
+  max-width:53px;
+  padding:3px;
+ }
+ .master-screen .master-toolbar .family-share-button,
+ .shopping-screen .shopping-toolbar .family-share-button{
+  flex:0 0 48px;
+  width:48px;
+  min-width:48px;
+  padding:0 3px;
+  font-size:11px;
+ }
+}
+@media(max-width:350px){
+ .master-screen .master-toolbar,
+ .shopping-screen .shopping-toolbar{gap:2px;padding:0 2px}
+ .master-screen .master-toolbar .family-share-button,
+ .shopping-screen .shopping-toolbar .family-share-button{
+  flex-basis:44px;
+  width:44px;
+  min-width:44px;
+  padding:0 2px;
+  font-size:10px;
+ }
+}
