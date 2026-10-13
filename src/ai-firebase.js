@@ -1,4 +1,4 @@
-import {createMenuRequest,parseMenuResponse,validateMenuQuality} from './ai-menu.js';
+import {createMenuRequest,parseMenuResponse,repairMenuSelections,validateMenuQuality} from './ai-menu.js';
 import {createIngredientRequest,parseIngredientResponse} from './ai-ingredients.js';
 
 // Google-hosted Firebase SDK: loaded only after a person chooses AI generation.
@@ -38,7 +38,10 @@ export function createFirebaseAIProvider(config,{loadSDK=loadFirebaseSDK}={}){
  return {
   kind:'shared-firebase',
   async generate(context){
-   const {prompt}=createMenuRequest(context);
+   // Draw a new independent lottery for each user-triggered generation, but
+   // reuse the same exclusions throughout the request, retry and validation.
+   const requestContext={...context,selectionSeed:Math.floor(Math.random()*4294967296)};
+   const {prompt}=createMenuRequest(requestContext);
    const model=await getModel();
    // Retry an invalid JSON/menu response once. Never accept a partial or
    // truncated plan: fixed dishes and all generation constraints still apply.
@@ -58,10 +61,14 @@ export function createFirebaseAIProvider(config,{loadSDK=loadFirebaseSDK}={}){
      throw Error('AIから献立を取得できませんでした。通常の献立生成をご利用ください。');
     }
     try{
-     const plan=parseMenuResponse(responseText,context);
+     const plan=parseMenuResponse(responseText,requestContext);
+     const replaced=repairMenuSelections(plan,requestContext);
+     // Structural problems still require retry, but a soft old-menu
+     // repetition is resolved by replacing selections without another AI call.
      const issues=validateMenuQuality(plan,context);
+     if(replaced)plan.warnings=[`前回と重なった料理を${replaced}品、候補内の別の料理に変更しました。`];
      if(issues.length)throw Error(issues.join('\n'));
-     if(firstError)plan.warnings=[`AIの初回応答に問題があったため再生成し、${context.rules.days}日分を完成させました。初回: ${firstError.message}`];
+     if(firstError)plan.warnings=[...(plan.warnings||[]),`AIの初回応答に問題があったため再生成し、${context.rules.days}日分を完成させました。初回: ${firstError.message}`];
      return plan;
     }catch(error){
      if(attempt===1)throw Error(`AIの再生成後も条件を満たせませんでした。${error.message}`);
