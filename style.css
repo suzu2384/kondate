@@ -1335,3 +1335,90 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
   font-size:10px;
  }
 }
+
+/* v1.14.26 — genuinely shared top row; keep all three mobile tabs anchored
+   to the same screen origin and give their lists the remaining viewport. */
+.app.has-compact-toolbar #main{padding-top:0;padding-bottom:1px}
+.generation-screen,.master-screen,.shopping-screen{
+ --kondate-top-control-height:36px;
+ min-width:0;
+ min-height:0;
+ padding:0;
+ gap:2px;
+}
+.kondate-tab-toolbar{
+ display:flex;
+ align-items:center;
+ flex-wrap:nowrap;
+ flex:0 0 var(--kondate-top-control-height);
+ height:var(--kondate-top-control-height);
+ min-height:var(--kondate-top-control-height);
+ width:100%;
+ min-width:0;
+ padding:0 4px;
+ margin:0;
+ overflow:visible;
+ box-sizing:border-box;
+}
+.kondate-tab-toolbar :is(button,input,select){
+ box-sizing:border-box;
+ min-height:var(--kondate-top-control-height);
+ height:var(--kondate-top-control-height);
+}
+.master-screen .master-list-wrap,
+.shopping-screen .shopping-list{
+ flex:1 1 0;
+ min-height:0;
+ height:0;
+ overflow-y:auto;
+ overscroll-behavior:contain;
+}
+.master-screen .master-list-wrap{padding:0 5px}
+.shopping-screen .shopping-list{padding:0 5px 2px}
+.master-screen .master-entry{min-height:49px;padding:5px 7px}
+.shopping-screen .shopping-item{min-height:41px;padding:4px 2px}
+.master-screen .master-toolbar .family-share-button,
+.shopping-screen .shopping-toolbar .family-share-button{
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ width:58px;
+ min-width:58px;
+ flex:0 0 58px;
+ height:var(--kondate-top-control-height);
+ min-height:var(--kondate-top-control-height);
+ padding:0 7px;
+ font-size:12px;
+ font-weight:650;
+}
+@media(max-width:760px){
+ .app.has-compact-toolbar #main{padding:0}
+ .generation-screen,.master-screen,.shopping-screen{
+  --kondate-top-control-height:34px;
+  padding:0;
+  gap:2px;
+ }
+ .kondate-tab-toolbar{padding:0 4px;gap:3px}
+ .master-screen .master-list-wrap{padding:0 3px;border-radius:8px}
+ .shopping-screen .shopping-list{padding:0 3px 2px;border-radius:8px}
+ .master-screen .master-entry{min-height:48px;padding:5px 5px}
+ .shopping-screen .shopping-item{min-height:40px;padding:4px 1px}
+ .master-screen .master-toolbar .family-share-button,
+ .shopping-screen .shopping-toolbar .family-share-button{
+  width:48px;
+  min-width:48px;
+  flex:0 0 48px;
+  padding:0 3px;
+  font-size:11px;
+ }
+}
+@media(max-width:350px){
+ .master-screen .master-toolbar .family-share-button,
+ .shopping-screen .shopping-toolbar .family-share-button{
+  width:44px;
+  min-width:44px;
+  flex:0 0 44px;
+  padding:0 2px;
+  font-size:10px;
+ }
+}
