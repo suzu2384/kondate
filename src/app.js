@@ -504,6 +504,7 @@ function render(){
  const previousMasterFilterScroll=tab==='master'?$('#quick-preset-bar')?.scrollLeft:null;
  const previousShoppingScroll=tab==='shopping'?$('#main .shopping-list')?.scrollTop:null;
  applyTheme(state.theme);
+ document.querySelector('.app')?.classList.toggle('has-compact-toolbar',['generate','master','shopping'].includes(tab));
  updateConnection();
  document.querySelectorAll('[data-tab]').forEach(b=>{if(b.dataset.tab===tab)b.setAttribute('aria-current','page');else b.removeAttribute('aria-current');});
  const monthKey=`${month.getFullYear()}-${month.getMonth()}`;
@@ -641,7 +642,7 @@ function patchCalendarCells(){
 function dayContent(date){const d=new Date(`${date}T12:00:00`);const list=records().filter(r=>r.date===date),extra=extraEvents().filter(e=>e.date===date);return `<h2>${d.getMonth()+1}月${d.getDate()}日 <small>（${'日月火水木金土'[d.getDay()]}）</small></h2><div class="date-label">${list.length+extra.length}件の記録・予定</div>${list.map(r=>`<div class="meal-group"><span class="tag ${r.status==='invalid'?'neutral':''}">${({actual:'調理実績',invalid:'書式を確認してください'})[r.status]}</span>${String(r.location||'').trim()?`<div class="date-label">外食・場所：${esc(r.location)}</div>`:''}${r.dishes.map(d=>`<div class="dish-line"><span class="category">${esc(categoryName(d.category))}</span><span>${esc(d.name)}</span></div>`).join('')}${r.status==='invalid'?`<p class="hint">元の予定をカレンダーで確認してください。変更せず保護しています。</p>`:button('詳細・編集','record','text-button mini',`data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"`)}</div>`).join('')||(!extra.length?empty('この日の記録はありません','何を作りましたか？料理名だけでも記録できます。'):'')}${extra.map(e=>`<div class="meal-group general-event-detail">${e.icon?`<span class="general-event-detail-icon">${iconMarkup(e.icon,e.color)}</span>`:''}<span><strong>${esc(e.title)}</strong>${e.memo?`<span class="general-event-memo">${esc(e.memo)}</span>`:''}</span> <small>（表示のみ）</small></div>`).join('')}${button('＋ この日に登録','new-record','full',`data-date="${date}"`)}`;}
 function generateScreen(){
  return `<section class="screen generation-screen">
- <div class="generation-controls">
+ <div class="generation-controls kondate-tab-toolbar">
   <label><select aria-label="生成日数" id="days" ${aiGenerating?'disabled':''}>${Array.from({length:MAX_GENERATION_DAYS},(_,i)=>`<option value="${i+1}" ${state.rules.days===i+1?'selected':''}>${i+1}</option>`).join('')}</select>日分</label>
   <select aria-label="選定モード" id="generate-mode" ${aiGenerating?'disabled':''}><option value="rules" ${state.menuGenerationMode==='rules'?'selected':''}>ルールベース</option><option value="ai" ${ai.available?'':'disabled'} ${state.menuGenerationMode==='ai'?'selected':''}>AI${ai.available?'':'（未設定）'}</option></select>
   ${button('ルール調整','rules','text-button mini generation-rule-button',aiGenerating?'disabled':'')}
@@ -723,7 +724,7 @@ function shoppingScreen(){
  const items=shoppingFilter==='bought'?view.bought:shoppingFilter==='excluded'?view.excluded:view.pending;
  const emptyMessage=shoppingFilter==='bought'?'購入済みの材料はありません。':shoppingFilter==='excluded'?'除外した材料はありません。':view.items.length?'未購入の材料はありません。':'料理タブで「買う」を押して材料を追加できます。';
  return `<section class="screen shopping-screen" aria-label="買い物">
-  <div class="shopping-toolbar">
+  <div class="shopping-toolbar kondate-tab-toolbar">
    <label class="shopping-servings">人数 <select id="shopping-servings" aria-label="買い物に必要な人数">${Array.from({length:MAX_SHOPPING_SERVINGS},(_,i)=>i+1).map(n=>`<option value="${n}"${n===view.servings?' selected':''}>${n}</option>`).join('')}</select> 人分</label>
    ${button('＋ 品目追加','shopping-add','mini primary')}
    ${button('未購入をコピー','shopping-copy','mini')}
@@ -1149,7 +1150,7 @@ function masterFilterButtons(){
 function masterScreen(){
  const items=masterItems();
  return `<section class="screen master-screen" aria-label="料理">
-  <div class="master-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}${button('共有','family-dialog','family-share-button mini', 'data-kind="master"'+(drive.connected?'':' disabled title="設定画面でGoogle Driveに接続してください"'))}</div>
+  <div class="master-toolbar kondate-tab-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}${button('共有','family-dialog','family-share-button mini', 'data-kind="master"'+(drive.connected?'':' disabled title="設定画面でGoogle Driveに接続してください"'))}</div>
   <div class="master-list-wrap card scroll"><ul class="master-list" id="master-rows">${masterRows(items)}</ul></div>
  </section>`;
 }
@@ -2343,4 +2344,4 @@ setInterval(()=>pollFamily(),1000);
 // The journal is persisted on each tap; mobile browsers may suspend background timers.
 window.addEventListener('pagehide',()=>{void flushPendingPresets();});
 setInterval(()=>{if(presetQueue.size)void flushPendingPresets();},PRESET_FLUSH_INTERVAL_MS);
-if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js').catch(()=>{});
+if('serviceWorker' in navigator)navigator.serviceWorker.register('./sw.js',{updateViaCache:'none'}).then(registration=>registration.update()).catch(()=>{});
