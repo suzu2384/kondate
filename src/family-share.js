@@ -3,11 +3,11 @@ import {preferredGoogleAccount,rememberDriveAccount,forgetGoogleAccount} from '.
 // per-item operations avoid overwriting edits made by another device.
 export const SHARE_SCOPE='https://www.googleapis.com/auth/drive.file';
 export const SHARE_JOIN_SCOPE=SHARE_SCOPE+' https://www.googleapis.com/auth/spreadsheets';
-export const SHARED_KINDS=['master','shopping'];
+export const SHARED_KINDS=['master','shopping','plan'];
 export const SHOPPING_SYNC_SECONDS=[3,5,10,15,30,60];
 const STORAGE='kondate.family-share.v1',TOKEN_STORAGE='kondate.family-share.token.v1';
 const MARKER='kondate-shared-v1';
-const SHARED_TITLES={master:'KonDate 共有料理マスター',shopping:'KonDate 共有買い物リスト'};
+const SHARED_TITLES={master:'KonDate 共有料理マスター',shopping:'KonDate 共有買い物リスト',plan:'KonDate 共有献立'};
 const SHEET_MIME='application/vnd.google-apps.spreadsheet';
 export function ownedShareQuery(type){
  if(!Object.hasOwn(SHARED_TITLES,type))throw Error('共有対象が不正です。');
@@ -33,7 +33,7 @@ const blank=()=>({id:'',owner:false,cursor:1,queue:[],shadow:{},seen:[]});
 export function validateSharedOp(op,type){
  if(!op||typeof op!=='object'||typeof op.id!=='string'||!/^[\w-]{12,90}$/.test(op.id)||
   op.kind!==type||op.value===undefined||typeof op.key!=='string'||op.key.length>280||
-  !(type==='master'?op.key.startsWith('dish:'):type==='shopping'?/^(servings$|selected:|manual:|checked:|excluded:|ingredient:)/.test(op.key):false)||
+  !(type==='master'?op.key.startsWith('dish:'):type==='shopping'?/^(servings$|selected:|manual:|checked:|excluded:|ingredient:)/.test(op.key):type==='plan'?/^(length|day:(?:[0-9]|1[0-4]))$/.test(op.key):false)||
   !Number.isFinite(op.at)||op.at<0||op.at>1e15||JSON.stringify(op.value)?.length>18000||
   JSON.stringify(op.value)?.includes('"__proto__"'))throw Error('共有データの形式が不正です。');
  return op;
@@ -218,7 +218,7 @@ export function readFamilySettings(storage=globalThis.localStorage){
  return r;
 }
 export class FamilySync{
- constructor(client,storage=globalThis.localStorage){this.client=client;this.storage=storage;this.settings=readFamilySettings(storage);this.busy={master:false,shopping:false};}
+ constructor(client,storage=globalThis.localStorage){this.client=client;this.storage=storage;this.settings=readFamilySettings(storage);this.busy={master:false,shopping:false,plan:false};}
  persist(){this.storage?.setItem(STORAGE,JSON.stringify(this.settings));}
  entry(type){if(!SHARED_KINDS.includes(type))throw Error('共有対象が不正です。');return this.settings[type];}
  observe(type,current){
