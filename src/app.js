@@ -279,6 +279,13 @@ async function syncFamily(type,{manual=false}={}){
   if(result.conflicts.length)notify({summary:'同じ項目への同時変更を検出しました。共有データの更新順に反映されます。',severity:'warning'});
   else if(queuedBefore>0&&result.pending===0)notify(label+'の変更を共有ファイルに反映しました。');
   if(manual&&result.pending)throw Error('共有ファイルへの変更がまだ未送信です。少し待ってから再度同期してください。');
+  // Superseded history is cleared owner-side without shifting row cursors.
+  if(d.owner&&!result.pending&&typeof family.compact==='function'){
+   try{await family.compact(type);}
+   catch(error){
+    if(manual)notify({summary:'共有データは同期しましたが、履歴整理に失敗しました：'+error.message,severity:'warning'});
+   }
+  }
   return result;
  }catch(error){
   lastFamilyPoll[type]=Date.now();
