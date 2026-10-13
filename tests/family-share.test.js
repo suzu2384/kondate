@@ -110,8 +110,8 @@ test('Google APIs use limited owner authorization and the Sheets append API for 
 });
 test('each tab opens its own share dialog, and foreground timer checks shopping every 5 seconds by default',()=>{
  const app=file('src/app.js'),css=file('style.css'),html=file('index.html');
- assert.match(app,/button\('共有','family-dialog','family-share-button mini', 'data-kind="master"'\)/);
- assert.match(app,/button\('共有','family-dialog','family-share-button mini','data-kind="shopping"'\)/);
+ assert.match(app,/button\('共有','family-dialog','family-share-button mini', 'data-kind="master"'/);
+ assert.match(app,/button\('共有','family-dialog','family-share-button mini','data-kind="shopping"'/);
  assert.match(app,/family\.settings\.seconds\*1000/);
  assert.match(app,/type==='master'\|\|tab==='shopping'/);
  assert.match(app,/type==='shopping'\?family\.settings\.seconds\*1000:state\.calendarRefreshMinutes\*60000/);
@@ -304,7 +304,7 @@ test('shared spreadsheet IDs are extracted only from supported Google Sheets URL
  assert.ok(app.includes('familyClient.authorize(GOOGLE_CLIENT_ID,{join:true})'));
  assert.ok(app.includes('id=sharedSpreadsheetId('));
  assert.match(app,/family-copy-link/);
- assert.match(app,/family-renew/);
+ assert.doesNotMatch(app,/family-renew|family-account-change/);
 });
 test('owner uses drive.file only, link participants request Sheets permission',async()=>{
  const old=globalThis.google;
@@ -391,8 +391,8 @@ test('shared sync reports expired authentication without silently losing local e
  const idle=await sync('master');
  assert.equal(idle.pending,1);
  assert.equal(notifications.length,1);
- assert.match(notifications[0].summary,/再認証・同期/);
- await assert.rejects(sync('master',{manual:true}),/再認証・同期/);
+ assert.match(notifications[0].summary,/設定画面でGoogle Driveに再接続/);
+ await assert.rejects(sync('master',{manual:true}),/設定画面でGoogle Driveに再接続/);
  assert.equal(entry.queue.length,1,'an unsent edit must remain durable');
 });
 test('manual shared sync confirms the acknowledged append and shows a success notice',async()=>{
