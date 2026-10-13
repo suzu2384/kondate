@@ -2,20 +2,26 @@
 import {preferredGoogleAccount,rememberDriveAccount} from './account-hint.js';
 const ROOT='https://www.googleapis.com';
 export const DRIVE_SCOPE='https://www.googleapis.com/auth/drive.appdata';
-const SCOPE=DRIVE_SCOPE;
+// The single Drive authorization covers settings backup and both family share roles.
+export const DRIVE_UNIFIED_SCOPES=[
+ DRIVE_SCOPE,
+ 'https://www.googleapis.com/auth/drive.file',
+ 'https://www.googleapis.com/auth/spreadsheets'
+].join(' ');
+const SCOPE=DRIVE_UNIFIED_SCOPES;
 const FILE='kondate-settings.json';
 const AUTO_KEY='kondate.drive-autosync.v1';
 const TOKEN_KEY='kondate.drive-autosync-token.v1';
 export class DriveSettingsClient{
- constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';}
- get connected(){return !!this.token&&Date.now()<this.expires;}
+ constructor(fetcher=(...args)=>globalThis.fetch(...args)){this.fetcher=fetcher;this.token='';this.expires=0;this.clientId='';this.scopes='';}
+ get connected(){return !!this.token&&Date.now()<this.expires&&this.scopes===SCOPE;}
  get autoEnabled(){
   try{return globalThis.localStorage?.getItem(AUTO_KEY)==='1';}catch{return false;}
  }
  get reauthRequired(){return this.autoEnabled&&!this.connected;}
  saveAutoToken(){
   if(!this.autoEnabled||!this.connected)return;
-  try{globalThis.localStorage?.setItem(TOKEN_KEY,JSON.stringify({clientId:this.clientId,token:this.token,expires:this.expires}));}catch{}
+  try{globalThis.localStorage?.setItem(TOKEN_KEY,JSON.stringify({clientId:this.clientId,token:this.token,expires:this.expires,scopes:this.scopes}));}catch{}
  }
  enableAuto(){
   if(!this.connected)throw Error('Driveの認証後に自動同期を有効にしてください。');
@@ -29,7 +35,7 @@ export class DriveSettingsClient{
   try{globalThis.localStorage?.removeItem(AUTO_KEY);globalThis.localStorage?.removeItem(TOKEN_KEY);}catch{}
  }
  forgetToken(){
-  this.token='';this.expires=0;
+  this.token='';this.expires=0;this.scopes='';
   try{globalThis.localStorage?.removeItem(TOKEN_KEY);}catch{}
  }
  restoreAuto(clientId){
@@ -38,13 +44,13 @@ export class DriveSettingsClient{
   try{record=JSON.parse(globalThis.localStorage?.getItem(TOKEN_KEY)||'null');}catch{}
   if(!record||record.clientId!==clientId||typeof record.token!=='string'||
    !record.token||!Number.isFinite(record.expires)||record.expires<=Date.now()||
-   record.expires>Date.now()+24*60*60*1000){this.forgetToken();return false;}
-  this.clientId=clientId;this.token=record.token;this.expires=record.expires;
+   record.expires>Date.now()+24*60*60*1000||record.scopes!==SCOPE){this.forgetToken();return false;}
+  this.clientId=clientId;this.token=record.token;this.expires=record.expires;this.scopes=SCOPE;
   return true;
  }
  async authorize(clientId){
   if(!clientId?.endsWith('.apps.googleusercontent.com'))throw Error('Google OAuthクライアントIDを先に設定してください。');
-  if(this.token&&Date.now()<this.expires&&this.clientId===clientId)return;
+  if(this.connected&&this.clientId===clientId)return;
   if(!globalThis.google?.accounts?.oauth2)throw Error('Googleログインを準備できません。設定画面を再表示してください。');
   return new Promise((resolve,reject)=>{
    const client=google.accounts.oauth2.initTokenClient({
@@ -52,8 +58,8 @@ export class DriveSettingsClient{
     ...(preferredGoogleAccount(clientId,'drive')?{login_hint:preferredGoogleAccount(clientId,'drive')}:{}),
     callback:result=>{
      if(result.error){reject(Error('Googleドライブへのアクセスが許可されませんでした。'));return;}
-     if(!google.accounts.oauth2.hasGrantedAllScopes(result,SCOPE)){reject(Error('アプリデータの読み書き権限が必要です。'));return;}
-     this.token=result.access_token;this.expires=Date.now()+(Number(result.expires_in)-60)*1000;this.clientId=clientId;this.saveAutoToken();
+     if(!google.accounts.oauth2.hasGrantedAllScopes(result,...SCOPE.split(' '))){reject(Error('アプリデータの読み書き権限が必要です。'));return;}
+     this.token=result.access_token;this.expires=Date.now()+(Number(result.expires_in)-60)*1000;this.clientId=clientId;this.scopes=SCOPE;this.saveAutoToken();
      void rememberDriveAccount(clientId,'drive',this.token,this.fetcher);
      resolve();
     },
@@ -63,7 +69,7 @@ export class DriveSettingsClient{
   });
  }
  async request(path,{method='GET',body,contentType}={}){
-  if(!this.token||Date.now()>=this.expires)throw Error('Googleドライブへの再認証が必要です。');
+  if(!this.connected)throw Error('Googleドライブへの再認証が必要です。');
   let response;
   try{response=await this.fetcher(ROOT+path,{method,headers:{Authorization:'Bearer '+this.token,...(contentType?{'Content-Type':contentType}:{})},body,signal:AbortSignal.timeout(25000)});}
   catch{throw Error('Googleドライブとの通信に失敗しました。通信状況をご確認ください。');}
