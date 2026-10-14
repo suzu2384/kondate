@@ -165,7 +165,7 @@ function extraEvents(){
    const date=eventDay(event,state.timeZone);
    if(!date)return null;
    const title=event.summary||'無題の予定';
-   return {calendarId,date,title,memo:String(event.description||''),icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules),pending:!!event._presetPending,presetId:event.extendedProperties?.private?.kondatePresetId||''};
+   return {calendarId,date,title,memo:String(event.description||''),icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules),pending:!!event._presetPending};
   }).filter(Boolean)
  ).flat(),state.iconRules);
 }
