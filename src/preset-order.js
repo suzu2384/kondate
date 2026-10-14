@@ -1,16 +1,12 @@
-import {matchesPreset} from './icon-presets.js';
+import {matchingDisplayPreset} from './icon-presets.js';
 
 // Order is defined solely by the saved preset array. Calendar events are not modified.
 export function presetOrderIndex(event,rules=[]){
- const presetId=event.presetId||event.extendedProperties?.private?.kondatePresetId;
- if(presetId){
-  const byId=rules.findIndex(rule=>rule.id===presetId);
-  if(byId>=0)return byId;
- }
- return rules.findIndex(rule=>matchesPreset({
-  summary:event.title??event.summary,
+ const matched=matchingDisplayPreset({
+  ...event,summary:event.title??event.summary,
   description:event.memo??event.description
- },event.calendarId,rule));
+ },event.calendarId,rules);
+ return matched?rules.indexOf(matched):-1;
 }
 export function sortCalendarExtras(extras=[],rules=[]){
  return extras.map((event,index)=>{
