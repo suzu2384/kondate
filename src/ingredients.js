@@ -5,7 +5,11 @@ import {normalize} from './model.js';
 export const INGREDIENT_UNITS=Object.freeze(['g','kg','ml','L','大さじ','小さじ','カップ','個','本','枚','片','袋','パック','束','丁','玉','株','合','適量','少々','ひとつまみ']);
 const factors=Object.freeze({'kg':['g',1000],'L':['ml',1000],'大さじ':['ml',15],'小さじ':['ml',5],'カップ':['ml',200]});
 const nonNumeric=new Set(['適量','少々','ひとつまみ']);
-const canonicalUnits=new Set(INGREDIENT_UNITS);
+const aliases=Object.freeze({'グラム':'g','ｇ':'g','キログラム':'kg','ミリリットル':'ml','リットル':'L','かけ':'片','欠片':'片'});
+export function canonicalIngredientUnit(value){
+ const raw=String(value??'').trim();
+ return aliases[raw]||raw;
+}
 export const MAX_INGREDIENTS=60;
 
 export function parseIngredientQuantity(value){
@@ -24,8 +28,8 @@ export function normalizeIngredient(item){
  if(!item||typeof item!=='object')throw Error('材料の入力形式が不正です。');
  const name=String(item.name??'').trim();
  if(!name||name.length>80||/[\x00-\x1f\x7f]/.test(name))throw Error('材料名を1〜80文字で入力してください。');
- const unit=String(item.unit??'').trim();
- if(!canonicalUnits.has(unit))throw Error(name+'の単位を選択してください。');
+ const unit=canonicalIngredientUnit(item.unit);
+ if(!unit||unit.length>24||/[\x00-\x1f\x7f<>]/.test(unit))throw Error(name+'の単位を1〜24文字で入力してください。');
  const quantity=parseIngredientQuantity(item.quantity);
  if(nonNumeric.has(unit)){
   if(quantity!==null)throw Error(name+'は数量を空欄にして「'+unit+'」を選択してください。');
