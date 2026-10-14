@@ -273,3 +273,11 @@ test('hidden preset calendar disables its button and clears selection',()=>{
  assert.match(app,/if\(!presetCalendarVisible\(rule\)\)return/);
  assert.match(css,/\.extra-calendar-list \.check-row\{padding:4px 3px;min-height:34px/);
 });
+
+test('calendar grid excludes events from hidden preset destination calendars',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const extra=app.slice(app.indexOf('function extraEvents(){'),app.indexOf('const categoryName='));
+ assert.match(extra,/\.filter\(calendarId=>\s*assigned\.has\(calendarId\)\|\|explicit\.has\(calendarId\)/);
+ assert.doesNotMatch(extra,/explicit\.has\(calendarId\)\|\|isPresetEvent\(event/);
+ assert.match(app,/const syncedCalendarIds=\(\)=>.*presetCalendarIds/);
+});
