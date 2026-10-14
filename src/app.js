@@ -834,7 +834,10 @@ function openPresetLegend(){
  layoutPresetLegend();
 }
 function openExtraCalendarPicker(){
- const candidates=calendars.map(c=>`<label class="check-row"><input type="checkbox" data-extra-calendar="${esc(c.id)}" ${state.extraCalendarIds.includes(c.id)?'checked':''}><span>${esc(c.summary)}${['owner','writer'].includes(c.accessRole)?'':'（読み取り専用）'}</span></label>`).join('');
+ const candidates=[...calendars].sort((a,b)=>{
+  const readOnly=c=>!['owner','writer'].includes(c.accessRole);
+  return Number(readOnly(a))-Number(readOnly(b))||String(a.summary||'').localeCompare(String(b.summary||''),'ja');
+ }).map(c=>`<label class="check-row"><input type="checkbox" data-extra-calendar="${esc(c.id)}" ${state.extraCalendarIds.includes(c.id)?'checked':''}><span>${esc(c.summary)}${['owner','writer'].includes(c.accessRole)?'':'（読み取り専用）'}</span></label>`).join('');
  const unavailable=state.extraCalendarIds.filter(id=>!calendars.some(c=>c.id===id));
  const remaining=unavailable.map(id=>`<label class="check-row"><input type="checkbox" data-extra-calendar="${esc(id)}" checked><span>保存済みのカレンダー（要再接続）</span></label>`).join('');
  modal('表示するカレンダー',`<p>選択したカレンダーの予定を献立と一緒に表示します。料理履歴には含めず、元の予定は変更しません。</p><div class="extra-calendar-list">${candidates||'<p class="hint">Googleでログインするとカレンダーが選べます。</p>'}${remaining}</div>`,button('閉じる','close-dialog','primary'));
@@ -1178,12 +1181,12 @@ function masterRows(items){
 function masterFilterButtons(){
  const hasPlan=hasPlannedDishes(state.draft);
  if((masterFilter==='plan'&&!hasPlan)||(masterFilter.startsWith('category:')&&!state.categories.some(c=>'category:'+c.id===masterFilter)))masterFilter='all';
- const filterButton=(label,value)=>button(esc(label),'filter-master','master-filter-button'+(masterFilter===value?' selected':''),`data-master-filter="${esc(value)}" aria-pressed="${masterFilter===value}"`);
+ const filterButton=(label,value,icon='')=>button((icon?`<span class="master-filter-icon nav-icon nav-icon-${icon}" aria-hidden="true"></span>`:'')+esc(label),'filter-master','master-filter-button'+(masterFilter===value?' selected':''),`data-master-filter="${esc(value)}" aria-pressed="${masterFilter===value}"`);
  return [
-  hasPlan?filterButton('献立','plan'):'',
-  filterButton('買い物','shopping'),
-  ...state.categories.map(c=>filterButton(c.name,'category:'+c.id)),
-  filterButton('すべて','all')
+  filterButton('すべて','all'),
+  hasPlan?filterButton('献立','plan','generate'):'',
+  filterButton('買い物','shopping','shopping'),
+  ...state.categories.map(c=>filterButton(c.name,'category:'+c.id))
  ].join('');
 }
 function masterScreen(){
