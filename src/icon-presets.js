@@ -14,11 +14,8 @@ export function isPresetEvent(event,calendarId,rules=[]){
  return rules.some(rule=>matchesPreset(event,calendarId,rule));
 }
 // Resolve one preset consistently for the icon, its color, and display order.
-// Read-only/shared events often have no KonDate preset ID.
+// Never use a local preset ID to identify a Google Calendar event.
 export function matchingDisplayPreset(event,calendarId,rules=[]){
- const presetId=event?.extendedProperties?.private?.kondatePresetId||event?.presetId;
- const byId=presetId&&rules.find(rule=>rule.id===presetId);
- if(byId)return byId;
  const exact=rules.find(rule=>matchesPreset(event,calendarId,rule));
  if(exact)return exact;
  const title=String(event?.summary??event?.title??'').normalize('NFKC').toLocaleLowerCase('ja');
@@ -44,5 +41,5 @@ export function presetEventPayload(date,rule){
   throw Error('プリセットのタイトル・メモ・登録先カレンダーを確認してください。');
  return {summary:titleOf(rule),description:memoOf(rule),
   start:{date},end:{date:addDays(date,1)},transparency:'transparent',
-  extendedProperties:{private:{kondatePreset:'1',kondatePresetId:String(rule.id)}}};
+  extendedProperties:{private:{kondatePreset:'1'}}};
 }
