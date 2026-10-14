@@ -1202,7 +1202,7 @@ function ingredientRow(item={},i=0){
  return `<div class="master-ingredient-row" data-ingredient-row>
   <input data-ingredient-name aria-label="${i+1}番目の材料名" placeholder="材料名" maxlength="80" value="${esc(item.name||'')}">
   <input data-ingredient-quantity aria-label="${i+1}番目の数量" inputmode="decimal" placeholder="分量" value="${esc(amount)}">
-  <select data-ingredient-unit aria-label="${i+1}番目の単位">${INGREDIENT_UNITS.map(u=>`<option value="${u}" ${u===unit?'selected':''}>${u}</option>`).join('')}</select>
+  <input data-ingredient-unit aria-label="${i+1}番目の単位" list="ingredient-unit-options" maxlength="24" placeholder="単位" value="${esc(unit)}">
   ${button('×','remove-master-ingredient','mini master-ingredient-remove',`data-index="${i}" aria-label="${i+1}番目の材料を削除"`)}
  </div>`;
 }
@@ -1231,12 +1231,13 @@ function editMaster(key=null,{buy=false,fallback=null}={}){
   ${[['protein','主な食材',['不明','肉','魚','野菜・豆','卵']],['method','調理法',['不明','焼く','煮る','炒める','揚げる','蒸す','ゆでる','和える']],['genre','ジャンル',['不明','和食','洋食','中華','その他']]].map(([k,label,values])=>`<label class="field"><span>${label}</span><select id="master-${k}">${values.map(v=>`<option ${d[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')}
   <section class="master-ingredients" aria-label="1人前の材料">
    <div class="master-ingredients-head"><strong>材料（1人前）</strong></div>
-   <div id="master-ingredients">${existing.map((i,n)=>ingredientRow(i,n)).join('')}</div>
+   <datalist id="ingredient-unit-options">${INGREDIENT_UNITS.map(u=>`<option value="${esc(u)}"></option>`).join('')}</datalist>
+    <div id="master-ingredients">${existing.map((i,n)=>ingredientRow(i,n)).join('')}</div>
    <div class="master-ingredients-actions">
     ${button('＋ 材料を追加','add-master-ingredient','mini')}
     ${button('AIで材料を生成','generate-master-ingredients','mini',ai.available&&typeof ai.provider?.generateIngredients==='function'?'':'disabled')}
    </div>
-   <p class="hint">数量は1/2や0.5でも入力できます。大さじ・小さじ・kg・Lは保存時に計算用の量へ変換します。材料は保存前に修正できます。${ai.available?'AI生成は推定値です。保存前に内容を確認してください。':'AIでの生成はAI接続が有効な場合に利用できます。'}</p>
+   <p class="hint">数量は1/2や0.5でも入力できます。単位は候補から選択するか自由に入力できます。大さじ・小さじ・kg・Lは保存時に計算用の量へ変換します。材料は保存前に修正できます。${ai.available?'AI生成は推定値です。保存前に内容を確認してください。':'AIでの生成はAI接続が有効な場合に利用できます。'}</p>
   </section>
   ${d.dates.length?`<details><summary>過去の調理日（${d.count}回）</summary><p class="hint">${d.dates.join(' / ')}</p></details>`:''}
   <p class="hint">料理名を変更して保存すると、調理履歴を統合し、Googleカレンダーの予定名も自動的に統一します。</p>${buy?'<p class="hint">材料を1件以上保存すると買い物リストへ追加します。空欄のまま保存した場合は追加されません。</p>':''}`, 
