@@ -281,3 +281,13 @@ test('calendar grid excludes events from hidden preset destination calendars',()
  assert.doesNotMatch(extra,/explicit\.has\(calendarId\)\|\|isPresetEvent\(event/);
  assert.match(app,/const syncedCalendarIds=\(\)=>.*presetCalendarIds/);
 });
+
+test('read-only calendar events resolve icon and order without a preset ID',async()=>{
+ const {matchingDisplayPreset,presetIcon,presetColor}=await import('../src/icon-presets.js');
+ const rules=[{id:'first',calendarId:'owner',keyword:'買い物',icon:'shopping_cart_2_fill',color:'#123456'},
+  {id:'second',calendarId:'owner',keyword:'仕事',icon:'briefcase_fill',color:'#654321'}];
+ const event={summary:'明日の仕事の予定',description:'共有者が入力したメモ'};
+ assert.equal(matchingDisplayPreset(event,'readonly',rules),rules[1]);
+ assert.equal(presetIcon(event,'readonly',rules),'briefcase_fill');
+ assert.equal(presetColor(event,'readonly',rules),'#654321');
+});
