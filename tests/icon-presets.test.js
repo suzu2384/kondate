@@ -140,7 +140,7 @@ test('preset toolbar skips unset destination calendars and hides when there are 
  assert.match(bar,/const calendarBar=tab==='calendar'&&rules\.length>0/);
  assert.match(bar,/const shown=filterBar\|\|calendarBar/);
  assert.match(bar,/app\.classList\.toggle\('has-quick-presets',calendarBar\)/);
- assert.match(bar,/if\(!rules\.some\(rule=>rule\.id===selectedPresetId\)\)selectedPresetId=null/);
+ assert.match(bar,/if\(!rules\.some\(rule=>rule\.id===selectedPresetId&&presetCalendarVisible\(rule\)\)\)selectedPresetId=null/);
  assert.match(bar,/bar\.hidden=!shown/);
 });
 test('preset list is a single row and editor is transactional',()=>{
