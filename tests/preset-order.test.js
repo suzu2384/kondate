@@ -22,10 +22,10 @@ test('preset calendar events sort by saved order and unrelated events remain at 
  assert.deepEqual(sortCalendarExtras(source,revised).map(e=>e.title),['仕事','資源','旅行','その他','未登録']);
  assert.deepEqual(source.map(e=>e.title),['資源','その他','仕事','旅行','未登録']);
 });
-test('matching prioritizes preset ID and then exact calendar, title and memo',()=>{
+test('matching uses calendar, title and memo, never device-specific preset IDs',()=>{
  assert.equal(presetOrderIndex({calendarId:'cal',title:'資源',memo:''},rules),1);
  assert.equal(presetOrderIndex({calendarId:'wrong',title:'資源',memo:''},rules),1);
- assert.equal(presetOrderIndex({calendarId:'cal',title:'旅行',memo:'家族',presetId:'b'},rules),1);
+ assert.equal(presetOrderIndex({calendarId:'cal',title:'旅行',memo:'家族',presetId:'b'},rules),0);
  assert.equal(presetOrderIndex({calendarId:'cal',title:'知らない予定'},rules),-1);
  assert.equal(presetOrderIndex({calendarId:'shared',title:'家族の旅行計画',memo:'他人のメモ'},rules),0);
  assert.equal(presetOrderIndex({calendarId:'shared',title:'来週の仕事',memo:'外部予定'},rules),2);
