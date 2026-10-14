@@ -51,7 +51,8 @@ test('toggle does not target timed or recurring events',()=>{
  assert.equal(matchingPresetEvent([{...event,start:{dateTime:'2026-10-10T09:00:00+09:00'}}],'calendar',date,a),undefined);
  assert.equal(isPresetEvent(event,'calendar',[a,b]),true);
  assert.equal(event.end.date,'2026-10-11');
- assert.equal(event.extendedProperties.private.kondatePresetId,'aaa');
+ assert.equal(event.extendedProperties.private.kondatePreset,'1');
+ assert.equal(Object.hasOwn(event.extendedProperties.private,'kondatePresetId'),false);
 });
 test('all calendar chips are rendered and clipped naturally, with centered icons',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
@@ -290,4 +291,13 @@ test('read-only calendar events resolve icon and order without a preset ID',asyn
  assert.equal(matchingDisplayPreset(event,'readonly',rules),rules[1]);
  assert.equal(presetIcon(event,'readonly',rules),'briefcase_fill');
  assert.equal(presetColor(event,'readonly',rules),'#654321');
+});
+
+test('preset ID in older calendar events is ignored when choosing the icon',async()=>{
+ const {matchingDisplayPreset}=await import('../src/icon-presets.js');
+ const first={id:'a',calendarId:'cal',keyword:'旅行',memo:'',icon:'car_fill'};
+ const second={id:'b',calendarId:'cal',keyword:'仕事',memo:'',icon:'briefcase_fill'};
+ const event={summary:'仕事の打ち合わせ',extendedProperties:{private:{kondatePresetId:'a'}}};
+ assert.equal(matchingDisplayPreset(event,'cal',[first,second]),second);
+ assert.equal(presetIcon(event,'cal',[first,second]),'briefcase_fill');
 });
