@@ -140,6 +140,7 @@ function data(){return dataFor(primaryCalendarId());}
 const assignedIds=()=>activeCalendarIds('',state.categories,state.categoryCalendars);
 const syncedCalendarIds=()=>[...new Set([...assignedIds(),...state.extraCalendarIds,...presetCalendarIds(state.iconRules)])].filter(Boolean);
 const hasSyncedCalendars=()=>syncedCalendarIds().length>0;
+const presetCalendarVisible=rule=>!!rule?.calendarId&&(state.extraCalendarIds.includes(rule.calendarId)||assignedIds().includes(rule.calendarId));
 function records(){return assignedIds().flatMap(calendarId=>{
  const bucket=dataFor(calendarId);
  const assigned=state.categories.filter(c=>calendarForCategory(c.id,'',state.categoryCalendars)===calendarId);
@@ -575,7 +576,7 @@ function renderPresetBar(){
  const rules=state.iconRules.filter(rule=>String(rule.keyword||'').trim()&&String(rule.calendarId||'').trim());
  const calendarBar=tab==='calendar'&&rules.length>0;
  const shown=filterBar||calendarBar;
- if(!rules.some(rule=>rule.id===selectedPresetId))selectedPresetId=null;
+ if(!rules.some(rule=>rule.id===selectedPresetId&&presetCalendarVisible(rule)))selectedPresetId=null;
  const app=document.querySelector('.app');
  app.classList.toggle('has-quick-presets',calendarBar);
  app.classList.toggle('has-master-filters',filterBar);
@@ -592,8 +593,9 @@ function renderPresetBar(){
  const nextMarkup=rules.map(rule=>{
   const title=String(rule.keyword||'').trim(),memo=String(rule.memo||'').trim();
   const label=[title,memo,rule.calendarId?'':'（登録先未設定）'].filter(Boolean).join('／');
-  const pressed=selectedPresetId===rule.id;
-  return `<button type="button" data-action="select-preset" data-rule-id="${esc(rule.id)}" aria-label="${esc(label)}" title="${esc(label)}" aria-pressed="${pressed}" class="quick-preset ${pressed?'active':''}">${iconMarkup(rule.icon,rule.color)}</button>`;
+  const visible=presetCalendarVisible(rule);
+  const pressed=visible&&selectedPresetId===rule.id;
+  return `<button type="button" ${visible?'':'disabled'} data-action="select-preset" data-rule-id="${esc(rule.id)}" aria-label="${esc(label)}" title="${esc(label)}" aria-pressed="${pressed}" class="quick-preset ${pressed?'active':''}">${iconMarkup(rule.icon,rule.color)}</button>`;
  }).join('');
  if(bar.innerHTML!==nextMarkup)bar.innerHTML=nextMarkup;
 }
@@ -1729,6 +1731,7 @@ async function flushPendingPresets(){
 function togglePresetOnDate(date){
  const rule=state.iconRules.find(rule=>rule.id===selectedPresetId);
  if(!rule)return;
+ if(!presetCalendarVisible(rule)){selectedPresetId=null;renderPresetBar();return;}
  const calendarId=String(rule.calendarId||''),title=String(rule.keyword||'').trim();
  if(!title)throw Error('プリセットのタイトルが未設定です。');
  if(!calendarId)throw Error('このプリセットの登録先カレンダーが未設定です。設定から指定してください。');
@@ -1794,7 +1797,7 @@ const actions={
  'month-year-next':()=>{const field=$('#month-picker-year');if(field)field.value=String(Math.min(2100,(Number(field.value)||month.getFullYear())+1));},
  'prev-month':()=>shiftCalendarMonth(-1),'next-month':()=>shiftCalendarMonth(1),today:()=>{cancelCalendarSwipe();selected=today();month=new Date(`${selected.slice(0,7)}-01T12:00:00`);render();},
  date:b=>selectCalendarDate(b.dataset.date),
- 'select-preset':b=>{selectedPresetId=selectedPresetId===b.dataset.ruleId?null:b.dataset.ruleId;renderPresetBar();},
+ 'select-preset':b=>{const rule=state.iconRules.find(rule=>rule.id===b.dataset.ruleId);if(!presetCalendarVisible(rule))return;selectedPresetId=selectedPresetId===b.dataset.ruleId?null:b.dataset.ruleId;renderPresetBar();},
  'new-record':b=>openRecord(null,{date:b.dataset.date||today()}),record:b=>openRecord(records().find(r=>r.id===b.dataset.id&&r.calendarId===(b.dataset.calendar||primaryCalendarId()))),
  'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
  'suggest-record-dish':pickRecordDishSuggestion,'pick-location':pickPlaceSuggestion,
