@@ -1,3 +1,4 @@
+import {readFileSync} from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
@@ -262,4 +263,14 @@ test('preset icon chooser stays six columns on both wide and narrow screens',()=
  assert.doesNotMatch(css,/\.dialog-body \.icon-tile-grid\{grid-template-columns:repeat\(5,/);
  assert.match(css,/\.dialog-body \.icon-tile\{height:42px;min-height:42px;padding:4px\}/);
  assert.match(css,/\.dialog-body \.icon-tile \.preset-svg-icon\{width:25px;height:25px\}/);
+});
+
+test('hidden preset calendar disables its button and clears selection',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
+ assert.match(app,/const presetCalendarVisible=rule=>/);
+ assert.match(app,/selectedPresetId&&presetCalendarVisible\(rule\)/);
+ assert.match(app,/visible\?'':'disabled'/);
+ assert.match(app,/if\(!presetCalendarVisible\(rule\)\)return/);
+ assert.match(css,/\.extra-calendar-list \.check-row\{padding:4px 3px;min-height:34px/);
 });
