@@ -156,10 +156,11 @@ function records(){return assignedIds().flatMap(calendarId=>{
 function master(){const enabled=new Set(state.categories.map(c=>c.id));return buildMaster(records(),data().aliases,data().metadata,[...(state.seedEnabled?catalog.filter(d=>enabled.has(d.category)):[]),...data().manual.filter(d=>enabled.has(d.category))]);}
 function extraEvents(){
  const assigned=new Set(assignedIds()),explicit=new Set(state.extraCalendarIds);
- return sortCalendarExtras([...new Set([...explicit,...presetCalendarIds(state.iconRules)])].flatMap(calendarId=>
+ return sortCalendarExtras([...new Set([...explicit,...presetCalendarIds(state.iconRules)])].filter(calendarId=>
+  assigned.has(calendarId)||explicit.has(calendarId)
+ ).flatMap(calendarId=>
   presetQueue.project(calendarId,dataFor(calendarId).events).filter(event=>assigned.has(calendarId)?
-   isPresetEvent(event,calendarId,state.iconRules):
-   explicit.has(calendarId)||isPresetEvent(event,calendarId,state.iconRules)
+   isPresetEvent(event,calendarId,state.iconRules):true
   ).map(event=>{
    const date=eventDay(event,state.timeZone);
    if(!date)return null;
