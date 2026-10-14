@@ -1,5 +1,5 @@
 import {addDays} from './model.js';
-import {matchIcon,normalizeIcon,normalizeIconColor} from './calendar-display.js';
+import {normalizeIcon,normalizeIconColor} from './calendar-display.js';
 export function presetCalendarIds(rules=[]){
  return [...new Set(rules.filter(r=>String(r.keyword||'').trim()&&r.calendarId).map(r=>r.calendarId))];
 }
@@ -13,19 +13,26 @@ export function isPresetEvent(event,calendarId,rules=[]){
  if(event?.extendedProperties?.private?.kondatePreset==='1')return true;
  return rules.some(rule=>matchesPreset(event,calendarId,rule));
 }
-export function presetIcon(event,calendarId,rules=[]){
- const presetId=event?.extendedProperties?.private?.kondatePresetId;
- const byId=presetId&&rules.find(r=>r.id===presetId);
- if(byId?.icon)return normalizeIcon(byId.icon);
+// Resolve one preset consistently for the icon, its color, and display order.
+// Read-only/shared events often have no KonDate preset ID.
+export function matchingDisplayPreset(event,calendarId,rules=[]){
+ const presetId=event?.extendedProperties?.private?.kondatePresetId||event?.presetId;
+ const byId=presetId&&rules.find(rule=>rule.id===presetId);
+ if(byId)return byId;
  const exact=rules.find(rule=>matchesPreset(event,calendarId,rule));
- return exact?.icon?normalizeIcon(exact.icon):matchIcon(event?.summary,rules);
+ if(exact)return exact;
+ const title=String(event?.summary??event?.title??'').normalize('NFKC').toLocaleLowerCase('ja');
+ return rules.find(rule=>{
+  const keyword=String(rule.keyword||'').normalize('NFKC').trim().toLocaleLowerCase('ja');
+  return keyword&&title.includes(keyword)&&typeof rule.icon==='string';
+ })||null;
+}
+export function presetIcon(event,calendarId,rules=[]){
+ const matched=matchingDisplayPreset(event,calendarId,rules);
+ return matched?.icon?normalizeIcon(matched.icon):'';
 }
 export function presetColor(event,calendarId,rules=[]){
- const presetId=event?.extendedProperties?.private?.kondatePresetId;
- const byId=presetId&&rules.find(r=>r.id===presetId);
- const matched=byId||rules.find(rule=>matchesPreset(event,calendarId,rule))||
-  rules.find(rule=>rule.keyword&&String(event?.summary||'').normalize('NFKC').toLocaleLowerCase('ja').includes(String(rule.keyword).normalize('NFKC').trim().toLocaleLowerCase('ja')));
- return normalizeIconColor(matched?.color);
+ return normalizeIconColor(matchingDisplayPreset(event,calendarId,rules)?.color);
 }
 export function matchingPresetEvent(events,calendarId,date,rule){
  return events.find(e=>e.status!=='cancelled'&&!e.recurringEventId&&
