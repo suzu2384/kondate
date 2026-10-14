@@ -96,7 +96,7 @@ test('master screen removes title/explanation and dynamically shows configured f
  ctx.state.draft=[];ctx.masterFilter='plan';
  const empty=functions.masterFilterButtons();
  assert.doesNotMatch(empty,/data-master-filter="plan"/);
- assert.match(empty,/data-master-filter="all" aria-pressed="true"/);
+ assert.match(empty,/data-master-filter="all" aria-label="すべて" title="すべて" aria-pressed="true"/);
  assert.equal(ctx.masterFilter,'all');
 });
 
