@@ -1181,7 +1181,7 @@ function masterRows(items){
 function masterFilterButtons(){
  const hasPlan=hasPlannedDishes(state.draft);
  if((masterFilter==='plan'&&!hasPlan)||(masterFilter.startsWith('category:')&&!state.categories.some(c=>'category:'+c.id===masterFilter)))masterFilter='all';
- const filterButton=(label,value,icon='')=>button((icon?`<span class="master-filter-icon nav-icon nav-icon-${icon}" aria-hidden="true"></span>`:'')+esc(label),'filter-master','master-filter-button'+(masterFilter===value?' selected':''),`data-master-filter="${esc(value)}" aria-pressed="${masterFilter===value}"`);
+ const filterButton=(label,value,icon='')=>button(icon?`<span class="master-filter-icon nav-icon nav-icon-${icon}" aria-hidden="true"></span>`:esc(label),'filter-master','master-filter-button'+(masterFilter===value?' selected':'')+(icon?' icon-only':''),`data-master-filter="${esc(value)}" aria-label="${esc(label)}" title="${esc(label)}" aria-pressed="${masterFilter===value}"`);
  return [
   filterButton('すべて','all'),
   hasPlan?filterButton('献立','plan','generate'):'',
