@@ -92,10 +92,10 @@ test('master screen removes title/explanation and dynamically shows configured f
  assert.doesNotMatch(html,/<h2>料理マスター<\/h2>/);
  assert.doesNotMatch(html,/最終調理日の新しい順。料理の表記や属性の変更/);
  const p=html.indexOf('data-master-filter="plan"'),shopping=html.indexOf('data-master-filter="shopping"'),m=html.indexOf('data-master-filter="category:main"'),all=html.indexOf('data-master-filter="all"');
- assert.ok(p<shopping&&shopping<m&&m<all);
+ assert.ok(all<p&&p<shopping&&shopping<m);
  ctx.state.draft=[];ctx.masterFilter='plan';
  const empty=functions.masterFilterButtons();
- assert.doesNotMatch(empty,/>献立<\/button>/);
+ assert.doesNotMatch(empty,/data-master-filter="plan"/);
  assert.match(empty,/data-master-filter="all" aria-pressed="true"/);
  assert.equal(ctx.masterFilter,'all');
 });
