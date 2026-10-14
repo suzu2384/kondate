@@ -167,7 +167,7 @@ function extraEvents(){
    const title=event.summary||'無題の予定';
    return {calendarId,date,title,memo:String(event.description||''),icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules),pending:!!event._presetPending,presetId:event.extendedProperties?.private?.kondatePresetId||''};
   }).filter(Boolean)
- ),state.iconRules);
+ ).flat(),state.iconRules);
 }
 
 const categoryName=id=>state.categories.find(c=>c.id===id)?.name||id;
