@@ -301,3 +301,11 @@ test('preset ID in older calendar events is ignored when choosing the icon',asyn
  assert.equal(matchingDisplayPreset(event,'cal',[first,second]),second);
  assert.equal(presetIcon(event,'cal',[first,second]),'briefcase_fill');
 });
+
+test('calendar picker sorts writable calendars by Japanese name before read-only calendars',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const picker=app.slice(app.indexOf('function openExtraCalendarPicker(){'),app.indexOf('function additionalCalendarSettings(){'));
+ assert.match(picker,/\[\.\.\.calendars\]\.sort\(/);
+ assert.match(picker,/Number\(readOnly\(a\)\)-Number\(readOnly\(b\)\)/);
+ assert.match(picker,/localeCompare\(String\(b\.summary\|\|''\),'ja'\)/);
+});
