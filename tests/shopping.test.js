@@ -127,7 +127,7 @@ test('shopping tab displays ingredient checklist, while 料理 tab manages shopp
  assert.match(app,/editMaster\(existing\?\.key\|\|null,\{buy:true/);
  assert.match(app,/if\(buy&&ingredients\.length\)state\.shopping\.selected=addShoppingDish/);
  const masterFilters=app.slice(app.indexOf('function masterFilterButtons()'),app.indexOf('function masterScreen()'));
- assert.match(masterFilters,/filterButton\('買い物','shopping'\)/);
+ assert.match(masterFilters,/filterButton\('買い物','shopping','shopping'\)/);
  assert.match(app,/masterFilterItems\(master\(\),state\.draft,masterFilter,data\(\)\.aliases,state\.shopping\.selected\)/);
  const shoppingScreen=app.slice(app.indexOf('function shoppingScreen()'),app.indexOf('function editShoppingManual('));
  assert.doesNotMatch(shoppingScreen,/買い物対象の料理|shopping-selected|shopping-remove-dish|shopping-edit-dish/);
