@@ -1577,3 +1577,6 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .master-filter-icon{display:inline-block;flex:0 0 16px;width:16px;height:16px;background-color:currentColor;mask-repeat:no-repeat;-webkit-mask-repeat:no-repeat;mask-position:center;-webkit-mask-position:center;mask-size:contain;-webkit-mask-size:contain}
 .master-filter-icon.nav-icon-generate{mask-image:url('./icons/tabs/chef-hat.svg');-webkit-mask-image:url('./icons/tabs/chef-hat.svg')}
 .master-filter-icon.nav-icon-shopping{mask-image:url('./icons/tabs/shopping-cart.svg');-webkit-mask-image:url('./icons/tabs/shopping-cart.svg')}
+
+.master-filter-button.icon-only{min-width:34px;padding-inline:8px}
+.master-filter-button.icon-only .master-filter-icon{width:19px;height:19px;flex-basis:19px}
