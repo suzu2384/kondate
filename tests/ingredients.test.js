@@ -31,6 +31,27 @@ test('unit conversions are exact within their family and preserve user-entered u
  assert.equal(parseIngredientQuantity('1 1/2'),1.5);
  assert.ok(INGREDIENT_UNITS.includes('袋'));
 });
+test('custom ingredient units survive AI parsing and only matching units aggregate',()=>{
+ const parsed=parseIngredientResponse(JSON.stringify({ingredients:[
+  {name:'ローリエ',quantity:2,unit:'葉'},
+  {name:'にんにく',quantity:1,unit:'粒'},
+  {name:'しょうが',quantity:1,unit:'かけ'}
+ ]}));
+ assert.equal(parsed[0].unit,'葉');
+ assert.equal(parsed[1].baseUnit,'粒');
+ assert.equal(parsed[2].unit,'片');
+ assert.equal(normalizeIngredient({name:'砂糖',quantity:5,unit:'グラム'}).unit,'g');
+ assert.deepEqual(ingredientTotal([
+  {name:'にんにく',quantity:2,unit:'粒'},
+  {name:'にんにく',quantity:3,unit:'粒'},
+  {name:'にんにく',quantity:1,unit:'個'}
+ ]).map(x=>[x.baseUnit,x.baseQuantity]),[['粒',5],['個',1]]);
+ assert.throws(()=>normalizeIngredient({name:'塩',quantity:1,unit:'<script>'}),/単位/);
+ assert.throws(()=>normalizeIngredient({name:'塩',quantity:1,unit:'a'.repeat(25)}),/単位/);
+ assert.match(app,/list="ingredient-unit-options"/);
+ assert.match(app,/<datalist id="ingredient-unit-options">/);
+ assert.doesNotMatch(app,/<select data-ingredient-unit/);
+});
 test('aggregation converts only like units; never guess ingredient density',()=>{
  const totals=ingredientTotal([
   {name:'醤油',quantity:1,unit:'大さじ'},
@@ -50,7 +71,7 @@ test('invalid and ambiguous ingredient inputs are rejected',()=>{
   {name:'塩',quantity:0,unit:'g'},
   {name:'塩',quantity:-1,unit:'g'},
   {name:'塩',quantity:1,unit:'適量'},
-  {name:'塩',quantity:1,unit:'unknown'}
+  {name:'塩',quantity:1,unit:''}
  ])assert.throws(()=>normalizeIngredient(item));
  assert.throws(()=>validateIngredients([{name:'塩',quantity:1,unit:'g'},{name:'塩',quantity:2,unit:'kg'}]),/重複/);
  assert.throws(()=>validateIngredients(Array.from({length:61},()=>({name:'水',quantity:1,unit:'ml'}))),/最大60/);
