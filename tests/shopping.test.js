@@ -99,7 +99,7 @@ test('selected recipe names are validated for backup safety and uniqueness',()=>
  assert.throws(()=>validateShoppingSettings({selected:['\u0000evil']}),/不正/);
  assert.throws(()=>validateShoppingSettings({selected:[42]}),/不正/);
  assert.throws(()=>validateShoppingSettings({selected:Array.from({length:201},(_,i)=>'料理'+i)}),/最大200/);
- assert.throws(()=>validateShoppingSettings({manual:[{id:'abcdef012345',name:'醤油',unit:'unknown',quantity:1}]}),/単位/);
+ assert.throws(()=>validateShoppingSettings({manual:[{id:'abcdef012345',name:'醤油',unit:'',quantity:1}]}),/単位/);
  assert.throws(()=>validateShoppingSettings({excluded:{'abc':'yes'}}),/形式/);
  assert.doesNotThrow(()=>validateShoppingSettings({selected:['肉じゃが'],servings:5}));
 });
