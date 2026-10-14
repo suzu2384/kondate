@@ -49,6 +49,7 @@ test('settings uses draggable handles and calendar places meals before sorted ex
  assert.match(settings,/data-reorder-handle=/);
  assert.match(settings,/role="list"/);
  assert.match(app,/sortCalendarExtras\(\[\.\.\.new Set/);
+ assert.match(app,/\.filter\(Boolean\)\s*\)\.flat\(\),state\.iconRules\)/,'flatten calendar event groups before sorting globally');
  assert.match(app,/\),state\.iconRules\)/);
  const cell=app.slice(app.indexOf('function calendarCellInfo('),app.indexOf('function calendarScreen(){'));
  assert.ok(cell.indexOf('events.map(')<cell.indexOf('extra.map('),'meals precede presets');
@@ -59,4 +60,13 @@ test('settings uses draggable handles and calendar places meals before sorted ex
  assert.match(app,/movePresetByKeyboard\(handle,e\.key==='ArrowUp'\?-1:1\)/);
  assert.match(app,/state\.iconRules=ordered;\s*persist\(\)/);
  assert.match(css,/\.preset-drag-ghost\{position:fixed/);
+});
+
+test('cross-calendar preset order is applied to the combined event list',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const extra=app.slice(app.indexOf('function extraEvents(){'),app.indexOf('const categoryName='));
+ assert.match(extra,/\.flatMap\(calendarId=>/);
+ assert.match(extra,/\.filter\(Boolean\)\s*\)\.flat\(\),state\.iconRules\)/);
+ const grouped=[[source[0],source[3]],[source[2]]];
+ assert.deepEqual(sortCalendarExtras(grouped.flat(),rules).map(e=>e.presetId),['a','b','c']);
 });
