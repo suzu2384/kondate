@@ -1225,6 +1225,11 @@ function redrawIngredientRows(items){
  if(!list)return;
  list.innerHTML=items.map((ingredient,i)=>ingredientRow(ingredient,i)).join('');
 }
+const MAIN_FOOD_OPTIONS=['肉','魚','野菜・豆','卵','米','麺','パン'];
+function mainFoodSelections(d){
+ const saved=Array.isArray(d.proteins)?d.proteins:(d.protein&&d.protein!=='不明'?[d.protein]:[]);
+ return saved.filter((value,index)=>MAIN_FOOD_OPTIONS.includes(value)&&saved.indexOf(value)===index);
+}
 function editMaster(key=null,{buy=false,fallback=null}={}){
  editingMaster=key;
  pendingMasterBuy=buy;
@@ -1234,7 +1239,8 @@ function editMaster(key=null,{buy=false,fallback=null}={}){
   `<label class="field"><span>料理名（変更で表記を統一）</span><input id="master-name" value="${esc(d.name)}" maxlength="100" list="dish-options"></label>
   <datalist id="dish-options">${master().map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
   <label class="field"><span>分類</span><select id="master-category">${categoryOptions(d.category)}</select></label>
-  ${[['protein','主な食材',['不明','肉','魚','野菜・豆','卵']],['method','調理法',['不明','焼く','煮る','炒める','揚げる','蒸す','ゆでる','和える']],['genre','ジャンル',['不明','和食','洋食','中華','その他']]].map(([k,label,values])=>`<label class="field"><span>${label}</span><select id="master-${k}">${values.map(v=>`<option ${d[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')}
+  <fieldset class="field master-food-field"><legend>主な食材（複数選択可）</legend><div class="master-food-options">${MAIN_FOOD_OPTIONS.map(value=>`<label class="master-food-option"><input type="checkbox" name="master-food" value="${esc(value)}" ${mainFoodSelections(d).includes(value)?'checked':''}><span>${esc(value)}</span></label>`).join('')}</div></fieldset>
+  ${[['method','調理法',['不明','焼く','煮る','炒める','揚げる','蒸す','ゆでる','和える']],['genre','ジャンル',['不明','和食','洋食','中華','その他']]].map(([k,label,values])=>`<label class="field"><span>${label}</span><select id="master-${k}">${values.map(v=>`<option ${d[k]===v?'selected':''}>${v}</option>`).join('')}</select></label>`).join('')}
   <section class="master-ingredients" aria-label="1人前の材料">
    <div class="master-ingredients-head"><strong>材料（1人前）</strong></div>
    <datalist id="ingredient-unit-options">${INGREDIENT_UNITS.map(u=>`<option value="${esc(u)}"></option>`).join('')}</datalist>
@@ -1250,7 +1256,8 @@ function editMaster(key=null,{buy=false,fallback=null}={}){
   button('キャンセル','close-dialog')+button(buy?'確定':'保存','save-master','primary'));
 }
 async function saveMaster(){
- const dish=validateDishes([{name:$('#master-name').value,category:$('#master-category').value,protein:$('#master-protein').value,method:$('#master-method').value,genre:$('#master-genre').value}])[0];
+ const proteins=[...document.querySelectorAll('input[name="master-food"]:checked')].map(input=>input.value).filter(value=>MAIN_FOOD_OPTIONS.includes(value));
+ const dish=validateDishes([{name:$('#master-name').value,category:$('#master-category').value,protein:proteins[0]||'不明',method:$('#master-method').value,genre:$('#master-genre').value}])[0];
  const ingredients=validateIngredients(readIngredientRows());
  const key=normalize(dish.name);
  const previousName=editingMaster?master().find(d=>d.key===editingMaster)?.name:null;
@@ -1271,7 +1278,7 @@ async function saveMaster(){
   })).values()];
  }
  const old=data().metadata[editingMaster]||{},previous=data().metadata[key]||{};
- data().metadata[key]={...old,...previous,category:dish.category,protein:dish.protein,method:dish.method,genre:dish.genre,ingredients};
+ data().metadata[key]={...old,...previous,category:dish.category,protein:dish.protein,proteins,method:dish.method,genre:dish.genre,ingredients};
  if(!editingMaster||!master().some(d=>d.key===key))data().manual.push(dish);
  const buy=pendingMasterBuy;
  if(buy&&ingredients.length)state.shopping.selected=addShoppingDish(state.shopping.selected,dish.name);
