@@ -461,7 +461,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .icon-preset-settings .icon-preset-color{flex:0 0 40px;width:40px;min-width:40px;height:38px;min-height:38px;
  padding:3px;cursor:pointer;border-radius:9px}
 .icon-preset-heading strong{min-width:0}
-.dialog-body .icon-tile-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
+.dialog-body .icon-tile-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));
  gap:7px;width:min(100%,355px);margin:2px auto 6px}
 .dialog-body .icon-tile{min-height:47px;height:47px;padding:8px}
 .dialog-body .icon-tile .preset-svg-icon{width:27px;height:27px}
@@ -1600,7 +1600,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .master-food-option input:checked+span{box-shadow:inset 0 0 0 1px var(--accent)}
 
 /* Ingredient selector uses the same compact, square icon-tile layout as presets. */
-.master-food-options{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}
+.master-food-options{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
 .master-food-option{display:block;min-width:0}
 .master-food-option>span{display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1;min-height:0;padding:5px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-sizing:border-box}
 .master-food-option .master-food-icon{width:100%;height:100%;max-width:32px;max-height:32px;object-fit:contain}
