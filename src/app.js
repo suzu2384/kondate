@@ -2119,6 +2119,26 @@ function movePresetByKeyboard(handle,direction){
  document.querySelector(`[data-reorder-handle="${handle.dataset.reorderHandle}"]`)?.focus({preventScroll:true});
 }
 
+// On iOS a suggestion can disappear on focus/keyboard dismissal before the synthesized click.
+// Resolve a stationary tap at touchend while leaving touch scrolling untouched.
+let dishSuggestionTouch=null;
+document.addEventListener('touchstart',e=>{
+ const candidate=e.target.closest?.('[data-action="suggest-record-dish"]');
+ if(!candidate||e.touches.length!==1){dishSuggestionTouch=null;return;}
+ const touch=e.touches[0];
+ dishSuggestionTouch={candidate,id:touch.identifier,x:touch.clientX,y:touch.clientY};
+},{passive:true});
+document.addEventListener('touchend',e=>{
+ const start=dishSuggestionTouch;
+ dishSuggestionTouch=null;
+ if(!start)return;
+ const touch=[...e.changedTouches].find(t=>t.identifier===start.id);
+ if(!touch||Math.hypot(touch.clientX-start.x,touch.clientY-start.y)>12)return;
+ if(!start.candidate.isConnected)return;
+ e.preventDefault();
+ pickRecordDishSuggestion(start.candidate);
+},{passive:false});
+document.addEventListener('touchcancel',()=>{dishSuggestionTouch=null;},{passive:true});
 // Capture pointer selection before iOS dismisses the keyboard and changes focus.
 // The regular click action remains a fallback for keyboard and assistive tech.
 document.addEventListener('pointerdown',e=>{
