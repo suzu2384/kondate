@@ -143,3 +143,14 @@ test('shopping filter follows alias changes, and allows removing missing master 
  assert.equal(selected[1].unregistered,true);
  assert.match(functions.masterRows(selected.slice(1)),/data-action="buy-master"/);
 });
+
+test('main ingredient editor offers multiple choices and retains legacy selection',()=>{
+ const section=app.slice(app.indexOf('const MAIN_FOOD_OPTIONS='),app.indexOf('async function saveMaster(){'));
+ assert.match(section,/MAIN_FOOD_OPTIONS=\['肉','魚','野菜・豆','卵','米','麺','パン'\]/);
+ assert.match(section,/type="checkbox" name="master-food"/);
+ assert.match(section,/Array\.isArray\(d\.proteins\)\?d\.proteins/);
+ const save=app.slice(app.indexOf('async function saveMaster(){'),app.indexOf('async function saveMaster(){')+2100);
+ assert.match(save,/querySelectorAll\('input\[name="master-food"\]:checked'\)/);
+ assert.match(save,/protein:proteins\[0\]\|\|'不明'/);
+ assert.match(save,/protein:dish\.protein,proteins,method/);
+});
