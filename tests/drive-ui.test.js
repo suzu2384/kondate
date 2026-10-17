@@ -5,9 +5,9 @@ import {readFileSync} from 'node:fs';
 const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 test('settings sharing is visible and old duplicate Drive controls are removed',()=>{
  assert.match(app,/他の端末へ設定を引き継ぐ/);
- assert.match(app,/button\('Driveにバックアップ','drive-save'/);
- assert.match(app,/button\('Driveから復元','drive-load'/);
- assert.match(app,/Driveのバックアップを上書きしますか/);
+ assert.match(app,/button\('ドライブにバックアップ','drive-save'/);
+ assert.match(app,/button\('ドライブから復元','drive-load'/);
+ assert.match(app,/ドライブのバックアップを上書きしますか/);
 });
 test('restoring Drive settings keeps Google connected and resyncs calendar events',()=>{
  const block=app.slice(app.indexOf("'confirm-drive-load':"),app.indexOf("'add-icon-rule':"));
