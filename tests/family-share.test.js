@@ -637,7 +637,7 @@ test('sharing UI has no separate account or reauthorization controls and is gate
  const app=file('src/app.js'),drive=file('src/drive.js');
  assert.match(app,/new FamilyDriveClient\(undefined,drive\)/);
  assert.match(app,/b\.disabled=!drive\.connected/);
- assert.match(app,/if\(!drive\.connected\)throw Error\('設定画面でGoogle Driveに接続してください。'\)/);
+ assert.match(app,/if\(!drive\.connected\)throw Error\('設定画面でGoogle ドライブに接続してください。'\)/);
  assert.doesNotMatch(app,/family-account-change|family-renew/);
  assert.match(app,/button\(drive\.connected\?'Drive接続済み':'Driveに接続','drive-reconnect'/);
  assert.match(drive,/export const DRIVE_UNIFIED_SCOPES/);
