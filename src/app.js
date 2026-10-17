@@ -82,9 +82,9 @@ let currentNotice='',currentNoticeData=null;
 function showStatus(){
  const expired=expiredGoogleServices(api,drive);
  const warning=expired.calendar,driveWarning=expired.drive;
- const message=warning&&driveWarning?'⚠ カレンダーとDriveの再認証が必要です。タップして再接続':
+ const message=warning&&driveWarning?'⚠ カレンダーとドライブの再認証が必要です。タップして再接続':
   warning?'⚠ カレンダーの再認証が必要です。タップして接続':
-  driveWarning?'⚠ Driveの再認証が必要です。タップして接続':currentNotice;
+  driveWarning?'⚠ ドライブの再認証が必要です。タップして接続':currentNotice;
  const pending=$('#preset-pending');
  if(pending){
   pending.hidden=presetQueue.size===0;
@@ -259,7 +259,7 @@ async function syncFamily(type,{manual=false}={}){
  if(!d.id)return {changed:false,pending:0};
  if(document.hidden&&!manual)return {changed:false,pending:d.queue.length};
  if(!familyClient.connected){
-  const message=label+'の共有同期が停止しています。設定画面でGoogle Driveに再接続してください。';
+  const message=label+'の共有同期が停止しています。設定画面でGoogle ドライブに再接続してください。';
   if(manual)throw Error(message);
   if(d.queue.length)notify({summary:message,severity:'warning'});
   return {changed:false,pending:d.queue.length};
@@ -345,7 +345,7 @@ function updateFamilyDialog(type){
 }
 function ownedFamilyResults(type){
  const status=ownedFamilyState[type];
- if(status==='searching')return '自分のGoogle Driveから共有ファイルを検索しています…';
+ if(status==='searching')return '自分のGoogle ドライブから共有ファイルを検索しています…';
  if(status==='error')return '共有ファイルの検索に失敗しました。「再検索」でやり直せます。';
  if(status==='ready')return '自分が作成した共有ファイルは見つかりませんでした。';
  return '';
@@ -412,7 +412,7 @@ function familyDialog(type){
   '<p class="hint" id="family-share-status">'+(linked?'現在：'+(d.owner?'共有した側':'共有された側')+'・未送信 '+d.queue.length+'件':'共有ファイルには未接続です。')+'</p>'+
   (linked?'<p class="hint">使用中：<a id="family-current-file" target="_blank" rel="noopener" href="'+sharedSpreadsheetUrl(d.id)+'">Google Driveで開く</a></p>':
    '<p class="hint"><a id="family-current-file" target="_blank" rel="noopener" hidden>Google Driveで開く</a></p>')+
-  (!linked?'<section aria-label="自分の共有ファイルを検索"><div id="family-owned-results" data-kind="'+type+'">自分のGoogle Driveから共有ファイルを検索しています…</div>'+
+  (!linked?'<section aria-label="自分の共有ファイルを検索"><div id="family-owned-results" data-kind="'+type+'">自分のGoogle ドライブから共有ファイルを検索しています…</div>'+
     button('再検索','family-find-own','mini','data-kind="'+type+'"')+'</section>':
     '<div id="family-owned-results" data-kind="'+type+'" hidden></div>')+
   '<label class="field" for="family-share-email"><span>共有相手のGoogleメールアドレス</span></label>'+
@@ -529,7 +529,7 @@ function updateConnection(){
  $('#connection').classList.toggle('online',connected);
  for(const b of document.querySelectorAll('[data-action="family-dialog"]')){
   b.disabled=!drive.connected;
-  b.title=drive.connected?'共有を管理する':'設定画面でGoogle Driveに接続してください';
+  b.title=drive.connected?'共有を管理する':'設定画面でGoogle ドライブに接続してください';
  }
 }
 let renderedViewTab='',renderedCalendarMonth='';
@@ -685,7 +685,7 @@ function generateScreen(){
   <select aria-label="選定モード" id="generate-mode" ${aiGenerating?'disabled':''}><option value="rules" ${state.menuGenerationMode==='rules'?'selected':''}>ルールベース</option><option value="ai" ${ai.available?'':'disabled'} ${state.menuGenerationMode==='ai'?'selected':''}>AI${ai.available?'':'（未設定）'}</option></select>
   ${button('ルール設定','rules','text-button mini generation-rule-button',aiGenerating?'disabled':'')}
   ${button('生成','generate','primary mini generation-submit-button',aiGenerating?'disabled aria-busy="true"':'')}
-  ${button('共有','family-dialog','family-share-button mini generation-share-button','data-kind="plan"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle Driveに接続してください"'))}
+  ${button('共有','family-dialog','family-share-button mini generation-share-button','data-kind="plan"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle ドライブに接続してください"'))}
  </div>
  <div class="plan-grid compact-plan-grid scroll">
  ${state.draft.length?state.draft.map((day,i)=>`<article class="plan-card compact-plan-card card" aria-label="${i+1}日目の献立" data-dish-count="${day.dishes.length}">
@@ -767,7 +767,7 @@ function shoppingScreen(){
    <label class="shopping-servings">人数 <select id="shopping-servings" aria-label="買い物に必要な人数">${Array.from({length:MAX_SHOPPING_SERVINGS},(_,i)=>i+1).map(n=>`<option value="${n}"${n===view.servings?' selected':''}>${n}</option>`).join('')}</select> 人分</label>
    ${button('＋ 品目追加','shopping-add','mini primary')}
    ${button('未購入をコピー','shopping-copy','mini')}
-   ${button('共有','family-dialog','family-share-button mini','data-kind="shopping"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle Driveに接続してください"'))}
+   ${button('共有','family-dialog','family-share-button mini','data-kind="shopping"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle ドライブに接続してください"'))}
   </div>
   <div class="shopping-list card scroll">
    <ul class="shopping-items">${items.map(shoppingRow).join('')||`<li class="shopping-empty">${emptyMessage}</li>`}</ul>
@@ -1195,7 +1195,7 @@ function masterFilterButtons(){
 function masterScreen(){
  const items=masterItems();
  return `<section class="screen master-screen" aria-label="料理">
-  <div class="master-toolbar kondate-tab-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}${button('共有','family-dialog','family-share-button mini', 'data-kind="master"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle Driveに接続してください"'))}</div>
+  <div class="master-toolbar kondate-tab-toolbar"><input id="master-search" aria-label="料理を検索" placeholder="料理名を検索" value="${esc(masterQuery)}" autocomplete="off"><span class="hint master-count" id="master-count">${items.length}件</span>${button('＋ 新規','add-master','primary')}${button('共有','family-dialog','family-share-button mini', 'data-kind="master"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle ドライブに接続してください"'))}</div>
   <div class="master-list-wrap card scroll"><ul class="master-list" id="master-rows">${masterRows(items)}</ul></div>
  </section>`;
 }
@@ -1485,7 +1485,7 @@ async function applyRemoteSettings(remoteVersion,remoteSnapshot){
  const newerLocalChanges=await markDriveSynced(remoteVersion,remoteSnapshot);
  render();
  if(api.connected&&hasSyncedCalendars()){
-  try{await sync();}catch(error){notify('Drive設定を取得しましたがカレンダー同期に失敗しました：'+error.message);return newerLocalChanges;}
+  try{await sync();}catch(error){notify('ドライブ設定を取得しましたがカレンダー同期に失敗しました：'+error.message);return newerLocalChanges;}
  }
  notify('Googleドライブから新しい設定を同期しました。');
  return newerLocalChanges;
@@ -1493,7 +1493,7 @@ async function applyRemoteSettings(remoteVersion,remoteSnapshot){
 async function autoDriveSync(){
  if(!drive.autoEnabled||!drive.connected||driveAutoBusy)return;
  driveAutoBusy=true;
- setDriveSyncStatus('Driveと照合中…');
+ setDriveSyncStatus('ドライブと照合中…');
  let followUp=false;
  try{
   const file=await drive.find();
@@ -1524,7 +1524,7 @@ async function autoDriveSync(){
   }
   if(decision==='download'){
    followUp=await applyRemoteSettings(remoteRevision,remoteSnapshot);
-   setDriveSyncStatus('Driveから受信済み（表示カレンダー '+state.extraCalendarIds.length+'件）',true);
+   setDriveSyncStatus('ドライブから受信済み（表示カレンダー '+state.extraCalendarIds.length+'件）',true);
    return;
   }
   if(decision==='conflict'){
@@ -1548,12 +1548,12 @@ async function autoDriveSync(){
   }
   if(decision==='missing'){
    setDriveSyncStatus('同期先が見つかりません');
-   notify('⚠ Driveの同期先が見つかりません。設定画面でバックアップを確認してください。');
+   notify('⚠ ドライブの同期先が見つかりません。設定画面でバックアップを確認してください。');
    return;
   }
   const nextRevision=await drive.saveChecked(localSnapshot,remoteRevision);
   followUp=await markDriveSynced(nextRevision,localSnapshot);
-  setDriveSyncStatus('Driveへ送信済み（表示カレンダー '+localSnapshot.settings.extraCalendarIds.length+'件）',true);
+  setDriveSyncStatus('ドライブへ送信済み（表示カレンダー '+localSnapshot.settings.extraCalendarIds.length+'件）',true);
   notify('設定をGoogleドライブへ自動保存しました。');
  }catch(error){
   setDriveSyncStatus('失敗：'+error.message);
@@ -1920,7 +1920,7 @@ const actions={
  },
  'shopping-restore':b=>{delete state.shopping.excluded[b.dataset.id];persist();render();},
  'shopping-copy':copyShoppingList,
- 'family-dialog':b=>{if(!drive.connected)throw Error('設定画面でGoogle Driveに接続してください。');familyDialog(b.dataset.kind);},
+ 'family-dialog':b=>{if(!drive.connected)throw Error('設定画面でGoogle ドライブに接続してください。');familyDialog(b.dataset.kind);},
  'family-start':b=>familyStart(b.dataset.kind),
  'family-join':b=>familyJoin(b.dataset.kind),
  'family-copy-link':b=>familyCopyLink(b.dataset.kind),
@@ -1949,8 +1949,8 @@ const actions={
   await drive.authorize(GOOGLE_CLIENT_ID);
   const remote=await drive.find();
   if(remote){
-   modal('Driveのバックアップを上書きしますか？',
-    `<p>すでにGoogleドライブへ設定が保存されています。現在の端末の設定で置き換えます。</p><p>Driveの更新日時：${esc(driveBackupTime(remote.modifiedTime))}</p><p class="hint">他の端末で復元したい設定が保存されている場合は、先に「Driveから復元」を行ってください。</p>`,
+   modal('ドライブのバックアップを上書きしますか？',
+    `<p>すでにGoogleドライブへ設定が保存されています。現在の端末の設定で置き換えます。</p><p>ドライブの更新日時：${esc(driveBackupTime(remote.modifiedTime))}</p><p class="hint">他の端末で復元したい設定が保存されている場合は、先に「ドライブから復元」を行ってください。</p>`,
     button('キャンセル','close-dialog')+button('上書きして保存','confirm-drive-save','primary'));
    return;
   }
@@ -1994,9 +1994,9 @@ const actions={
   if(api.connected&&hasSyncedCalendars()){
    try{
     await sync();
-    notify('Driveの設定を復元し、Googleカレンダーを同期しました。');
-   }catch(error){notify('Driveの設定は復元しました。カレンダーの同期に失敗しました：'+error.message);}
-  }else notify('Driveの設定を復元しました。Googleカレンダーへ接続すると履歴を取得できます。');
+    notify('ドライブの設定を復元し、Googleカレンダーを同期しました。');
+   }catch(error){notify('ドライブの設定は復元しました。カレンダーの同期に失敗しました：'+error.message);}
+  }else notify('ドライブの設定を復元しました。Googleカレンダーへ接続すると履歴を取得できます。');
  },
   'add-icon-rule':()=>openPresetEditor(),
   'edit-icon-rule':b=>openPresetEditor(b.dataset.ruleId),
@@ -2352,7 +2352,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
    setDriveMeta(DRIVE_REVISION,'');setDriveMeta(DRIVE_DIRTY,'');setDriveMeta(DRIVE_DIGEST,'');
    await autoDriveSync();
    if(drive.autoEnabled&&drive.connected&&!driveCloudRevision)
-    notify('Driveの自動同期を有効にしました。接続状況を確認してください。');
+    notify('ドライブの自動同期を有効にしました。接続状況を確認してください。');
   }catch(error){el.checked=drive.autoEnabled;throw error;}
   render();return;
  }
