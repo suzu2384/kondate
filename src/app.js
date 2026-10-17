@@ -2367,7 +2367,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   render();return;
  }
 
- if(editor){if(el.id==='record-date')editor.date=el.value;if(el.id==='record-location')editor.location=el.value;if(el.matches('[data-editor-category]'))editor.dishes[el.dataset.editorCategory].category=el.value;if(el.matches('[data-editor-name]')){const found=master().find(d=>normalize(d.name)===normalize(el.value));if(found){Object.assign(editor.dishes[el.dataset.editorName],{...found});const category=el.closest('.dish-editor')?.querySelector('[data-editor-category]');if(category)category.value=found.category;}}}
+ if(editor){if(el.id==='record-date')editor.date=el.value;if(el.id==='record-location')editor.location=el.value;if(el.matches('[data-editor-category]')){editor.dishes[el.dataset.editorCategory].category=el.value;hideDishSuggestions();}if(el.matches('[data-editor-name]')){const found=master().find(d=>d.category===editor.dishes[el.dataset.editorName].category&&normalize(d.name)===normalize(el.value));if(found){Object.assign(editor.dishes[el.dataset.editorName],{...found});const category=el.closest('.dish-editor')?.querySelector('[data-editor-category]');if(category)category.value=found.category;}}}
  if(el.id==='keep-connected'){
   try{
    api.setKeepConnected(el.checked);

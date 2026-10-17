@@ -11,11 +11,13 @@ test('suggestions work independently of mobile browser datalist support',()=>{
  assert.deepEqual(dishSuggestions(options,'鮭','main').map(d=>d.name),['鮭の塩焼き']);
  assert.deepEqual(dishSuggestions(options,'ない料理','main'),[]);
 });
-test('the selected category is preferred, without hiding other category dishes',()=>{
+test('suggestions show only dishes from the selected category',()=>{
  const source=[{name:'きんぴら',category:'side'},{name:'ぎょうざ',category:'main'},{name:'ハンバーグ',category:'main'}];
- assert.equal(dishSuggestions(source,'','main')[0].name,'ぎょうざ');
- assert.equal(dishSuggestions(source,'','side')[0].name,'きんぴら');
- assert.equal(dishSuggestions(source,'','side',2).length,2);
+ assert.deepEqual(dishSuggestions(source,'','main').map(d=>d.name),['ぎょうざ','ハンバーグ']);
+ assert.deepEqual(dishSuggestions(source,'','side').map(d=>d.name),['きんぴら']);
+ assert.deepEqual(dishSuggestions(source,'','side',2).map(d=>d.name),['きんぴら']);
+ assert.deepEqual(dishSuggestions(source,'','soup'),[]);
+ assert.deepEqual(dishSuggestions(source,'').map(d=>d.name),['きんぴら','ぎょうざ','ハンバーグ']);
 });
 test('exact names rank above prefix and partial matches',()=>{
  const source=[{name:'鶏の照り焼き弁当',category:'side'},{name:'照り焼き',category:'main'},{name:'鶏の照り焼き',category:'main'}];
@@ -45,10 +47,10 @@ test('empty query suggests current generated menu before the master history',()=
   {name:'サラダ',category:'side'}
  ]}];
  const result=recordDishSuggestions(master,days,'','main',20);
- assert.deepEqual(result.slice(0,3).map(d=>d.name),['今週のカレー','初めての炒め物','サラダ']);
+ assert.deepEqual(result.map(d=>d.name),['今週のカレー','初めての炒め物','直近の煮魚','焼きそば']);
  assert.equal(result[0].protein,'肉');
  assert.equal(result.filter(d=>d.name==='今週のカレー').length,1);
- assert.equal(result[3].name,'直近の煮魚');
+ assert.equal(result.some(d=>d.category!=='main'),false);
 });
 test('generated dishes absent from the master can be picked',()=>{
  const days=[{dishes:[{name:'創作鶏丼',category:'main'},{name:'葉物サラダ',category:'side'}]}];
@@ -65,4 +67,13 @@ test('current plan fills suggestions first, then master up to the configured lim
  assert.equal(result.length,15);
  assert.deepEqual(result.slice(0,12).map(d=>d.name),Array.from({length:12},(_,i)=>'献立'+i));
  assert.deepEqual(recordDishSuggestions(master,[],'','main',2).map(d=>d.name),['履歴0','履歴1']);
+});
+
+test('record suggestions filter both the generated menu and master by category',()=>{
+ const master=[{name:'煮魚',category:'main'},{name:'サラダ',category:'side'},{name:'味噌汁',category:'soup'}];
+ const days=[{dishes:[{name:'献立の主菜',category:'main'},{name:'献立の副菜',category:'side'},{name:'献立の汁物',category:'soup'}]}];
+ assert.deepEqual(recordDishSuggestions(master,days,'','main').map(d=>d.name),['献立の主菜','煮魚']);
+ assert.deepEqual(recordDishSuggestions(master,days,'','side').map(d=>d.name),['献立の副菜','サラダ']);
+ assert.deepEqual(recordDishSuggestions(master,days,'','soup').map(d=>d.name),['献立の汁物','味噌汁']);
+ assert.deepEqual(recordDishSuggestions(master,days,'サラダ','main'),[]);
 });
