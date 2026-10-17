@@ -96,7 +96,7 @@ function showStatus(){
  notice.hidden=!message;
  notice.textContent=message;
  notice.title=warning||driveWarning?'期限切れのGoogleサービスを再認証':message;
- notice.setAttribute('aria-label',warning&&driveWarning?'カレンダーとDriveを一度に再認証します。':warning?'カレンダーを再認証します。':driveWarning?'Driveを再認証します。':message);
+ notice.setAttribute('aria-label',warning&&driveWarning?'カレンダーとドライブを一度に再認証します。':warning?'カレンダーを再認証します。':driveWarning?'ドライブを再認証します。':message);
  const dismiss=$('#notice-dismiss');
  if(dismiss)dismiss.hidden=!message||warning||driveWarning;
  // An older cached index.html can briefly be paired with a newer app.js.
@@ -410,8 +410,8 @@ function familyDialog(type){
  modal(label+'の共有',
   '<p class="hint">共有ファイルの変更は自動同期されます。個人のカレンダー履歴は共有しません。</p>'+
   '<p class="hint" id="family-share-status">'+(linked?'現在：'+(d.owner?'共有した側':'共有された側')+'・未送信 '+d.queue.length+'件':'共有ファイルには未接続です。')+'</p>'+
-  (linked?'<p class="hint">使用中：<a id="family-current-file" target="_blank" rel="noopener" href="'+sharedSpreadsheetUrl(d.id)+'">Google Driveで開く</a></p>':
-   '<p class="hint"><a id="family-current-file" target="_blank" rel="noopener" hidden>Google Driveで開く</a></p>')+
+  (linked?'<p class="hint">使用中：<a id="family-current-file" target="_blank" rel="noopener" href="'+sharedSpreadsheetUrl(d.id)+'">Google ドライブで開く</a></p>':
+   '<p class="hint"><a id="family-current-file" target="_blank" rel="noopener" hidden>Google ドライブで開く</a></p>')+
   (!linked?'<section aria-label="自分の共有ファイルを検索"><div id="family-owned-results" data-kind="'+type+'">自分のGoogle ドライブから共有ファイルを検索しています…</div>'+
     button('再検索','family-find-own','mini','data-kind="'+type+'"')+'</section>':
     '<div id="family-owned-results" data-kind="'+type+'" hidden></div>')+
@@ -1553,7 +1553,7 @@ async function autoDriveSync(){
     return;
    }
    setDriveSyncStatus('競合：両端末で同じ設定または献立を変更。自動上書き停止中');
-   notify('⚠ Driveで両端末の変更が競合しています。献立を消さないため自動上書きは停止中です。設定画面のDrive保存・復元で内容を確認してください。');
+   notify('⚠ ドライブで両端末の変更が競合しています。献立を消さないため自動上書きは停止中です。設定画面のドライブ保存・復元で内容を確認してください。');
    return;
   }
   if(decision==='missing'){
@@ -1567,7 +1567,7 @@ async function autoDriveSync(){
   notify('設定をGoogleドライブへ自動保存しました。');
  }catch(error){
   setDriveSyncStatus('失敗：'+error.message);
-  notify('Drive自動同期：'+error.message);
+  notify('ドライブ自動同期：'+error.message);
  }finally{
   driveAutoBusy=false;
   if(followUp&&drive.autoEnabled&&drive.connected&&!driveAutoTimer){
@@ -1593,7 +1593,7 @@ async function reauthenticateExpiredGoogle(){
  }
  if(refreshed.drive){render();if(drive.autoEnabled)await autoDriveSync();pollFamily(true);}
  if(refreshed.calendar&&hasSyncedCalendars())await sync();
- const which=refreshed.calendar&&refreshed.drive?'カレンダーとDrive':refreshed.calendar?'カレンダー':'Drive';
+ const which=refreshed.calendar&&refreshed.drive?'カレンダーとドライブ':refreshed.calendar?'カレンダー':'ドライブ';
  notify(which+'の再認証が完了しました。');
 }
 function prepareDriveAuthorization(){
@@ -1936,12 +1936,12 @@ const actions={
  'family-copy-link':b=>familyCopyLink(b.dataset.kind),
  'family-find-own':b=>discoverOwnedFamily(b.dataset.kind),
  'family-stop':b=>{
-  if(!window.confirm('この端末の自動共有を停止しますか？Google Drive上の共有権限とファイルは残ります。'))return;
+  if(!window.confirm('この端末の自動共有を停止しますか？Google ドライブ上の共有権限とファイルは残ります。'))return;
   family.stop(b.dataset.kind);closeModal();render();notify('この端末の共有同期を停止しました。');
  },
 
  'drive-sync-now':async()=>{
-  if(!drive.autoEnabled)throw Error('この端末のDrive自動同期を有効にしてください。');
+  if(!drive.autoEnabled)throw Error('この端末のドライブ自動同期を有効にしてください。');
   if(!drive.connected)return reauthenticateExpiredGoogle();
   await autoDriveSync();
  },
@@ -2351,7 +2351,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
    drive.disableAuto();driveAutoReady=false;driveSyncStatus='';
    drivePending=false;driveCloudRevision='';driveBaseDigest='';setDriveMeta(DRIVE_DIRTY,'');setDriveMeta(DRIVE_REVISION,'');setDriveMeta(DRIVE_DIGEST,'');setDriveMeta(DRIVE_SECTIONS,'');
    if(driveAutoTimer){clearTimeout(driveAutoTimer);driveAutoTimer=null;}
-   notify('この端末のDrive自動同期を停止しました。');render();return;
+   notify('この端末のドライブ自動同期を停止しました。');render();return;
   }
   try{
    prepareDriveAuthorization();
