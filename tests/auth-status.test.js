@@ -6,9 +6,9 @@ const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 test('authentication warning takes priority over ordinary status messages',()=>{
  assert.match(app,/const message=warning&&driveWarning\?/);
  assert.match(app,/classList\.toggle\('auth-required',warning\|\|driveWarning\)/);
- assert.match(app,/カレンダーとDriveの再認証が必要です/);
+ assert.match(app,/カレンダーとドライブの再認証が必要です/);
  assert.match(app,/カレンダーの再認証が必要です/);
- assert.match(app,/Driveの再認証が必要です/);
+ assert.match(app,/ドライブの再認証が必要です/);
  assert.match(app,/expiredGoogleServices\(api,drive\)/);
  assert.match(app,/if\(expired\.calendar\|\|expired\.drive\)return reauthenticateExpiredGoogle\(\)/);
 });
