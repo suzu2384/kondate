@@ -1856,7 +1856,7 @@ const actions={
  disconnect:()=>{calendarAutoReady=false;api.disconnect();currentNotice='';currentNoticeData=null;calendars=[];calendarLoadError='';for(const bucket of Object.values(state.scopes)){bucket.events=[];bucket.lastSync=null;}render();notify('Googleとの接続を解除しました。端末の下書きは残しています。');},sync,
  theme:b=>{state.theme.color=b.dataset.color;persist();render();},
  rules:()=>{settingsCategory='generate';tab='settings';render();prepareGoogleIdentity();},
- 'settings-category':b=>{settingsCategory=b.dataset.category;render();},
+ 'settings-category':b=>{if(!SETTINGS_CATEGORIES.includes(b.dataset.category))return;settingsCategory=b.dataset.category;render();const list=$('#main .settings-grid');if(list)list.scrollTop=0;},
  generate:async()=>{
   if(aiGenerating)return;
   const requested=Number($('#days')?.value||state.rules.days);
