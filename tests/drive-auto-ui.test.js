@@ -50,7 +50,7 @@ test('Drive sync state is visible and manually refreshable on both devices',()=>
  assert.match(app,/button\('今すぐ同期','drive-sync-now'/);
  assert.match(app,/'drive-sync-now':async\(\)=>\{/);
  assert.match(app,/setDriveSyncStatus\('ドライブへ送信済み/);
- assert.match(app,/setDriveSyncStatus\('Driveから受信済み/);
+ assert.match(app,/setDriveSyncStatus\('ドライブから受信済み/);
  assert.match(app,/setDriveSyncStatus\('競合：/);
  assert.match(app,/driveLastSuccessAt=Date\.now\(\)/);
  assert.match(css,/\.drive-sync-tools\{display:flex/);
