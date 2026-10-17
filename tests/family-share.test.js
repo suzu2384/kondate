@@ -392,8 +392,8 @@ test('shared sync reports expired authentication without silently losing local e
  const idle=await sync('master');
  assert.equal(idle.pending,1);
  assert.equal(notifications.length,1);
- assert.match(notifications[0].summary,/設定画面でGoogle Driveに再接続/);
- await assert.rejects(sync('master',{manual:true}),/設定画面でGoogle Driveに再接続/);
+ assert.match(notifications[0].summary,/設定画面でGoogle ドライブに再接続/);
+ await assert.rejects(sync('master',{manual:true}),/設定画面でGoogle ドライブに再接続/);
  assert.equal(entry.queue.length,1,'an unsent edit must remain durable');
 });
 test('manual shared sync confirms the acknowledged append and shows a success notice',async()=>{
@@ -639,7 +639,7 @@ test('sharing UI has no separate account or reauthorization controls and is gate
  assert.match(app,/b\.disabled=!drive\.connected/);
  assert.match(app,/if\(!drive\.connected\)throw Error\('設定画面でGoogle ドライブに接続してください。'\)/);
  assert.doesNotMatch(app,/family-account-change|family-renew/);
- assert.match(app,/button\(drive\.connected\?'Drive接続済み':'Driveに接続','drive-reconnect'/);
+ assert.match(app,/button\(drive\.connected\?'ドライブ接続済み':'ドライブに接続','drive-reconnect'/);
  assert.match(drive,/export const DRIVE_UNIFIED_SCOPES/);
  assert.match(drive,/auth\/spreadsheets/);
  assert.match(drive,/auth\/drive\.file/);
