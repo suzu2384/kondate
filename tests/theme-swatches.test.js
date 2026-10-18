@@ -17,6 +17,7 @@ test('dark and light swatches each show seven matching colors',()=>{
 });
 
 test('only accents change while normal text is described as unchanged',()=>{
- assert.match(app,/背景や通常の文字色はそのまま、ボタンなどのアクセントカラーだけ切り替えます/);
+ assert.match(app,/アプリの色と表示モードを選びます/);
+ assert.match(app,/settingsHelpButton\('theme'/);
  assert.match(app,/normalizeThemeColor\(state\.theme\.color\)/);
 });
