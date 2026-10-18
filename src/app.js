@@ -575,7 +575,8 @@ function renderPresetBar(){
  const masterBar=tab==='master';
  const shoppingBar=tab==='shopping';
  const settingsBar=tab==='settings';
- const filterBar=masterBar||shoppingBar||settingsBar;
+ const generateBar=tab==='generate';
+ const filterBar=masterBar||shoppingBar||settingsBar||generateBar;
  const rules=state.iconRules.filter(rule=>String(rule.keyword||'').trim()&&String(rule.calendarId||'').trim());
  const calendarBar=tab==='calendar'&&rules.length>0;
  const shown=filterBar||calendarBar;
@@ -587,9 +588,14 @@ function renderPresetBar(){
  bar.classList.toggle('master-filter-bar',filterBar);
  bar.classList.toggle('shopping-filter-bar',shoppingBar);
  bar.classList.toggle('settings-category-bar',settingsBar);
- bar.setAttribute('aria-label',settingsBar?'設定カテゴリ':masterBar?'料理の絞り込み':shoppingBar?'買い物の状態別表示':'予定のクイック登録プリセット');
+ // The meal-plan tab reserves the same footer row but has no actions in it.
+ // Do not expose an empty toolbar to assistive technology.
+ bar.setAttribute('role',generateBar?'presentation':'toolbar');
+ if(generateBar)bar.removeAttribute('aria-label');
+ else bar.setAttribute('aria-label',settingsBar?'設定カテゴリ':masterBar?'料理の絞り込み':shoppingBar?'買い物の状態別表示':'予定のクイック登録プリセット');
  bar.hidden=!shown;
  if(!shown){bar.innerHTML='';return;}
+ if(generateBar){bar.innerHTML='';return;}
  if(filterBar){
   const markup=settingsBar?settingsCategoryButtons():masterBar?masterFilterButtons():shoppingFilterButtons();
   if(bar.innerHTML!==markup)bar.innerHTML=markup;
