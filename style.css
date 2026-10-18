@@ -1639,3 +1639,20 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .settings-screen .settings-card{padding:14px}
  #quick-preset-bar.settings-category-bar .settings-category-button{flex-basis:36px;width:36px;min-width:36px}
 }
+
+/* Contextual settings help: explanations stay outside compact setting rows. */
+.settings-heading-with-help{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.settings-heading-with-help .settings-help-button{flex:0 0 auto}
+.settings-help-button{
+ display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 30px;width:30px;height:30px;min-width:30px;min-height:30px;
+ padding:0;border:1px solid var(--line);border-radius:50%;
+ color:var(--accent);background:var(--surface);
+ font-size:15px;font-weight:750;line-height:1;
+}
+.settings-help-button:hover{background:var(--tint)}
+.settings-help-field{position:relative}
+.settings-help-field>.field>span{padding-right:40px}
+.settings-help-field>.settings-help-button{position:absolute;top:8px;right:0}
+#dialog-content .settings-help-text{font-size:14px;color:var(--text);line-height:1.7;margin:0 0 13px}
+#dialog-content .settings-help-text:last-child{margin-bottom:0}
