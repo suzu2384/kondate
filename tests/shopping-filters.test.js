@@ -69,8 +69,8 @@ test('shopping filter uses the same fixed calendar footer as recipe filters',()=
  assert.match(app,/const filterBar=masterBar\|\|shoppingBar/);
  assert.match(app,/app\.classList\.toggle\('has-master-filters',filterBar\)/);
  assert.match(app,/bar\.classList\.toggle\('shopping-filter-bar',shoppingBar\)/);
- assert.match(app,/const markup=masterBar\?masterFilterButtons\(\):shoppingFilterButtons\(\)/);
- assert.match(app,/bar\.setAttribute\('aria-label',masterBar\?'料理の絞り込み':shoppingBar\?'買い物の状態別表示'/);
+ assert.ok(app.includes('const markup=settingsBar?settingsCategoryButtons():masterBar?masterFilterButtons():shoppingFilterButtons()'));
+ assert.ok(app.includes("bar.setAttribute('aria-label',settingsBar?'設定カテゴリ':masterBar?'料理の絞り込み':shoppingBar?'買い物の状態別表示'"));
  assert.match(css,/\.app\.has-master-filters\{grid-template-rows:54px minmax\(0,1fr\) 40px 22px 58px\}/);
  assert.match(css,/#quick-preset-bar\.master-filter-bar\{[\s\S]*?border-top:1px solid var\(--line\)/);
  assert.match(css,/#quick-preset-bar\.master-filter-bar\{height:38px;min-height:38px/);

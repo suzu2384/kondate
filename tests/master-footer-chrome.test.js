@@ -30,9 +30,9 @@ test('recipe filters occupy the exact shared calendar toolbar row with a full-wi
  assert.ok(main>=0&&main<toolbar&&toolbar<status);
  assert.match(app,/bar\.classList\.toggle\('master-filter-bar',filterBar\)/);
  assert.match(app,/app\.classList\.toggle\('has-master-filters',filterBar\)/);
- assert.match(app,/bar\.setAttribute\('aria-label',masterBar\?'料理の絞り込み'/);
- assert.match(app,/const markup=masterBar\?masterFilterButtons\(\):shoppingFilterButtons\(\)/);
- assert.match(app,/previousMasterFilterScroll=tab==='master'\?\$\('#quick-preset-bar'\)/);
+ assert.ok(app.includes("bar.setAttribute('aria-label',settingsBar?'設定カテゴリ':masterBar?'料理の絞り込み':shoppingBar?'買い物の状態別表示'"));
+ assert.ok(app.includes('const markup=settingsBar?settingsCategoryButtons():masterBar?masterFilterButtons():shoppingFilterButtons()'));
+ assert.ok(app.includes("previousMasterFilterScroll=['master','settings'].includes(tab)?$('#quick-preset-bar')"));
  const calendar=css.match(/\.app\.has-quick-presets\{grid-template-rows:([^}]+)\}/)?.[1];
  const recipes=css.match(/\.app\.has-master-filters\{grid-template-rows:([^}]+)\}/)?.[1];
  assert.equal(recipes,calendar,'Calendar and recipe toolbar must share the exact grid height');
