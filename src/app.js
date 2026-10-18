@@ -17,7 +17,7 @@ import {sortCalendarExtras,reorderPresetRules,movePresetRule} from './preset-ord
 import {DriveSettingsClient} from './drive.js';
 import {expiredGoogleServices,renewExpiredGoogleServices} from './google-reauth.js';
 import {dateTapAction,monthSnapOffset,moveMonth} from './calendar-gestures.js';
-import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependentDriveChanges} from './drive-sync.js';
+import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependentDriveChanges,mergeDriveSnapshots} from './drive-sync.js';
 import {recordDishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {getSettingsHelp} from './settings-help.js';
 import {searchPlaces,filterPlaceCandidates,LOCATION_ATTRIBUTION} from './place-suggestions.js';
@@ -65,6 +65,7 @@ const DRIVE_REVISION='kondate.drive-auto-revision.v1';
 const DRIVE_DIRTY='kondate.drive-auto-pending.v1';
 const DRIVE_DIGEST='kondate.drive-auto-digest.v1';
 const DRIVE_SECTIONS='kondate.drive-auto-sections.v1';
+const DRIVE_BASE_SNAPSHOT='kondate.drive-auto-base-snapshot.v1';
 const DRIVE_LAST_SUCCESS='kondate.drive-last-success.v1';
 const driveMeta=key=>{try{return localStorage.getItem(key)||'';}catch{return '';}};
 const setDriveMeta=(key,value)=>{try{if(value)localStorage.setItem(key,value);else localStorage.removeItem(key);}catch{}};
@@ -73,7 +74,7 @@ let calendarAutoReady=false,lastCalendarSync=0,lastCalendarAttempt=0;
 let driveCloudRevision=driveMeta(DRIVE_REVISION),drivePending=driveMeta(DRIVE_DIRTY)==='1';
 let driveBaseDigest=driveMeta(DRIVE_DIGEST);
 let driveLastSuccessAt=Number(driveMeta(DRIVE_LAST_SUCCESS))||0;
-let driveSyncStatus='';
+let driveSyncStatus='',lastConflictSignature='';
 
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let calendarLoadError='';
@@ -925,11 +926,11 @@ function openCalendarCreation(ruleId){
 const SETTINGS_CATEGORIES=['calendar','generate','master','shopping','data','ai','appearance'];
 let settingsCategory='calendar';
 function settingsCategoryContent(){switch(settingsCategory){
- case 'calendar':return `<section class="settings-card card"><h2 class="settings-heading-with-help">Googleカレンダー${settingsHelpButton('calendar-connection','Googleカレンダー')}</h2><p>カレンダーの接続と保存先を設定します。</p>${!GOOGLE_CLIENT_ID?'<p class="hint" role="alert">Googleログインを利用できません。管理者にお問い合わせください。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">接続を保持する</label>${settingsHelpButton('keep-connected','接続を保持')}</div>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<div class="settings-help-field"><label class="field"><span>カレンダーの自動更新間隔</span><select id="calendar-refresh-minutes">${CALENDAR_REFRESH_MINUTES.map(minutes=>`<option value="${minutes}" ${state.calendarRefreshMinutes===minutes?'selected':''}>${minutes===0?'自動更新しない':minutes+'分ごと'}</option>`).join('')}</select></label>${settingsHelpButton('calendar-refresh','カレンダーの自動更新間隔')}</div><div class="settings-help-field"><label class="field"><span>履歴の取得開始日</span><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div></label>${settingsHelpButton('calendar-history','履歴の取得開始日')}</div>${button('今すぐ同期','sync','full',busy||!api.connected||!hasSyncedCalendars()?'disabled':'')}</section>${additionalCalendarSettings()}`;
+ case 'calendar':return `<section class="settings-card card"><h2 class="settings-heading-with-help">Googleカレンダー${settingsHelpButton('calendar-connection','Googleカレンダー')}</h2><p>カレンダーの接続と保存先を設定します。</p>${!GOOGLE_CLIENT_ID?'<p class="hint" role="alert">Googleログインを利用できません。管理者にお問い合わせください。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row settings-help-check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">接続を保持する</label>${settingsHelpButton('keep-connected','接続を保持')}</div>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<div class="settings-help-field"><div class="settings-help-field-heading"><label for="calendar-refresh-minutes">カレンダーの自動更新間隔</label>${settingsHelpButton('calendar-refresh','カレンダーの自動更新間隔')}</div><select id="calendar-refresh-minutes">${CALENDAR_REFRESH_MINUTES.map(minutes=>`<option value="${minutes}" ${state.calendarRefreshMinutes===minutes?'selected':''}>${minutes===0?'自動更新しない':minutes+'分ごと'}</option>`).join('')}</select></div><div class="settings-help-field"><div class="settings-help-field-heading"><label for="history-from">履歴の取得開始日</label>${settingsHelpButton('calendar-history','履歴の取得開始日')}</div><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div></div>${button('今すぐ同期','sync','full',busy||!api.connected||!hasSyncedCalendars()?'disabled':'')}</section>${additionalCalendarSettings()}`;
  case 'generate':return `<section class="settings-card card"><h2 class="settings-heading-with-help">献立生成ルール${settingsHelpButton('menu-rules','献立生成ルール')}</h2>${rulesFields()}<h3 class="settings-heading-with-help" style="margin-top:30px">献立の初期候補${settingsHelpButton('menu-seed','献立の初期候補')}</h3><div class="check-row"><input id="seed-enabled" type="checkbox" ${state.seedEnabled?'checked':''}><label for="seed-enabled">初期候補の料理を使う</label></div>${''}</section>`;
  case 'master':return `<section class="settings-card card"><h2 class="settings-heading-with-help">料理の分類${settingsHelpButton('dish-categories','料理の分類')}</h2><p>料理の分類を追加・編集します。</p>${state.categories.map(c=>`<div class="category-row"><input aria-label="${esc(c.name)}の分類名" data-category-name="${c.id}" value="${esc(c.name)}" maxlength="20">${button('削除','remove-category','mini danger',`data-category="${c.id}" ${c.id==='main'?'disabled':''}`)}</div>`).join('')}${button('＋ 分類を追加','add-category','full')}</section>`;
- case 'shopping':return `<section class="settings-card card"><h2>買い物</h2><div class="settings-help-field"><label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">${SHOPPING_SYNC_SECONDS.map(n=>`<option value="${n}"${family.settings.seconds===n?' selected':''}>${n}秒</option>`).join('')}</select></label>${settingsHelpButton('shopping-refresh','買い物リストの自動更新間隔')}</div></section>`;
- case 'data':return `<section class="settings-card card"><h2 class="settings-heading-with-help">設定のバックアップ${settingsHelpButton('drive-backup','設定のバックアップ')}</h2><p>設定をドライブに保存・復元します。</p><div class="toolbar">${button(drive.connected?'ドライブ接続済み':'ドライブに接続','drive-reconnect','mini')}${button('ドライブにバックアップ','drive-save','mini primary')}${button('ドライブから復元','drive-load','mini')}</div><div class="check-row"><input id="drive-auto" type="checkbox" ${drive.autoEnabled?'checked':''}><label for="drive-auto">設定を自動同期する</label>${settingsHelpButton('drive-auto','設定の自動同期')}</div><div class="drive-sync-tools"><span id="drive-sync-state" class="hint" role="status"></span>${button('今すぐ同期','drive-sync-now','mini',drive.autoEnabled?'':'disabled')}</div></section><section class="settings-card card"><h2 class="settings-heading-with-help">家族共有${settingsHelpButton('family-share','家族共有')}</h2><p>料理・献立・買い物リストを家族と共有します。</p><div class="toolbar">${button('料理マスターを共有','family-dialog','mini','data-kind="master"')}${button('買い物リストを共有','family-dialog','mini','data-kind="shopping"')}${button('献立を共有','family-dialog','mini','data-kind="plan"')}</div></section><section class="settings-card card"><h2 class="settings-heading-with-help">設定ファイル${settingsHelpButton('local-export','設定ファイル')}</h2><p>設定を書き出し・読み込みできます。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"></section>`;
+ case 'shopping':return `<section class="settings-card card"><h2>買い物</h2><div class="settings-help-field"><div class="settings-help-field-heading"><label for="family-interval">買い物リストの自動更新間隔</label>${settingsHelpButton('shopping-refresh','買い物リストの自動更新間隔')}</div><select id="family-interval">${SHOPPING_SYNC_SECONDS.map(n=>`<option value="${n}"${family.settings.seconds===n?' selected':''}>${n}秒</option>`).join('')}</select></div></section>`;
+ case 'data':return `<section class="settings-card card"><h2 class="settings-heading-with-help">設定のバックアップ${settingsHelpButton('drive-backup','設定のバックアップ')}</h2><p>設定をドライブに保存・復元します。</p><div class="toolbar">${button(drive.connected?'ドライブ接続済み':'ドライブに接続','drive-reconnect','mini')}${button('ドライブにバックアップ','drive-save','mini primary')}${button('ドライブから復元','drive-load','mini')}</div><div class="check-row settings-help-check-row"><input id="drive-auto" type="checkbox" ${drive.autoEnabled?'checked':''}><label for="drive-auto">設定を自動同期する</label>${settingsHelpButton('drive-auto','設定の自動同期')}</div><div class="drive-sync-tools"><span id="drive-sync-state" class="hint" role="status"></span>${button('今すぐ同期','drive-sync-now','mini',drive.autoEnabled?'':'disabled')}</div></section><section class="settings-card card"><h2 class="settings-heading-with-help">家族共有${settingsHelpButton('family-share','家族共有')}</h2><p>料理・献立・買い物リストを家族と共有します。</p><div class="toolbar">${button('料理マスターを共有','family-dialog','mini','data-kind="master"')}${button('買い物リストを共有','family-dialog','mini','data-kind="shopping"')}${button('献立を共有','family-dialog','mini','data-kind="plan"')}</div></section><section class="settings-card card"><h2 class="settings-heading-with-help">設定ファイル${settingsHelpButton('local-export','設定ファイル')}</h2><p>設定を書き出し・読み込みできます。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"></section>`;
  case 'ai':return `<section class="settings-card card"><h2 class="settings-heading-with-help">AI${settingsHelpButton('ai','AI')}</h2><span class="tag neutral">${ai.available?'利用可能':'利用不可'}</span><p style="margin-top:12px">AIを利用できない場合も、ルールベースで献立を作れます。</p></section>`;
  case 'appearance':return `<section class="settings-card card"><h2 class="settings-heading-with-help">配色テーマ${settingsHelpButton('theme','配色テーマ')}</h2><p>アプリの色と表示モードを選びます。</p><div class="theme-options">${[['暗め',false],['明るめ',true]].map(([label,rich])=>`<div class="theme-tone-row"><span class="theme-tone-label">${label}</span><div class="theme-tone-swatches">${Object.entries(colors).filter(([,c])=>!!c.rich===rich).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.rich?c.dark:c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div></div>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label></section>`;
  default:return '';
@@ -1469,6 +1470,13 @@ function setDriveSyncStatus(message,successful=false){
  showStatus();
 }
 function driveBackupSummary(backup){const settings=backup.settings;return `<p>保存日時：<strong>${esc(driveBackupTime(backup.updatedAt))}</strong></p><p>分類：${settings.categories?.length||state.categories.length}件／手動の料理：${Object.values(backup.master||{}).reduce((n,s)=>n+s.manual.length,0)}品</p>`;}
+function driveLastConfirmedSnapshot(){
+ try{
+  const raw=driveMeta(DRIVE_BASE_SNAPSHOT);
+  const parsed=raw?JSON.parse(raw):null;
+  return parsed?.settings&&parsed?.master?parsed:null;
+ }catch{return null;}
+}
 function markDriveDirty(){
  drivePending=true;setDriveMeta(DRIVE_DIRTY,'1');
  setDriveSyncStatus('端末側の設定変更を送信待ち');
@@ -1478,12 +1486,18 @@ function markDriveDirty(){
  }
 }
 async function markDriveSynced(version,snapshot){
+ lastConflictSignature='';
  // Track the shared content separately from Drive's changing file version.
  driveCloudRevision=version||'';
  driveBaseDigest=await driveSettingsDigest(snapshot);
  setDriveMeta(DRIVE_SECTIONS,JSON.stringify(await driveSectionDigests(snapshot)));
  setDriveMeta(DRIVE_REVISION,driveCloudRevision);
  setDriveMeta(DRIVE_DIGEST,driveBaseDigest);
+ // Preserve the exact common ancestor for granular three-way reconciliation.
+ // Device-local only; storage quota failure falls back to conservative rules.
+ setDriveMeta(DRIVE_BASE_SNAPSHOT,JSON.stringify({
+  settings:snapshot.settings,master:snapshot.master||{}
+ }));
  // Keep edits made while a network request was in flight.
  drivePending=(await driveSettingsDigest(createDriveSnapshot(state)))!==driveBaseDigest;
  setDriveMeta(DRIVE_DIRTY,drivePending?'1':'');
@@ -1565,18 +1579,28 @@ async function autoDriveSync(){
    // a draft change with unrelated configuration changes.
    let baseSections=null;
    try{baseSections=JSON.parse(driveMeta(DRIVE_SECTIONS)||'null');}catch{}
-   const merged=await mergeIndependentDriveChanges(localSnapshot,remoteSnapshot,baseSections);
+   const ancestor=driveLastConfirmedSnapshot();
+   const ancestorValid=ancestor&&await driveSettingsDigest(ancestor)===driveBaseDigest;
+   // Independent field edits merge; competing edits to the same field do not.
+   const merged=(ancestorValid?mergeDriveSnapshots(localSnapshot,remoteSnapshot,ancestor):null)
+    ||await mergeIndependentDriveChanges(localSnapshot,remoteSnapshot,baseSections);
    if(merged){
     if(await driveSettingsDigest(createDriveSnapshot(state))!==localDigest){
      followUp=true;setDriveSyncStatus('同期中の変更を検知・再照合を予約');return;
     }
+    readDriveSnapshot(merged,state,validateImport);
     const mergedRevision=await drive.saveChecked(merged,remoteRevision);
     followUp=await applyRemoteSettings(mergedRevision,merged);
     setDriveSyncStatus('献立と他端末の設定を安全に統合しました',true);
     return;
    }
    setDriveSyncStatus('競合：両端末で同じ設定または献立を変更。自動上書き停止中');
-   notify('⚠ ドライブで両端末の変更が競合しています。献立を消さないため自動上書きは停止中です。設定画面のドライブ保存・復元で内容を確認してください。');
+   const signature=localDigest+':'+remoteDigest;
+   // Polling must not repeat the same unresolved warning every 30 seconds.
+   if(lastConflictSignature!==signature){
+    lastConflictSignature=signature;
+    notify('⚠ ドライブで両端末の変更が競合しています。献立を消さないため自動上書きは停止中です。設定画面のドライブ保存・復元で内容を確認してください。');
+   }
    return;
   }
   if(decision==='missing'){
@@ -2373,7 +2397,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
  if(el.id==='drive-auto'){
   if(!el.checked){
    drive.disableAuto();driveAutoReady=false;driveSyncStatus='';
-   drivePending=false;driveCloudRevision='';driveBaseDigest='';setDriveMeta(DRIVE_DIRTY,'');setDriveMeta(DRIVE_REVISION,'');setDriveMeta(DRIVE_DIGEST,'');setDriveMeta(DRIVE_SECTIONS,'');
+   drivePending=false;driveCloudRevision='';driveBaseDigest='';setDriveMeta(DRIVE_DIRTY,'');setDriveMeta(DRIVE_REVISION,'');setDriveMeta(DRIVE_DIGEST,'');setDriveMeta(DRIVE_SECTIONS,'');setDriveMeta(DRIVE_BASE_SNAPSHOT,'');
    if(driveAutoTimer){clearTimeout(driveAutoTimer);driveAutoTimer=null;}
    notify('この端末のドライブ自動同期を停止しました。');render();return;
   }
@@ -2383,7 +2407,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
    drive.enableAuto();
    driveSyncStatus='認証済み・初回照合中';
    driveAutoReady=false;driveCloudRevision='';driveBaseDigest='';drivePending=false;setDriveMeta(DRIVE_SECTIONS,'');
-   setDriveMeta(DRIVE_REVISION,'');setDriveMeta(DRIVE_DIRTY,'');setDriveMeta(DRIVE_DIGEST,'');
+   setDriveMeta(DRIVE_REVISION,'');setDriveMeta(DRIVE_DIRTY,'');setDriveMeta(DRIVE_DIGEST,'');setDriveMeta(DRIVE_BASE_SNAPSHOT,'');
    await autoDriveSync();
    if(drive.autoEnabled&&drive.connected&&!driveCloudRevision)
     notify('ドライブの自動同期を有効にしました。接続状況を確認してください。');

@@ -24,7 +24,11 @@ test('setting details are available in contextual help and are not implementatio
  assert.ok(app.includes("'settings-help':b=>showSettingsHelp(b.dataset.help)"));
  assert.ok(app.includes('class="settings-help-button" data-action="settings-help"'));
  assert.ok(app.includes("modal('ヘルプ：'+help.title"));
- assert.ok(css.includes('.settings-help-field>.settings-help-button'));
+ assert.ok(css.includes('.settings-help-field-heading>.settings-help-button'));
+ assert.ok(css.includes('.settings-help-check-row{display:grid;'));
+ assert.ok(!css.includes('.settings-help-field>.settings-help-button{position:absolute'));
+ assert.ok(app.includes('class="settings-help-field-heading"'));
+ assert.ok(app.includes('class="check-row settings-help-check-row"'));
  assert.ok(sw.includes("'./src/settings-help.js'"));
 });
 test('technical explanations are no longer inline in the settings sections',()=>{

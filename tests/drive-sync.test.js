@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependentDriveChanges} from '../src/drive-sync.js';
+import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependentDriveChanges,mergeDriveSnapshots} from '../src/drive-sync.js';
 const remote={format:'kondate-drive-settings-v2',updatedAt:'2026-10-09T07:00:00Z',settings:{theme:{color:'green'},rules:{days:7}},master:{a:{manual:[]}}};
 const changed={...remote,settings:{...remote.settings,theme:{color:'blue'}}};
 const choose=o=>decideDriveSync({remoteExists:true,localDigest:'local',remoteDigest:'remote',baseDigest:'base',pending:true,remoteRevision:'9',baseRevision:'8',...o});
@@ -54,4 +54,54 @@ test('overlapping draft changes remain a conflict rather than silent overwrite',
  const a={...base,settings:{...base.settings,theme:{color:'red'}}};
  const b={...base,settings:{...base.settings,theme:{color:'blue'}}};
  assert.equal(await mergeIndependentDriveChanges(a,b,hashes),null);
+});
+
+test('different settings edited on two devices merge using the last confirmed base',()=>{
+ const base={settings:{theme:{color:'green'},categoryCalendars:{main:'cal-A'},rules:{days:7}},master:{}};
+ const a=structuredClone(base),b=structuredClone(base);
+ a.settings.theme.color='blue';b.settings.categoryCalendars.main='cal-B';
+ const result=mergeDriveSnapshots(a,b,base);
+ assert.equal(result.settings.theme.color,'blue');
+ assert.equal(result.settings.categoryCalendars.main,'cal-B');
+ assert.equal(base.settings.theme.color,'green');
+});
+test('overlapping settings changes remain conflicts',()=>{
+ const base={settings:{theme:{color:'green'}},master:{}};
+ const a={settings:{theme:{color:'red'}},master:{}};
+ const b={settings:{theme:{color:'blue'}},master:{}};
+ assert.equal(mergeDriveSnapshots(a,b,base),null);
+});
+test('disjoint shopping flags, selected recipes and planned days merge',()=>{
+ const day=name=>({id:name,dishes:[{name,category:'main'}]});
+ const base={settings:{shopping:{checked:{one:'0'},selected:['味噌汁'],manual:[]},draft:[day('A'),day('B')]},master:{}};
+ const a=structuredClone(base),b=structuredClone(base);
+ a.settings.shopping.checked.two='1';
+ a.settings.shopping.selected.push('カレー');a.settings.draft[0]=day('C');
+ b.settings.shopping.checked.three='1';
+ b.settings.shopping.selected.push('肉じゃが');b.settings.draft[1]=day('D');
+ const result=mergeDriveSnapshots(a,b,base);
+ assert.deepEqual(result.settings.shopping.checked,{one:'0',two:'1',three:'1'});
+ assert.deepEqual(result.settings.shopping.selected,['味噌汁','カレー','肉じゃが']);
+ assert.deepEqual(result.settings.draft,[day('C'),day('D')]);
+});
+test('two different edits to the same planned day are not merged',()=>{
+ const day=name=>({dishes:[{name,category:'main'}]});
+ const base={settings:{draft:[day('A')]},master:{}};
+ const a={settings:{draft:[day('B')]},master:{}},b={settings:{draft:[day('C')]},master:{}};
+ assert.equal(mergeDriveSnapshots(a,b,base),null);
+});
+test('independent recipe metadata and shopping entries merge',()=>{
+ const item=id=>({id,name:id,quantity:1,unit:'個'});
+ const base={settings:{shopping:{manual:[item('first')]}},master:{cal:{metadata:{curry:{method:'煮る'}},manual:[],aliases:{}}}};
+ const a=structuredClone(base),b=structuredClone(base);
+ a.settings.shopping.manual.push(item('second'));b.settings.shopping.manual.push(item('third'));
+ a.master.cal.metadata.curry.method='焼く';
+ b.master.cal.metadata.stew={method:'煮る'};
+ const result=mergeDriveSnapshots(a,b,base);
+ assert.deepEqual(result.settings.shopping.manual.map(i=>i.id),['first','second','third']);
+ assert.equal(result.master.cal.metadata.curry.method,'焼く');
+ assert.equal(result.master.cal.metadata.stew.method,'煮る');
+});
+test('a missing merge baseline never authorizes overwriting either side',()=>{
+ assert.equal(mergeDriveSnapshots({settings:{theme:1}}, {settings:{theme:2}}, null),null);
 });
