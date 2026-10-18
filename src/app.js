@@ -538,7 +538,7 @@ function render(){
  // Rebuilding #main on every edit briefly clears all SVG masks and focus state.
  const previousScroll=tab==='settings'?$('#main .settings-grid')?.scrollTop:null;
  const previousMasterScroll=tab==='master'?$('#main .master-list-wrap')?.scrollTop:null;
- const previousMasterFilterScroll=tab==='master'?$('#quick-preset-bar')?.scrollLeft:null;
+ const previousMasterFilterScroll=['master','settings'].includes(tab)?$('#quick-preset-bar')?.scrollLeft:null;
  const previousShoppingScroll=tab==='shopping'?$('#main .shopping-list')?.scrollTop:null;
  applyTheme(state.theme);
  document.querySelector('.app')?.classList.toggle('has-compact-toolbar',['generate','master','shopping'].includes(tab));
@@ -573,7 +573,8 @@ function renderPresetBar(){
  const bar=$('#quick-preset-bar');
  const masterBar=tab==='master';
  const shoppingBar=tab==='shopping';
- const filterBar=masterBar||shoppingBar;
+ const settingsBar=tab==='settings';
+ const filterBar=masterBar||shoppingBar||settingsBar;
  const rules=state.iconRules.filter(rule=>String(rule.keyword||'').trim()&&String(rule.calendarId||'').trim());
  const calendarBar=tab==='calendar'&&rules.length>0;
  const shown=filterBar||calendarBar;
@@ -581,13 +582,15 @@ function renderPresetBar(){
  const app=document.querySelector('.app');
  app.classList.toggle('has-quick-presets',calendarBar);
  app.classList.toggle('has-master-filters',filterBar);
+ app.classList.toggle('has-settings-categories',settingsBar);
  bar.classList.toggle('master-filter-bar',filterBar);
  bar.classList.toggle('shopping-filter-bar',shoppingBar);
- bar.setAttribute('aria-label',masterBar?'料理の絞り込み':shoppingBar?'買い物の状態別表示':'予定のクイック登録プリセット');
+ bar.classList.toggle('settings-category-bar',settingsBar);
+ bar.setAttribute('aria-label',settingsBar?'設定カテゴリ':masterBar?'料理の絞り込み':shoppingBar?'買い物の状態別表示':'予定のクイック登録プリセット');
  bar.hidden=!shown;
  if(!shown){bar.innerHTML='';return;}
  if(filterBar){
-  const markup=masterBar?masterFilterButtons():shoppingFilterButtons();
+  const markup=settingsBar?settingsCategoryButtons():masterBar?masterFilterButtons():shoppingFilterButtons();
   if(bar.innerHTML!==markup)bar.innerHTML=markup;
   return;
  }
@@ -918,7 +921,14 @@ function settingsCategoryContent(){switch(settingsCategory){
  case 'appearance':return `<section class="settings-card card"><h2>配色テーマ</h2><p>背景や通常の文字色はそのまま、ボタンなどのアクセントカラーだけ切り替えます。</p><div class="theme-options">${[['暗め',false],['明るめ',true]].map(([label,rich])=>`<div class="theme-tone-row"><span class="theme-tone-label">${label}</span><div class="theme-tone-swatches">${Object.entries(colors).filter(([,c])=>!!c.rich===rich).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.rich?c.dark:c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div></div>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label></section>`;
  default:return '';
 }}
-function settingsScreen(){return `<section class="screen settings-screen"><div class="settings-grid scroll"><h2 class="settings-category-heading">${({calendar:'カレンダー',generate:'献立',master:'料理',shopping:'買い物',data:'データ・共有',ai:'AI',appearance:'外観'})[settingsCategory]}</h2>${settingsCategoryContent()}</div><nav class="settings-category-bar" aria-label="設定カテゴリ"><button type="button" class="settings-category-button ${settingsCategory==='calendar'?'active':''}" data-action="settings-category" data-category="calendar" aria-label="カレンダー" title="カレンダー" aria-pressed="${settingsCategory==='calendar'}"><span class="settings-category-icon settings-category-icon-calendar" aria-hidden="true"></span></button><button type="button" class="settings-category-button ${settingsCategory==='generate'?'active':''}" data-action="settings-category" data-category="generate" aria-label="献立" title="献立" aria-pressed="${settingsCategory==='generate'}"><span class="settings-category-icon settings-category-icon-generate" aria-hidden="true"></span></button><button type="button" class="settings-category-button ${settingsCategory==='master'?'active':''}" data-action="settings-category" data-category="master" aria-label="料理" title="料理" aria-pressed="${settingsCategory==='master'}"><span class="settings-category-icon settings-category-icon-master" aria-hidden="true"></span></button><button type="button" class="settings-category-button ${settingsCategory==='shopping'?'active':''}" data-action="settings-category" data-category="shopping" aria-label="買い物" title="買い物" aria-pressed="${settingsCategory==='shopping'}"><span class="settings-category-icon settings-category-icon-shopping" aria-hidden="true"></span></button><button type="button" class="settings-category-button ${settingsCategory==='data'?'active':''}" data-action="settings-category" data-category="data" aria-label="データ・共有" title="データ・共有" aria-pressed="${settingsCategory==='data'}"><span class="settings-category-icon settings-category-icon-data" aria-hidden="true"></span></button><button type="button" class="settings-category-button ${settingsCategory==='ai'?'active':''}" data-action="settings-category" data-category="ai" aria-label="AI" title="AI" aria-pressed="${settingsCategory==='ai'}"><span class="settings-category-icon settings-category-icon-ai" aria-hidden="true"></span></button><button type="button" class="settings-category-button ${settingsCategory==='appearance'?'active':''}" data-action="settings-category" data-category="appearance" aria-label="外観" title="外観" aria-pressed="${settingsCategory==='appearance'}"><span class="settings-category-icon settings-category-icon-appearance" aria-hidden="true"></span></button></nav></section>`;}
+function settingsCategoryButtons(){
+ const labels={calendar:'カレンダー',generate:'献立',master:'料理',shopping:'買い物',data:'データ・共有',ai:'AI',appearance:'外観'};
+ return SETTINGS_CATEGORIES.map(category=>{
+  const label=labels[category],selected=settingsCategory===category;
+  return `<button type="button" class="master-filter-button settings-category-button ${selected?'active':''}" data-action="settings-category" data-category="${category}" aria-label="${label}" title="${label}" aria-pressed="${selected}"><span class="settings-category-icon settings-category-icon-${category}" aria-hidden="true"></span></button>`;
+ }).join('');
+}
+function settingsScreen(){return `<section class="screen settings-screen"><div class="settings-grid scroll"><h2 class="settings-category-heading">${({calendar:'カレンダー',generate:'献立',master:'料理',shopping:'買い物',data:'データ・共有',ai:'AI',appearance:'外観'})[settingsCategory]}</h2>${settingsCategoryContent()}</div></section>`;}
 
 function modal(title,body,foot=''){
  const dialog=$('#dialog');
