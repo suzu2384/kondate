@@ -12,6 +12,7 @@ test('settings categories share the calendar, recipe and shopping footer row',()
  assert.ok(app.includes('class="master-filter-button settings-category-button '));
  const screen=app.slice(app.indexOf('function settingsScreen()'),app.indexOf('\n\nfunction modal('));
  assert.ok(!screen.includes('settings-category-bar')&&!screen.includes('settings-category-button'));
+ assert.ok(!screen.includes('<h2'),'remove the duplicate category-page heading');
  assert.ok(css.includes('#quick-preset-bar.settings-category-bar'));
  assert.ok(css.includes('flex:0 0 37px;width:37px;min-width:37px'));
  assert.ok(css.includes('.app.has-settings-categories #main{padding-bottom:0}'));

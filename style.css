@@ -1615,7 +1615,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .settings-screen{display:flex;flex-direction:column;min-height:0;overflow:hidden}
 .settings-screen .settings-grid{display:block;flex:1;min-height:0;overflow-y:auto;padding:8px 10px 16px}
 .settings-screen .settings-card{max-width:900px;margin:0 auto 12px}
-.settings-category-heading{max-width:900px;margin:0 auto 12px;font-size:18px}
+
 #quick-preset-bar.settings-category-bar{justify-content:flex-start;gap:5px}
 #quick-preset-bar.settings-category-bar .settings-category-button{
  display:inline-flex;align-items:center;justify-content:center;
@@ -1651,16 +1651,9 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  font-size:15px;font-weight:750;line-height:1;
 }
 .settings-help-button:hover{background:var(--tint)}
-/* Keep the question mark beside its label, never over the form control. */
-.settings-help-field{display:flex;flex-direction:column;gap:7px;min-width:0;margin:14px 0}
-.settings-help-field-heading{display:grid;grid-template-columns:minmax(0,1fr) 30px;gap:8px;align-items:center;min-width:0}
-.settings-help-field-heading>label{font-size:12px;font-weight:600;line-height:1.55;min-width:0;overflow-wrap:anywhere}
-.settings-help-field-heading>.settings-help-button{grid-column:2;grid-row:1}
-.settings-help-field>select,.settings-help-field>.history-date-control{width:100%;min-width:0;max-width:100%}
-.settings-help-check-row{display:grid;grid-template-columns:20px minmax(0,1fr) 30px;gap:9px;align-items:center}
-.settings-help-check-row>input[type=checkbox]{grid-column:1;margin:0}
-.settings-help-check-row>label{grid-column:2;min-width:0;overflow-wrap:anywhere}
-.settings-help-check-row>.settings-help-button{grid-column:3}
-
 #dialog-content .settings-help-text{font-size:14px;color:var(--text);line-height:1.7;margin:0 0 13px}
 #dialog-content .settings-help-text:last-child{margin-bottom:0}
+
+/* Explanations for subordinate settings are grouped in the parent help dialog. */
+#dialog-content .settings-help-subheading{font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text)}
+#dialog-content .settings-help-subheading:first-child{margin-top:0}
