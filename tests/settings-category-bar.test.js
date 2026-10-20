@@ -35,7 +35,7 @@ test('meal plan reserves the exact shared bottom bar without any buttons',()=>{
  assert.ok(app.includes("bar.classList.toggle('master-filter-bar',filterBar)"));
  assert.ok(app.includes("if(generateBar){bar.innerHTML='';return;}"));
  assert.ok(app.includes("bar.setAttribute('role',emptyBar?'presentation':'toolbar')"));
- assert.ok(app.includes("if(generateBar)bar.removeAttribute('aria-label')"));
+ assert.ok(app.includes("if(emptyBar)bar.removeAttribute('aria-label')"));
  assert.match(css,/\.app\.has-master-filters\{grid-template-rows:54px minmax\(0,1fr\) 40px 22px 58px\}/);
  assert.match(css,/@media\(max-width:760px\)\{\s*\.app\.has-master-filters\{grid-template-rows:49px minmax\(0,1fr\) 38px 24px/);
  const readme=read('README.md');
