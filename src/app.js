@@ -576,7 +576,7 @@ function iconMarkup(name,color='',extraClass=''){
 function renderPresetBar(){
  const bar=$('#quick-preset-bar');
  const masterBar=tab==='master';
- const shoppingBar=tab==='shopping'&&shoppingMode==='list';
+ const shoppingBar=tab==='shopping';
  const settingsBar=tab==='settings';
  const generateBar=tab==='generate';
  const filterBar=masterBar||shoppingBar||settingsBar||generateBar;
@@ -593,12 +593,13 @@ function renderPresetBar(){
  bar.classList.toggle('settings-category-bar',settingsBar);
  // The meal-plan tab reserves the same footer row but has no actions in it.
  // Do not expose an empty toolbar to assistive technology.
- bar.setAttribute('role',generateBar?'presentation':'toolbar');
- if(generateBar)bar.removeAttribute('aria-label');
+ const emptyBar=generateBar||(shoppingBar&&shoppingMode==='prices');
+ bar.setAttribute('role',emptyBar?'presentation':'toolbar');
+ if(emptyBar)bar.removeAttribute('aria-label');
  else bar.setAttribute('aria-label',settingsBar?'設定カテゴリ':masterBar?'料理の絞り込み':shoppingBar?'買い物の状態別表示':'予定のクイック登録プリセット');
  bar.hidden=!shown;
  if(!shown){bar.innerHTML='';return;}
- if(generateBar){bar.innerHTML='';return;}
+ if(emptyBar){if(bar.innerHTML)bar.innerHTML='';return;}
  if(filterBar){
   const markup=settingsBar?settingsCategoryButtons():masterBar?masterFilterButtons():shoppingFilterButtons();
   if(bar.innerHTML!==markup)bar.innerHTML=markup;
@@ -791,9 +792,11 @@ function shoppingModeButtons(){
 function priceCatalog(){
  return catalogPrices(master(),state.shopping.manual,shoppingData().items,state.shopping.prices);
 }
-function shoppingPriceRows(){
+function shoppingPriceItems(){
  const query=normalize(shoppingPriceQuery);
- const entries=priceCatalog().filter(item=>normalize(item.name).includes(query));
+ return priceCatalog().filter(item=>normalize(item.name).includes(query));
+}
+function shoppingPriceRows(entries=shoppingPriceItems()){
  return entries.map(item=>{
   const price=state.shopping.prices[item.key];
   const detail=price?price.quantity+' '+price.unit+' ／ '+price.price.toLocaleString('ja-JP')+'円':'未設定';
@@ -808,17 +811,19 @@ function shoppingScreen(){
  const isPrices=shoppingMode==='prices';
  const items=shoppingFilter==='bought'?view.bought:shoppingFilter==='excluded'?view.excluded:view.pending;
  const budget=shoppingBudget(view.pending,state.shopping.prices);
+ const priceItems=isPrices?shoppingPriceItems():[];
  const emptyMessage=shoppingFilter==='bought'?'購入済みの材料はありません。':shoppingFilter==='excluded'?'除外した材料はありません。':view.items.length?'未購入の材料はありません。':'料理タブで「買う」を押して材料を追加できます。';
  return `<section class="screen shopping-screen" aria-label="買い物">
-  <div class="shopping-toolbar kondate-tab-toolbar">
+  <div class="shopping-toolbar kondate-tab-toolbar ${isPrices?'shopping-prices-toolbar':''}">
    ${shoppingModeButtons()}
-   ${isPrices?button('＋ 価格追加','shopping-price-add','mini primary shopping-price-add'):`<label class="shopping-servings">人数 <select id="shopping-servings" aria-label="買い物に必要な人数">${Array.from({length:MAX_SHOPPING_SERVINGS},(_,i)=>i+1).map(n=>`<option value="${n}"${n===view.servings?' selected':''}>${n}</option>`).join('')}</select> 人分</label>
+   ${isPrices?`<input id="shopping-price-search" type="search" aria-label="価格を管理する食材を検索" placeholder="食材名で検索" value="${esc(shoppingPriceQuery)}" autocomplete="off">
+    <span class="hint shopping-price-count" id="shopping-price-count">${priceItems.length}件</span>
+    ${button('＋ 価格追加','shopping-price-add','mini primary shopping-price-add')}`:`<label class="shopping-servings">人数 <select id="shopping-servings" aria-label="買い物に必要な人数">${Array.from({length:MAX_SHOPPING_SERVINGS},(_,i)=>i+1).map(n=>`<option value="${n}"${n===view.servings?' selected':''}>${n}</option>`).join('')}</select> 人分</label>
     ${button('＋ 品目追加','shopping-add','mini primary')}
     ${button('未購入をコピー','shopping-copy','mini')}
     ${button('共有','family-dialog','family-share-button mini','data-kind="shopping"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle ドライブに接続してください"'))}`}
   </div>
-  ${isPrices?`<div class="shopping-price-search"><input id="shopping-price-search" type="search" aria-label="価格を管理する食材を検索" placeholder="食材名で検索" value="${esc(shoppingPriceQuery)}" autocomplete="off"><span class="hint">${priceCatalog().length}件</span></div>
-   <div class="shopping-list shopping-price-list card scroll"><ul class="shopping-price-items" id="shopping-price-rows">${shoppingPriceRows()}</ul></div>`:
+  ${isPrices?`<div class="shopping-list shopping-price-list card scroll"><ul class="shopping-price-items" id="shopping-price-rows">${shoppingPriceRows(priceItems)}</ul></div>`:
    `<div class="shopping-budget" role="status"><strong>未購入の予算目安 ${budget.total.toLocaleString('ja-JP')}円</strong><small>${budget.unknown?` ／ ${budget.unknown}品は未計算`:''}（価格登録済み${budget.priced}品）</small></div>
    <div class="shopping-list card scroll">
     <ul class="shopping-items">${items.map(shoppingRow).join('')||`<li class="shopping-empty">${emptyMessage}</li>`}</ul>
@@ -2407,7 +2412,7 @@ document.addEventListener('input',e=>{const el=e.target;
   queuePlaceLookup(el);
  }
  if(el.id==='master-search'){masterQuery=el.value;refreshMasterRows();}
- if(el.id==='shopping-price-search'){shoppingPriceQuery=el.value;const list=$('#shopping-price-rows');if(list)list.innerHTML=shoppingPriceRows();}
+ if(el.id==='shopping-price-search'){shoppingPriceQuery=el.value;const entries=shoppingPriceItems();const list=$('#shopping-price-rows');if(list)list.innerHTML=shoppingPriceRows(entries);const count=$('#shopping-price-count');if(count)count.textContent=entries.length+'件';}
 });
 document.addEventListener('scroll',e=>{
  if($('#dialog').open&&e.target.closest?.('.dialog-body'))positionPlaceSuggestions();

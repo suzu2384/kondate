@@ -1708,9 +1708,28 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .shopping-budget strong{font-size:12px;flex:0 0 auto}
 .shopping-budget small{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:clip}
 .shopping-item-quantity .shopping-item-estimate{display:block;font-size:10px;color:var(--muted);line-height:1.3;white-space:nowrap}
-.shopping-price-search{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 5px}
-.shopping-price-search input{flex:1 1 0;min-width:0;height:36px;min-height:36px;padding:5px 9px;font-size:16px}
-.shopping-price-search .hint{flex:0 0 auto;white-space:nowrap;font-size:11px}
+/* Keep search, filtered count and add alongside the mode switch in one
+   36px-high toolbar. Do not create a second controls row. */
+.shopping-screen .shopping-toolbar.shopping-prices-toolbar{
+ display:flex;align-items:center;flex-wrap:nowrap;gap:6px;min-width:0;
+ overflow:hidden
+}
+.shopping-screen .shopping-toolbar.shopping-prices-toolbar #shopping-price-search{
+ flex:1 1 0;width:0;min-width:0;max-width:none;
+ height:var(--kondate-top-control-height);min-height:var(--kondate-top-control-height);
+ padding:4px 9px;font-size:16px;line-height:normal
+}
+.shopping-screen .shopping-toolbar .shopping-price-count{
+ flex:0 0 auto;margin:0;font-size:11px;white-space:nowrap
+}
+.shopping-screen .shopping-toolbar.shopping-prices-toolbar .shopping-price-add{
+ flex:0 0 auto;min-width:0;margin-left:0;padding:0 9px;font-size:12px
+}
+@media(max-width:760px){
+ .shopping-screen .shopping-toolbar.shopping-prices-toolbar{gap:4px;padding-inline:2px}
+ .shopping-screen .shopping-toolbar.shopping-prices-toolbar #shopping-price-search{padding:4px 6px;font-size:16px}
+ .shopping-screen .shopping-toolbar.shopping-prices-toolbar .shopping-price-add{padding:0 6px;font-size:10px}
+}
 .shopping-price-items{list-style:none;padding:0;margin:0}
 .shopping-price-item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) auto;align-items:center;gap:7px;min-height:51px;padding:6px 8px;border-bottom:1px solid var(--line)}
 .shopping-price-item:last-child{border-bottom:0}
