@@ -19,6 +19,7 @@ import {expiredGoogleServices,renewExpiredGoogleServices} from './google-reauth.
 import {dateTapAction,monthSnapOffset,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependentDriveChanges,mergeDriveSnapshots} from './drive-sync.js';
 import {recordDishSuggestions,selectRecordDish} from './dish-suggestions.js';
+import {renderDayDetail} from './day-detail.js';
 import {getSettingsHelp} from './settings-help.js';
 import {searchPlaces,filterPlaceCandidates,LOCATION_ATTRIBUTION} from './place-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
@@ -688,7 +689,15 @@ function patchCalendarCells(){
   if(panel.innerHTML!==markup)panel.innerHTML=markup;
  }
 }
-function dayContent(date){const d=new Date(`${date}T12:00:00`);const list=records().filter(r=>r.date===date),extra=extraEvents().filter(e=>e.date===date);return `<h2>${d.getMonth()+1}月${d.getDate()}日 <small>（${'日月火水木金土'[d.getDay()]}）</small></h2><div class="date-label">${list.length+extra.length}件の記録・予定</div>${list.map(r=>`<div class="meal-group"><span class="tag ${r.status==='invalid'?'neutral':''}">${({actual:'調理実績',invalid:'書式を確認してください'})[r.status]}</span>${String(r.location||'').trim()?`<div class="date-label">外食・場所：${esc(r.location)}</div>`:''}${r.dishes.map(d=>`<div class="dish-line"><span class="category">${esc(categoryName(d.category))}</span><span>${esc(d.name)}</span></div>`).join('')}${r.status==='invalid'?`<p class="hint">元の予定をカレンダーで確認してください。変更せず保護しています。</p>`:button('詳細・編集','record','text-button mini',`data-id="${esc(r.id)}" data-calendar="${esc(r.calendarId)}"`)}</div>`).join('')||(!extra.length?empty('この日の記録はありません','何を作りましたか？料理名だけでも記録できます。'):'')}${extra.map(e=>`<div class="meal-group general-event-detail">${e.icon?`<span class="general-event-detail-icon">${iconMarkup(e.icon,e.color)}</span>`:''}<span><strong>${esc(e.title)}</strong>${e.memo?`<span class="general-event-memo">${esc(e.memo)}</span>`:''}</span> <small>（表示のみ）</small></div>`).join('')}${button('＋ この日に登録','new-record','full',`data-date="${date}"`)}`;}
+function dayContent(date){
+ return renderDayDetail({
+  date,
+  records:records().filter(record=>record.date===date),
+  otherEvents:extraEvents().filter(event=>event.date===date),
+  categoryName,iconMarkup,esc,button
+ });
+}
+
 function generateScreen(){
  return `<section class="screen generation-screen">
  <div class="generation-controls kondate-tab-toolbar">

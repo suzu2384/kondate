@@ -1657,3 +1657,32 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 /* Explanations for subordinate settings are grouped in the parent help dialog. */
 #dialog-content .settings-help-subheading{font-size:14px;font-weight:700;margin:18px 0 8px;color:var(--text)}
 #dialog-content .settings-help-subheading:first-child{margin-top:0}
+
+/* The calendar day detail uses one compact row per record or other event.
+   No rules between entries of the same kind; one boundary between kinds. */
+.day-detail{min-width:0}
+.day-detail-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0;margin:0 0 9px}
+.day-detail-heading h2{font-size:18px;line-height:1.3;margin:0;white-space:nowrap;min-width:0}
+.day-detail-heading h2 small{font-size:12px;font-weight:500;color:var(--muted)}
+.day-detail-heading .day-record-add{min-height:34px;flex:0 0 auto;padding:6px 10px;font-size:12px;white-space:nowrap}
+.day-detail-records,.day-detail-other-events{display:flex;flex-direction:column;gap:2px;min-width:0}
+.day-detail-other-events.has-actuals{border-top:1px solid var(--line);margin-top:7px;padding-top:7px}
+.day-detail-row{display:flex;align-items:center;gap:7px;min-width:0;min-height:36px;padding:3px 1px;font-size:13px;line-height:1.45;white-space:nowrap}
+.day-detail-text{display:block;flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:clip}
+.day-detail-text strong{font-weight:650}
+.day-record-location,.day-event-memo{color:var(--muted);font-weight:400}
+.day-record-warning{flex:0 0 auto;color:var(--danger)}
+.day-record-edit{min-height:36px;flex:0 0 auto;padding:7px 12px;font-size:12px;white-space:nowrap}
+.day-detail-empty{display:flex;align-items:center;gap:9px;min-width:0;padding:7px 3px;color:var(--muted)}
+.day-empty-icon{display:block;width:25px;height:25px;flex:0 0 25px;background-color:var(--accent);
+ -webkit-mask:url('./icons/tabs/utensils.svg') center / contain no-repeat;
+ mask:url('./icons/tabs/utensils.svg') center / contain no-repeat}
+.day-empty-message{display:flex;flex-direction:column;gap:2px;min-width:0;font-size:12px;line-height:1.4}
+.day-empty-message strong{font-weight:600;color:var(--text)}
+.day-empty-message small{font-size:11px;line-height:1.4}
+@media(max-width:760px){
+ .day-detail-heading h2{font-size:16px}
+ .day-detail-row{min-height:35px;gap:5px;font-size:12px}
+ .day-record-edit{min-height:36px;padding:6px 9px;font-size:11px}
+ .day-detail-heading .day-record-add{min-height:34px;padding:6px 9px;font-size:11px}
+}
