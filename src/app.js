@@ -815,7 +815,7 @@ function shoppingScreen(){
    ${isPrices?button('＋ 価格追加','shopping-price-add','mini primary shopping-price-add'):`<label class="shopping-servings">人数 <select id="shopping-servings" aria-label="買い物に必要な人数">${Array.from({length:MAX_SHOPPING_SERVINGS},(_,i)=>i+1).map(n=>`<option value="${n}"${n===view.servings?' selected':''}>${n}</option>`).join('')}</select> 人分</label>
     ${button('＋ 品目追加','shopping-add','mini primary')}
     ${button('未購入をコピー','shopping-copy','mini')}
-    ${button('共有','family-dialog','family-share-button mini','data-kind="shopping"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle ドライブに接続してください"'))}}
+    ${button('共有','family-dialog','family-share-button mini','data-kind="shopping"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle ドライブに接続してください"'))}`}
   </div>
   ${isPrices?`<div class="shopping-price-search"><input id="shopping-price-search" type="search" aria-label="価格を管理する食材を検索" placeholder="食材名で検索" value="${esc(shoppingPriceQuery)}" autocomplete="off"><span class="hint">${priceCatalog().length}件</span></div>
    <div class="shopping-list shopping-price-list card scroll"><ul class="shopping-price-items" id="shopping-price-rows">${shoppingPriceRows()}</ul></div>`:

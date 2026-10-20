@@ -1690,7 +1690,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 
 /* Shopping list/price editor selector: the two uploaded SVGs are used unchanged. */
 .shopping-screen .shopping-toolbar{overflow-x:auto;scrollbar-width:none}
-.shopping-screen .shopping-toolbar::-webkit-scrollbar{display:none}
+.shopping-screen .shopping-toolbar::-webkit-scrollbar{width:0;height:0}
 .shopping-screen .shopping-toolbar .shopping-mode-toggle{display:inline-flex;align-items:center;gap:1px;flex:0 0 auto;border:1px solid var(--line);border-radius:9px;padding:2px;background:var(--surface)}
 .shopping-screen .shopping-toolbar .shopping-mode-button{
  display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;

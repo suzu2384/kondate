@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {MAX_SHOPPING_SERVINGS} from '../src/shopping.js';
+import {estimateItem,shoppingBudget} from '../src/ingredient-prices.js';
 
 const read=name=>readFileSync(new URL('../'+name,import.meta.url),'utf8');
 const app=read('src/app.js'),css=read('style.css'),html=read('index.html');
@@ -18,7 +19,7 @@ const sample={
 };
 sample.items=[...sample.pending,...sample.bought,...sample.excluded];
 function screen(filter,view=sample){
- const ctx={shoppingFilter:filter,shoppingData:()=>view,button,esc:s=>String(s),MAX_SHOPPING_SERVINGS,drive:{connected:true}};
+ const ctx={shoppingFilter:filter,shoppingMode:'list',shoppingPriceQuery:'',shoppingData:()=>view,button,esc:s=>String(s),MAX_SHOPPING_SERVINGS,drive:{connected:true},state:{shopping:{prices:{}}},estimateItem,shoppingBudget};
  const compiled=runInNewContext(source+';({shoppingScreen,shoppingFilterButtons})',ctx);
  return {screen:compiled.shoppingScreen(),filterBar:compiled.shoppingFilterButtons()};
 }

@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {FamilyDriveClient,FamilySync,SHOPPING_SYNC_SECONDS,SHARE_SCOPE,SHARE_JOIN_SCOPE,sharedSpreadsheetId,sharedSpreadsheetUrl,ownedShareQuery,diffSnapshots,replayOps,validateSharedOp,describeSharedApiFailure} from '../src/family-share.js';
 import {shoppingSharedSnapshot,applyShoppingEvents,masterSharedSnapshot,applyMasterEvents} from '../src/family-data.js';
 import {DriveSettingsClient,DRIVE_UNIFIED_SCOPES} from '../src/drive.js';
-import {shoppingItems} from '../src/shopping.js';
+import {shoppingItems,shoppingSettings} from '../src/shopping.js';
 import {buildMaster} from '../src/model.js';
 const file=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const storage=()=>{const d=new Map();return {getItem:k=>d.get(k)||null,setItem:(k,v)=>d.set(k,v),removeItem:k=>d.delete(k)};};
@@ -43,7 +43,7 @@ test('one-person default and all shopping states roundtrip across shared ops',()
  const s={servings:5,selected:['肉じゃが'],manual:[{id:'abcdef123456',name:'牛乳',quantity:1,unit:'L'}],
   checked:{'auto:卵|個':'個:6'},excluded:{'auto:砂糖|g':true}};
  const rows=diffSnapshots({},shoppingSharedSnapshot(s),'shopping',()=> 'baseline-123456');
- assert.deepEqual(applyShoppingEvents({},rows,true),s);
+ assert.deepEqual(applyShoppingEvents({},rows,true),shoppingSettings(s));
 });
 test('sharing creates a Drive-accessible spreadsheet, writes state and invites an editor',async()=>{
  const client=fakeClient(),sync=new FamilySync(client,storage());
