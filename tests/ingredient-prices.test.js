@@ -61,7 +61,7 @@ test('prices survive Drive backups and family shopping checklist updates',()=>{
  const updated=applyShoppingEvents(restored.shopping,[{key:'servings',value:3}],false);
  assert.deepEqual(updated.prices,prices);
  const reset=applyShoppingEvents(restored.shopping,[{key:'servings',value:3}],true);
- assert.deepEqual(reset.prices,{});
+ assert.deepEqual(reset.prices,prices);
 });
 
 test('shopping tab uses provided icons, preserves existing controls and exposes price search',()=>{

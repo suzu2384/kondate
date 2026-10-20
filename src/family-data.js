@@ -34,6 +34,7 @@ export function shoppingSharedSnapshot(input={},computed=[],{pruneStale=false,ac
  return out;
 }
 export function applyShoppingEvents(input={},ops=[],reset=false){
+ const storedPrices=shoppingSettings(input).prices;
  const s=shoppingSettings(reset?{}:input);
  const states={servings:s.servings,selected:new Map(s.selected.map(name=>[normalize(name),name])),
   manual:new Map(s.manual.map(x=>[x.id,x])),
@@ -64,7 +65,7 @@ export function applyShoppingEvents(input={},ops=[],reset=false){
  }
  return shoppingSettings({servings:states.servings,selected:[...states.selected.values()],
   manual:[...states.manual.values()],checked:Object.fromEntries(states.checked),
-  excluded:Object.fromEntries(states.excluded),prices:s.prices});
+  excluded:Object.fromEntries(states.excluded),prices:storedPrices});
 }
 export function applyMasterEvents(scope,ops,allowedCategories=['main']){
  if(!scope.aliases)scope.aliases={};
