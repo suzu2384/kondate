@@ -15,7 +15,7 @@ function renderShopping(mode='prices',query=''){
  ];
  const ctx={
   shoppingMode:mode,shoppingPriceQuery:query,shoppingFilter:'pending',
-  priceCatalog:()=>priceItems,normalize:x=>String(x),state:{shopping:{prices:{}}},
+  master:()=>[],catalogPrices:()=>priceItems,normalize:x=>String(x),state:{shopping:{prices:{},manual:[]}},
   button:(label,action,cls='',attrs='')=>'<button class="'+cls+'" data-action="'+action+'" '+attrs+'>'+label+'</button>',
   esc:s=>String(s),MAX_SHOPPING_SERVINGS:30,
   shoppingData:()=>({servings:3,items:[],pending:[],bought:[],excluded:[]}),
@@ -29,7 +29,7 @@ function renderShopping(mode='prices',query=''){
 test('price mode fits search, filtered count, and new price action in a single top toolbar',()=>{
  const {markup,matching}=renderShopping('prices','米');
  assert.equal(matching,1);
- const row=markup.match(/<div class="shopping-toolbar kondate-tab-toolbar shopping-prices-toolbar">([\s\S]*?)<\/div>\s*<div class="shopping-list shopping-price-list/);
+ const row=markup.match(/<div class="shopping-toolbar kondate-tab-toolbar" data-mode="prices">([\s\S]*?)<\/div>\s*<div class="shopping-list shopping-price-list/);
  assert.ok(row,'The price list should begin immediately after its one toolbar row');
  assert.match(row[1],/data-action="shopping-mode"/);
  assert.match(row[1],/id="shopping-price-search"/);
@@ -38,8 +38,8 @@ test('price mode fits search, filtered count, and new price action in a single t
  const order=['shopping-mode-toggle','shopping-price-search','shopping-price-count','shopping-price-add'];
  for(let i=1;i<order.length;i++)assert.ok(row[1].indexOf(order[i-1])<row[1].indexOf(order[i]));
  assert.doesNotMatch(markup,/class="shopping-price-search"/);
- assert.match(css,/\.shopping-screen \.shopping-toolbar\.shopping-prices-toolbar\{[\s\S]*?flex-wrap:nowrap/);
- assert.match(css,/\.shopping-screen \.shopping-toolbar\.shopping-prices-toolbar #shopping-price-search\{[\s\S]*?flex:1 1 0/);
+ assert.match(css,/\.shopping-screen \.shopping-toolbar\[data-mode="prices"\]\{[\s\S]*?flex-wrap:nowrap/);
+ assert.match(css,/\.shopping-screen \.shopping-toolbar\[data-mode="prices"\] #shopping-price-search\{[\s\S]*?flex:1 1 0/);
  assert.match(css,/\.shopping-screen \.shopping-toolbar \.shopping-price-count\{/);
 });
 

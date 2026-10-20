@@ -599,7 +599,8 @@ function renderPresetBar(){
  else bar.setAttribute('aria-label',settingsBar?'設定カテゴリ':masterBar?'料理の絞り込み':shoppingBar?'買い物の状態別表示':'予定のクイック登録プリセット');
  bar.hidden=!shown;
  if(!shown){bar.innerHTML='';return;}
- if(emptyBar){if(bar.innerHTML)bar.innerHTML='';return;}
+ if(generateBar){bar.innerHTML='';return;}
+ if(shoppingBar&&shoppingMode==='prices'){bar.innerHTML='';return;}
  if(filterBar){
   const markup=settingsBar?settingsCategoryButtons():masterBar?masterFilterButtons():shoppingFilterButtons();
   if(bar.innerHTML!==markup)bar.innerHTML=markup;
@@ -814,7 +815,7 @@ function shoppingScreen(){
  const priceItems=isPrices?shoppingPriceItems():[];
  const emptyMessage=shoppingFilter==='bought'?'購入済みの材料はありません。':shoppingFilter==='excluded'?'除外した材料はありません。':view.items.length?'未購入の材料はありません。':'料理タブで「買う」を押して材料を追加できます。';
  return `<section class="screen shopping-screen" aria-label="買い物">
-  <div class="shopping-toolbar kondate-tab-toolbar ${isPrices?'shopping-prices-toolbar':''}">
+  <div class="shopping-toolbar kondate-tab-toolbar" data-mode="${isPrices?'prices':'list'}">
    ${shoppingModeButtons()}
    ${isPrices?`<input id="shopping-price-search" type="search" aria-label="価格を管理する食材を検索" placeholder="食材名で検索" value="${esc(shoppingPriceQuery)}" autocomplete="off">
     <span class="hint shopping-price-count" id="shopping-price-count">${priceItems.length}件</span>
