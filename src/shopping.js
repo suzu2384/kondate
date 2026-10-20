@@ -1,5 +1,6 @@
 import {normalize,resolveName} from './model.js';
 import {normalizeIngredient} from './ingredients.js';
+import {validatePrices} from './ingredient-prices.js';
 
 export const DEFAULT_SHOPPING_SERVINGS=1;
 export const MAX_SHOPPING_SERVINGS=30;
@@ -21,7 +22,8 @@ export function shoppingSettings(input={}){
   manual:Array.isArray(value.manual)?value.manual.filter(item=>item&&typeof item==='object').slice(0,200):[],
   selected:Array.isArray(value.selected)?value.selected.filter(name=>typeof name==='string'&&name.trim()).slice(0,200):[],
   checked:{...plainObject(value.checked)},
-  excluded:{...plainObject(value.excluded)}
+  excluded:{...plainObject(value.excluded)},
+  prices:{...plainObject(value.prices)}
  };
 }
 export function quantityLabel(item){
@@ -89,6 +91,7 @@ export function shoppingItems({master=[],aliases:mealAliases={},shopping={}}={})
 }
 export function validateShoppingSettings(settings){
  const raw=plainObject(settings);
+ if(raw.prices!==undefined)validatePrices(raw.prices);
  if(raw.servings!==undefined&&(!Number.isInteger(Number(raw.servings))||Number(raw.servings)<1||Number(raw.servings)>MAX_SHOPPING_SERVINGS))throw Error('買い物人数は1〜30人で指定してください。');
  if(raw.selected!==undefined){
   if(!Array.isArray(raw.selected)||raw.selected.length>200)throw Error('買い物対象の料理は最大200品です。');

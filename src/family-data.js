@@ -64,7 +64,7 @@ export function applyShoppingEvents(input={},ops=[],reset=false){
  }
  return shoppingSettings({servings:states.servings,selected:[...states.selected.values()],
   manual:[...states.manual.values()],checked:Object.fromEntries(states.checked),
-  excluded:Object.fromEntries(states.excluded)});
+  excluded:Object.fromEntries(states.excluded),prices:s.prices});
 }
 export function applyMasterEvents(scope,ops,allowedCategories=['main']){
  if(!scope.aliases)scope.aliases={};

@@ -32,10 +32,11 @@ import {catalog} from './catalog.js';
 import {recipeSearchUrl} from './recipe-search.js';
 import {INGREDIENT_UNITS,validateIngredients,MAX_INGREDIENTS,normalizeIngredient} from './ingredients.js';
 import {DEFAULT_SHOPPING_SERVINGS,MAX_SHOPPING_SERVINGS,shoppingSettings,shoppingItems,quantityLabel,validateShoppingSettings,addShoppingDish} from './shopping.js';
+import {priceKey,validatePrice,catalogPrices,estimateItem,shoppingBudget,MAX_PRICES} from './ingredient-prices.js';
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme,normalizeThemeColor,isSupportedThemeColor} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
-const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],recentNewMains:[],recentSuggested:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,pendingCalendarRenames:[],...loaded};
+const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],recentNewMains:[],recentSuggested:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{},prices:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,pendingCalendarRenames:[],...loaded};
 state.rules={...defaultRules,...loaded.rules,counts:{...defaultRules.counts,...loaded.rules?.counts}};
 state.pendingCalendarRenames=(Array.isArray(loaded.pendingCalendarRenames)?loaded.pendingCalendarRenames:[]).filter(item=>
  item&&typeof item.from==='string'&&item.from.length>0&&item.from.length<=100&&
@@ -132,7 +133,7 @@ const NEW_CALENDAR_VALUE='__kondate_create_calendar__';
 let calendarCreationBusy=false;
 let presetEditDraft=null,presetEditOriginalId=null;
 let aiGenerating=false;
-let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',masterFilter='all',shoppingFilter='pending';
+let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',masterFilter='all',shoppingFilter='pending',shoppingMode='list',shoppingPriceQuery='';
 let calendarTouchStart=null,ignoreDateClickUntil=0,selectedPresetId=null;
 let calendarSwipeSettling=false,calendarSwipeToken=0,calendarSwipeTimer=null,calendarSwipeAnimation=null;
 const scopeKeyFor=id=>calendarKey(GOOGLE_CLIENT_ID,id);
@@ -575,7 +576,7 @@ function iconMarkup(name,color='',extraClass=''){
 function renderPresetBar(){
  const bar=$('#quick-preset-bar');
  const masterBar=tab==='master';
- const shoppingBar=tab==='shopping';
+ const shoppingBar=tab==='shopping'&&shoppingMode==='list';
  const settingsBar=tab==='settings';
  const generateBar=tab==='generate';
  const filterBar=masterBar||shoppingBar||settingsBar||generateBar;
@@ -760,9 +761,10 @@ function shoppingData(){
 }
 function shoppingRow(item){
  const name=esc(item.name),detail=item.kind==='manual'?'手動追加':(item.sourceNames.length?item.sourceNames.join('・'):'');
+ const estimate=estimateItem(item,state.shopping.prices);
  return `<li class="shopping-item ${item.checked?'is-bought':''} ${item.excluded?'is-excluded':''}">
   ${!item.excluded?`<label class="shopping-check"><input type="checkbox" data-shopping-check="${esc(item.id)}" aria-label="${name}を購入済みにする" ${item.checked?'checked':''}><span class="shopping-item-name">${name}</span></label>`:`<span class="shopping-item-name">${name}</span>`}
-  <span class="shopping-item-quantity">${esc(item.display)}</span>
+  <span class="shopping-item-quantity">${esc(item.display)}<small class="shopping-item-estimate" title="${esc(estimate.reason||'購入予算の目安')}">${estimate.amount===null?'未計算':estimate.amount.toLocaleString('ja-JP')+'円'}</small></span>
   <div class="shopping-item-actions">
    ${item.kind==='manual'?button('編集','shopping-edit','shopping-plain-button',`data-id="${esc(item.id)}" aria-label="${name}を編集"`):''}
    ${item.kind==='manual'?button('削除','shopping-delete','shopping-plain-button',`data-id="${esc(item.id)}" aria-label="${name}を削除"`):''}
@@ -778,22 +780,73 @@ function shoppingFilterButtons(){
   ['除外','excluded']
  ].map(([label,value])=>button(label,'filter-shopping','master-filter-button'+(shoppingFilter===value?' selected':''),`data-shopping-filter="${value}" aria-pressed="${shoppingFilter===value}"`)).join('');
 }
+function shoppingModeButtons(){
+ return `<div class="shopping-mode-toggle" role="group" aria-label="買い物画面の切り替え">
+  ${[['list','買い物リスト','shopping-basket'],['prices','価格管理','receipt-japanese-yen']].map(([mode,label,icon])=>
+   button(`<span class="shopping-mode-icon shopping-mode-icon-${icon}" aria-hidden="true"></span>`,
+    'shopping-mode','shopping-mode-button'+(shoppingMode===mode?' selected':''),
+    `data-mode="${mode}" aria-label="${label}" title="${label}" aria-pressed="${shoppingMode===mode}"`)).join('')}
+ </div>`;
+}
+function priceCatalog(){
+ return catalogPrices(master(),state.shopping.manual,shoppingData().items,state.shopping.prices);
+}
+function shoppingPriceRows(){
+ const query=normalize(shoppingPriceQuery);
+ const entries=priceCatalog().filter(item=>normalize(item.name).includes(query));
+ return entries.map(item=>{
+  const price=state.shopping.prices[item.key];
+  const detail=price?price.quantity+' '+price.unit+' ／ '+price.price.toLocaleString('ja-JP')+'円':'未設定';
+  return `<li class="shopping-price-item"><span class="shopping-price-name">${esc(item.name)}</span>
+   <span class="shopping-price-value ${price?'':'is-unset'}">${esc(detail)}</span>
+   ${button('編集','shopping-price-edit','mini',`data-key="${esc(item.key)}" aria-label="${esc(item.name)}の価格を編集"`)}
+  </li>`;
+ }).join('')||'<li class="shopping-empty">該当する食材はありません。価格を追加することもできます。</li>';
+}
 function shoppingScreen(){
  const view=shoppingData();
+ const isPrices=shoppingMode==='prices';
  const items=shoppingFilter==='bought'?view.bought:shoppingFilter==='excluded'?view.excluded:view.pending;
+ const budget=shoppingBudget(view.pending,state.shopping.prices);
  const emptyMessage=shoppingFilter==='bought'?'購入済みの材料はありません。':shoppingFilter==='excluded'?'除外した材料はありません。':view.items.length?'未購入の材料はありません。':'料理タブで「買う」を押して材料を追加できます。';
  return `<section class="screen shopping-screen" aria-label="買い物">
   <div class="shopping-toolbar kondate-tab-toolbar">
-   <label class="shopping-servings">人数 <select id="shopping-servings" aria-label="買い物に必要な人数">${Array.from({length:MAX_SHOPPING_SERVINGS},(_,i)=>i+1).map(n=>`<option value="${n}"${n===view.servings?' selected':''}>${n}</option>`).join('')}</select> 人分</label>
-   ${button('＋ 品目追加','shopping-add','mini primary')}
-   ${button('未購入をコピー','shopping-copy','mini')}
-   ${button('共有','family-dialog','family-share-button mini','data-kind="shopping"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle ドライブに接続してください"'))}
+   ${shoppingModeButtons()}
+   ${isPrices?button('＋ 価格追加','shopping-price-add','mini primary shopping-price-add'):`<label class="shopping-servings">人数 <select id="shopping-servings" aria-label="買い物に必要な人数">${Array.from({length:MAX_SHOPPING_SERVINGS},(_,i)=>i+1).map(n=>`<option value="${n}"${n===view.servings?' selected':''}>${n}</option>`).join('')}</select> 人分</label>
+    ${button('＋ 品目追加','shopping-add','mini primary')}
+    ${button('未購入をコピー','shopping-copy','mini')}
+    ${button('共有','family-dialog','family-share-button mini','data-kind="shopping"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle ドライブに接続してください"'))}}
   </div>
-  <div class="shopping-list card scroll">
-   <ul class="shopping-items">${items.map(shoppingRow).join('')||`<li class="shopping-empty">${emptyMessage}</li>`}</ul>
-  </div>
+  ${isPrices?`<div class="shopping-price-search"><input id="shopping-price-search" type="search" aria-label="価格を管理する食材を検索" placeholder="食材名で検索" value="${esc(shoppingPriceQuery)}" autocomplete="off"><span class="hint">${priceCatalog().length}件</span></div>
+   <div class="shopping-list shopping-price-list card scroll"><ul class="shopping-price-items" id="shopping-price-rows">${shoppingPriceRows()}</ul></div>`:
+   `<div class="shopping-budget" role="status"><strong>未購入の予算目安 ${budget.total.toLocaleString('ja-JP')}円</strong><small>${budget.unknown?` ／ ${budget.unknown}品は未計算`:''}（価格登録済み${budget.priced}品）</small></div>
+   <div class="shopping-list card scroll">
+    <ul class="shopping-items">${items.map(shoppingRow).join('')||`<li class="shopping-empty">${emptyMessage}</li>`}</ul>
+   </div>`}
  </section>`;
 }
+function editShoppingPrice(key=''){
+ const entries=priceCatalog();
+ const current=key?entries.find(item=>item.key===key):null;
+ if(key&&!current)throw Error('食材が見つかりません。');
+ const old=current?state.shopping.prices[current.key]:null;
+ const name=old?.name||current?.name||'';
+ const unit=old?.unit||current?.unit||'個';
+ const quantity=old?.quantity??(['g','ml','kg','L'].includes(unit)?100:1);
+ const units=[...new Set([...INGREDIENT_UNITS.filter(u=>!['適量','少々','ひとつまみ'].includes(u)),unit])];
+ modal(old?'食材価格を編集':'食材価格を登録',`
+  <label class="field"><span>食材名</span><input id="shopping-price-name" maxlength="80" value="${esc(name)}" ${key?'readonly':''} placeholder="例：玉ねぎ"></label>
+  <div class="shopping-price-fields">
+   <label class="field"><span>購入数量</span><input id="shopping-price-quantity" inputmode="decimal" value="${esc(quantity)}" placeholder="例：3、1/2"></label>
+   <label class="field"><span>単位</span><select id="shopping-price-unit">${units.map(value=>`<option value="${esc(value)}"${value===unit?' selected':''}>${esc(value)}</option>`).join('')}</select></label>
+  </div>
+  <label class="field"><span>購入価格（税込・円）</span><input id="shopping-price-yen" type="number" inputmode="numeric" min="0" max="10000000" step="1" value="${old?.price??''}" placeholder="例：198"></label>
+  <p class="hint">価格は手動登録です。個・袋などは購入単位ごと、g・mlは必要量に応じて予算を計算します。異なる単位は換算しません。</p>`,
+  button('キャンセル','close-dialog')+
+   (old?button('価格を削除','shopping-price-delete','danger mini',`data-key="${esc(key)}"`):'')+
+   button('保存','shopping-price-save','primary',`data-key="${esc(key)}"`));
+}
+
 function editShoppingManual(id=''){
  const found=id?state.shopping.manual.find(item=>'manual:'+item.id===id):null;
  if(id&&!found)throw Error('買い物の品目が見つかりません。');
@@ -1963,6 +2016,25 @@ const actions={
  'confirm-category':()=>{const name=$('#category-new').value.trim();if(!name)throw Error('分類名を入力してください。');if(state.categories.some(c=>c.name===name))throw Error('同じ名前の分類があります。');const id='c'+uid().slice(0,10);state.categories.push({id,name});state.rules.counts[id]=0;persist();closeModal();render();},
  'remove-category':b=>{const id=b.dataset.category;if(id==='main')throw Error('主菜は削除できません。');if(editor?.dishes?.some(d=>d.category===id))throw Error('この分類を使っている入力途中の実績があります。先に保存または破棄してください。');state.categories=state.categories.filter(c=>c.id!==id);state.draft=state.draft.map(day=>({...day,dishes:day.dishes.filter(d=>d.category!==id)}));delete state.rules.counts[id];delete state.categoryCalendars[id];persist();render();notify('分類を削除しました。Googleカレンダーの予定は削除していません。');},
  'shopping-open-master':()=>openMasterTab(),
+ 'shopping-mode':b=>{const mode=b.dataset.mode;if(!['list','prices'].includes(mode))return;shoppingMode=mode;render();const list=$('#main .shopping-list');if(list)list.scrollTop=0;},
+ 'shopping-price-add':()=>editShoppingPrice(),
+ 'shopping-price-edit':b=>editShoppingPrice(b.dataset.key),
+ 'shopping-price-save':b=>{
+  const raw={name:$('#shopping-price-name')?.value,quantity:$('#shopping-price-quantity')?.value,
+   unit:$('#shopping-price-unit')?.value,price:$('#shopping-price-yen')?.value};
+  const entry=validatePrice(raw),key=priceKey(entry.name),oldKey=b.dataset.key||'';
+  if(oldKey&&oldKey!==key)throw Error('食材名を変更する場合は別の価格として登録してください。');
+  if(!oldKey&&!Object.hasOwn(state.shopping.prices,key)&&Object.keys(state.shopping.prices).length>=MAX_PRICES)
+   throw Error('食材価格は最大300件です。');
+  state.shopping.prices={...state.shopping.prices,[key]:entry};
+  persist();closeModal();render();
+ },
+ 'shopping-price-delete':b=>{
+  const key=b.dataset.key;
+  if(!Object.hasOwn(state.shopping.prices,key))return;
+  if(!window.confirm('この食材の登録価格を削除しますか？'))return;
+  delete state.shopping.prices[key];persist();closeModal();render();
+ },
  'filter-shopping':b=>{const target=b.dataset.shoppingFilter;if(!['pending','bought','excluded'].includes(target))return;shoppingFilter=target;render();const list=$('#main .shopping-list');if(list)list.scrollTop=0;},
  'buy-master':buyMasterDish,
  'shopping-add':()=>editShoppingManual(),
@@ -2335,6 +2407,7 @@ document.addEventListener('input',e=>{const el=e.target;
   queuePlaceLookup(el);
  }
  if(el.id==='master-search'){masterQuery=el.value;refreshMasterRows();}
+ if(el.id==='shopping-price-search'){shoppingPriceQuery=el.value;const list=$('#shopping-price-rows');if(list)list.innerHTML=shoppingPriceRows();}
 });
 document.addEventListener('scroll',e=>{
  if($('#dialog').open&&e.target.closest?.('.dialog-body'))positionPlaceSuggestions();

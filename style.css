@@ -1686,3 +1686,47 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .day-record-edit{min-height:36px;padding:6px 9px;font-size:11px}
  .day-detail-heading .day-record-add{min-height:34px;padding:6px 9px;font-size:11px}
 }
+
+
+/* Shopping list/price editor selector: the two uploaded SVGs are used unchanged. */
+.shopping-screen .shopping-toolbar{overflow-x:auto;scrollbar-width:none}
+.shopping-screen .shopping-toolbar::-webkit-scrollbar{display:none}
+.shopping-screen .shopping-toolbar .shopping-mode-toggle{display:inline-flex;align-items:center;gap:1px;flex:0 0 auto;border:1px solid var(--line);border-radius:9px;padding:2px;background:var(--surface)}
+.shopping-screen .shopping-toolbar .shopping-mode-button{
+ display:inline-flex;align-items:center;justify-content:center;flex:0 0 32px;
+ width:32px;min-width:32px;height:30px;min-height:30px;padding:3px!important;
+ border:0;border-radius:6px;background:transparent;color:var(--muted)
+}
+.shopping-screen .shopping-toolbar .shopping-mode-button.selected{color:var(--accent);background:var(--tint)}
+.shopping-screen .shopping-toolbar .shopping-mode-button:focus-visible{outline:2px solid var(--accent);outline-offset:0}
+.shopping-mode-icon{display:block;flex:0 0 19px;width:19px;height:19px;background-color:currentColor;-webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;-webkit-mask-position:center;mask-position:center}
+.shopping-mode-icon-shopping-basket{-webkit-mask-image:url('./icons/actions/shopping-basket.svg');mask-image:url('./icons/actions/shopping-basket.svg')}
+.shopping-mode-icon-receipt-japanese-yen{-webkit-mask-image:url('./icons/actions/receipt-japanese-yen.svg');mask-image:url('./icons/actions/receipt-japanese-yen.svg')}
+.shopping-screen .shopping-toolbar .shopping-price-add{margin-left:auto;flex:0 0 auto;white-space:nowrap}
+.shopping-screen .shopping-toolbar .shopping-servings{white-space:nowrap}
+.shopping-budget{display:flex;align-items:center;justify-content:space-between;gap:5px;padding:2px 9px;min-height:29px;font-size:12px;white-space:nowrap;overflow:hidden}
+.shopping-budget strong{font-size:12px;flex:0 0 auto}
+.shopping-budget small{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:clip}
+.shopping-item-quantity .shopping-item-estimate{display:block;font-size:10px;color:var(--muted);line-height:1.3;white-space:nowrap}
+.shopping-price-search{display:flex;align-items:center;gap:10px;min-height:40px;padding:0 5px}
+.shopping-price-search input{flex:1 1 0;min-width:0;height:36px;min-height:36px;padding:5px 9px;font-size:16px}
+.shopping-price-search .hint{flex:0 0 auto;white-space:nowrap;font-size:11px}
+.shopping-price-items{list-style:none;padding:0;margin:0}
+.shopping-price-item{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr) auto;align-items:center;gap:7px;min-height:51px;padding:6px 8px;border-bottom:1px solid var(--line)}
+.shopping-price-item:last-child{border-bottom:0}
+.shopping-price-name{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:clip;font-weight:600;font-size:13px}
+.shopping-price-value{min-width:0;text-align:right;font-size:12px;overflow:hidden;white-space:nowrap;text-overflow:clip}
+.shopping-price-value.is-unset{color:var(--muted)}
+.shopping-price-item button{min-height:34px;padding:6px 10px;font-size:11px}
+.shopping-price-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.shopping-price-fields>.field{min-width:0;margin:0}
+@media(max-width:760px){
+ .shopping-screen .shopping-toolbar{gap:3px}
+ .shopping-screen .shopping-toolbar .shopping-mode-toggle{flex-basis:66px;padding:1px}
+ .shopping-screen .shopping-toolbar .shopping-mode-button{flex-basis:31px;width:31px;min-width:31px;height:31px;min-height:31px;padding:2px!important}
+ .shopping-mode-icon{flex-basis:18px;width:18px;height:18px}
+ .shopping-budget{padding:2px 4px;font-size:11px}
+ .shopping-budget strong{font-size:11px}
+ .shopping-price-item{min-height:48px;padding:5px 4px;gap:4px}
+ .shopping-price-item button{padding:5px 7px}
+}

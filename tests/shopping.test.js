@@ -112,10 +112,10 @@ test('selected dishes roundtrip in local settings and Drive backup',()=>{
   draft,shopping,scopes:{'client|calendar':{events:[],aliases:{},metadata:{},manual:[]}}};
  assert.deepEqual(storedState(state).shopping,shopping);
  const snapshot=createDriveSnapshot(state);
- assert.deepEqual(snapshot.settings.shopping,shopping);
+ assert.deepEqual(snapshot.settings.shopping,shoppingSettings(shopping));
  const recipient=structuredClone(state);recipient.shopping={servings:1,selected:[],manual:[],checked:{},excluded:{}};
  restoreDriveSnapshot(recipient,readDriveSnapshot(snapshot,recipient,()=>{}));
- assert.deepEqual(recipient.shopping,shopping);
+ assert.deepEqual(recipient.shopping,shoppingSettings(shopping));
  const bad=structuredClone(snapshot);bad.settings.shopping.selected.push('肉じゃが');
  assert.throws(()=>readDriveSnapshot(bad,recipient,()=>{}),/重複/);
 });
