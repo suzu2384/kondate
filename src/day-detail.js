@@ -16,7 +16,7 @@ export function renderDayDetail({date,records=[],otherEvents=[],categoryName,ico
   return `<div class="day-detail-row day-record-row">
    ${invalid?'<span class="day-record-warning" title="元のGoogleカレンダーの予定を確認してください" aria-label="書式を確認してください">⚠</span>':''}
    <span class="day-detail-text" title="${esc(full)}">
-    <span class="day-record-names">${esc(name)}</span>${location?`<span class="day-record-location"> ／ ${esc(location)}</span>`:''}
+    <span class="day-record-names">${esc(name)}</span>${location?`<span class="day-record-location"> ／ 外食・場所：${esc(location)}</span>`:''}
    </span>
    ${invalid?'':button('編集','record','mini day-record-edit',`data-id="${esc(record.id)}" data-calendar="${esc(record.calendarId)}" aria-label="${esc(name)}を編集"`)}
   </div>`;

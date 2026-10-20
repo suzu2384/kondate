@@ -16,7 +16,8 @@ test('location changes persist in editor without blur and are included on save',
  assert.match(app,/queuePlaceLookup\(el\)/);
  assert.match(app,/if\(el\.id==='record-location'\)editor\.location=el\.value/);
  assert.match(app,/current\.location=String\(current\.location\|\|''\)\.trim\(\)/);
- assert.match(app,/外食・場所：\$\{esc\(r\.location\)\}/);
+ const detail=readFileSync(new URL('../src/day-detail.js',import.meta.url),'utf8');
+ assert.ok(detail.includes('外食・場所：${esc(location)}'));
 });
 test('browser app remains valid JavaScript',()=>{
  const result=spawnSync(process.execPath,['--check','src/app.js'],{encoding:'utf8'});
