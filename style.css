@@ -1749,3 +1749,29 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .shopping-price-item{min-height:48px;padding:5px 4px;gap:4px}
  .shopping-price-item button{padding:5px 7px}
 }
+
+
+/* Calendar date cells: retain preset priority within each memo group.
+   Memo entries keep their own line; memo-free icons share a wrapping row. */
+.month-grid .day .calendar-preset-no-memo{
+ display:flex;flex:0 0 auto;flex-wrap:wrap;align-items:center;align-content:flex-start;
+ gap:1px 3px;width:100%;min-width:0;overflow:hidden;white-space:normal;margin-top:1px
+}
+.month-grid .day .calendar-preset-no-memo .event-chip.general-event.has-icon.icon-only{
+ display:inline-flex;flex:0 0 auto;align-items:center;justify-content:center;
+ gap:0;margin:0;min-width:0;max-width:100%;font-size:15px;line-height:1.2;
+ white-space:nowrap;overflow:visible
+}
+.month-grid .day .calendar-preset-no-memo .event-chip.icon-only .calendar-event-icon{
+ display:inline-flex;align-items:center;justify-content:center;height:1.2em;line-height:1
+}
+.month-grid .day .calendar-preset-no-memo .event-chip.general-event.no-icon{
+ display:block;flex:0 0 100%;width:100%;margin:0;min-width:0;
+ overflow:hidden;white-space:nowrap;text-overflow:clip
+}
+@media(max-width:760px){
+ .month-grid .day .calendar-preset-no-memo{gap:1px 2px}
+ .month-grid .day .calendar-preset-no-memo .event-chip.general-event.has-icon.icon-only{
+  font-size:13px;line-height:1.2
+ }
+}

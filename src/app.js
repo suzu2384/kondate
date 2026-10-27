@@ -632,8 +632,18 @@ function heading(label,title,sub,actions=''){return `<div class="page-heading"><
 function calendarCellInfo(date,list,extras){
  const d=new Date(`${date}T12:00:00`);
  const events=list.filter(e=>e.date===date),extra=extras.filter(e=>e.date===date);
- const chips=[...events.map(e=>`<span class="event-chip ${e.status}">${esc(e.owned?e.dishes.map(d=>d.name).join('、'):(e.raw?.summary||e.dishes[0]?.name||'読み込み不可'))}</span>`),
-  ...extra.map(e=>`<span class="event-chip general-event ${e.icon?'has-icon':''} ${e.pending?'is-pending':''}" title="${esc(e.title+(e.memo?'／'+e.memo:''))}" aria-label="${esc(e.title+(e.memo?'／'+e.memo:''))}">${e.icon?`<span class="calendar-event-icon">${iconMarkup(e.icon,e.color)}</span><span class="calendar-event-note">${esc(e.memo.replace(/\r?\n/g,' '))}</span>`:`<span class="calendar-event-note">${esc(e.title)}</span>`}</span>`)];
+ // The supplied extras are already ordered by the saved preset priority.
+ // Partition them stably for display only: memos first, then memo-free icons.
+ const chips=[...events.map(e=>`<span class="event-chip ${e.status}">${esc(e.owned?e.dishes.map(d=>d.name).join('、'):(e.raw?.summary||e.dishes[0]?.name||'読み込み不可'))}</span>`)];
+ const presetChips=extra.map(e=>{
+  const hasMemo=!!String(e.memo||'').trim(),iconOnly=!!e.icon&&!hasMemo;
+  const label=e.title+(hasMemo?'／'+e.memo:'');
+  return {hasMemo,html:`<span class="event-chip general-event ${e.icon?'has-icon':''} ${iconOnly?'icon-only':''} ${!e.icon?'no-icon':''} ${e.pending?'is-pending':''}" title="${esc(label)}" aria-label="${esc(label)}"${iconOnly?' role="img"':''}>${e.icon?`<span class="calendar-event-icon">${iconMarkup(e.icon,e.color)}</span>${hasMemo?`<span class="calendar-event-note">${esc(e.memo.replace(/\r?\n/g,' '))}</span>`:''}`:`<span class="calendar-event-note">${esc(e.title)}</span>`}</span>`};
+ });
+ chips.push(...presetChips.filter(item=>item.hasMemo).map(item=>item.html));
+ const withoutMemo=presetChips.filter(item=>!item.hasMemo);
+ if(withoutMemo.length)
+  chips.push(`<span class="calendar-preset-no-memo">${withoutMemo.map(item=>item.html).join('')}</span>`);
  return {html:`<span class="day-number">${d.getDate()}</span>${chips.join('')}`,count:events.length+extra.length};
 }
 function openMonthPicker(){
