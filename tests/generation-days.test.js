@@ -58,7 +58,7 @@ test('AI / rules selection persists through icon toggle and fits the same one-ro
 test('generator controls are ordered for a single mobile row',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const fragment=app.slice(app.indexOf('function generateScreen(){'),app.indexOf('function photoScreen(){'));
- const parts=['id="days"','generationModeButtons()',"button('ルール設定'","button('生成'"];
+ const parts=['generationModeButtons()','id="days"',"button('ルール設定'","button('生成'"];
  let last=-1;
  for(const item of parts){const index=fragment.indexOf(item);assert.ok(index>last,item+' must follow the previous control');last=index;}
 });

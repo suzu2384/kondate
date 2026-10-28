@@ -722,8 +722,8 @@ function generationModeButtons(){
 function generateScreen(){
  return `<section class="screen generation-screen">
  <div class="generation-controls kondate-tab-toolbar">
-  <label><select aria-label="生成日数" id="days" ${aiGenerating?'disabled':''}>${Array.from({length:MAX_GENERATION_DAYS},(_,i)=>`<option value="${i+1}" ${state.rules.days===i+1?'selected':''}>${i+1}</option>`).join('')}</select>日分</label>
   ${generationModeButtons()}
+  <label><select aria-label="生成日数" id="days" ${aiGenerating?'disabled':''}>${Array.from({length:MAX_GENERATION_DAYS},(_,i)=>`<option value="${i+1}" ${state.rules.days===i+1?'selected':''}>${i+1}</option>`).join('')}</select>日分</label>
   ${button('ルール設定','rules','text-button mini generation-rule-button',aiGenerating?'disabled':'')}
   ${button('生成','generate','primary mini generation-submit-button',aiGenerating?'disabled aria-busy="true"':'')}
   ${button('共有','family-dialog','family-share-button mini generation-share-button','data-kind="plan"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle ドライブに接続してください"'))}
