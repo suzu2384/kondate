@@ -1796,3 +1796,45 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
   font-size:9px
  }
 }
+
+
+/* v1.17.11: rules/AI toggle shares the compact geometry and selected-state
+   treatment of the shopping tab's two icon buttons. */
+.generation-screen .generation-controls .generation-mode-toggle{
+ display:inline-flex;align-items:center;justify-content:center;
+ gap:1px;flex:0 0 70px;width:70px;min-width:70px;
+ height:var(--kondate-top-control-height);min-height:var(--kondate-top-control-height);
+ border:1px solid var(--line);border-radius:9px;padding:2px;background:var(--surface)
+}
+.generation-screen .generation-controls .generation-mode-button{
+ display:inline-flex;align-items:center;justify-content:center;
+ flex:0 0 31px;width:31px;min-width:31px;height:30px;min-height:30px;
+ padding:3px!important;border:0;border-radius:6px;background:transparent;color:var(--muted)
+}
+.generation-screen .generation-controls .generation-mode-button.selected{
+ color:var(--accent);background:var(--tint)
+}
+.generation-screen .generation-controls .generation-mode-button:focus-visible{
+ outline:2px solid var(--accent);outline-offset:0
+}
+.generation-screen .generation-controls .generation-mode-button:disabled{cursor:not-allowed}
+.generation-mode-icon{
+ display:block;flex:0 0 19px;width:19px;height:19px;background-color:currentColor;
+ -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+ -webkit-mask-position:center;mask-position:center
+}
+.generation-mode-icon-cpu{
+ -webkit-mask-image:url('./icons/actions/cpu.svg');mask-image:url('./icons/actions/cpu.svg')
+}
+.generation-mode-icon-bot{
+ -webkit-mask-image:url('./icons/tabs/bot.svg');mask-image:url('./icons/tabs/bot.svg')
+}
+@media(max-width:760px){
+ .generation-screen .generation-controls .generation-mode-toggle{
+  flex-basis:66px;width:66px;min-width:66px;padding:1px
+ }
+ .generation-screen .generation-controls .generation-mode-button{
+  flex-basis:31px;width:31px;min-width:31px;height:31px;min-height:31px;padding:2px!important
+ }
+ .generation-mode-icon{flex-basis:18px;width:18px;height:18px}
+}

@@ -31,29 +31,31 @@ test('generation controls use a 1-15 select shared by both generation modes',()=
  assert.match(app,/el\.id==='days'\)\{state\.rules\.days=normalizeGenerationDays\(el\.value\)/);
 });
 
-test('AI / rules selection is persisted and the phone layout keeps all controls readable',()=>{
+test('AI / rules mode is retained and the toggle remains in one mobile toolbar row',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
  const drive=readFileSync(new URL('../src/drive-backup.js',import.meta.url),'utf8');
  assert.match(app,/menuGenerationMode:'rules'/);
  assert.match(app,/state\.menuGenerationMode=state\.menuGenerationMode==='ai'\?'ai':'rules'/);
- assert.match(app,/if\(el\.id==='generate-mode'\)\{state\.menuGenerationMode=[^\n]+persist\(\);return;/);
+ assert.match(app,/'generation-mode':b=>\{/);
+ assert.match(app,/state\.menuGenerationMode=mode;\s*persist\(\);render\(\);/);
+ assert.match(app,/const aiMode=state\.menuGenerationMode==='ai'/);
  assert.doesNotMatch(app,/let aiGenerating=false,menuGenerationMode=/);
+ assert.doesNotMatch(app,/<select[^>]*id="generate-mode"/);
  assert.match(drive,/,'menuGenerationMode','theme'/);
- assert.match(css,/\.generation-screen \.generation-controls #generate-mode\{[\s\S]*?min-width:150px;max-width:none/);
+ assert.match(css,/\.generation-screen \.generation-controls \.generation-mode-toggle\{[\s\S]*?flex:0 0 70px/);
+ assert.match(css,/\.generation-screen \.generation-controls \.generation-mode-button\.selected\{/);
  assert.match(css,/@media\(max-width:520px\)\{[\s\S]*?display:flex;flex-wrap:nowrap;align-items:center/);
  const phoneControls=css.match(/@media\(max-width:520px\)\{[\s\S]*?\.generation-screen \.generation-controls\{([^}]*)\}/)?.[1]||'';
  assert.doesNotMatch(phoneControls,/display:grid|grid-template-columns|flex-wrap:wrap/);
- assert.match(css,/\.generation-screen \.generation-controls #generate-mode\{\s*flex:0 0 132px;width:132px;min-width:132px;max-width:132px/);
- assert.match(css,/\.generation-screen \.generation-submit-button\{[\s\S]*?margin-left:auto/);
- assert.match(css,/\.generation-screen \.generation-rule-button\{[\s\S]*?font-size:12px/);
+ assert.match(css,/\.generation-screen \.generation-controls \.generation-rule-button\{[\s\S]*?font-size:12px/);
  assert.match(css,/\.generation-screen \.generation-submit-button:disabled\{opacity:\.45;filter:none\}/);
 });
 
 test('generator controls are ordered for a single mobile row',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const fragment=app.slice(app.indexOf('function generateScreen(){'),app.indexOf('function photoScreen(){'));
- const parts=['id="days"','id="generate-mode"',"button('ルール設定'","button('生成'"];
+ const parts=['id="days"','generationModeButtons()',"button('ルール設定'","button('生成'"];
  let last=-1;
  for(const item of parts){const index=fragment.indexOf(item);assert.ok(index>last,item+' must follow the previous control');last=index;}
 });

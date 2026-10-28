@@ -711,11 +711,19 @@ function dayContent(date){
  });
 }
 
+function generationModeButtons(){
+ return `<div class="generation-mode-toggle" role="group" aria-label="献立の生成方法">
+  ${[['rules','ルールベース','cpu'],['ai','AI','bot']].map(([mode,label,icon])=>
+   button(`<span class="generation-mode-icon generation-mode-icon-${icon}" aria-hidden="true"></span>`,
+    'generation-mode','generation-mode-button'+(state.menuGenerationMode===mode?' selected':''),
+    `data-mode="${mode}" aria-label="${label}で生成" title="${label}${mode==='ai'&&!ai.available?'（未設定）':''}" aria-pressed="${state.menuGenerationMode===mode}"${aiGenerating||(mode==='ai'&&!ai.available)?' disabled':''}`)).join('')}
+ </div>`;
+}
 function generateScreen(){
  return `<section class="screen generation-screen">
  <div class="generation-controls kondate-tab-toolbar">
   <label><select aria-label="生成日数" id="days" ${aiGenerating?'disabled':''}>${Array.from({length:MAX_GENERATION_DAYS},(_,i)=>`<option value="${i+1}" ${state.rules.days===i+1?'selected':''}>${i+1}</option>`).join('')}</select>日分</label>
-  <select aria-label="選定モード" id="generate-mode" ${aiGenerating?'disabled':''}><option value="rules" ${state.menuGenerationMode==='rules'?'selected':''}>ルールベース</option><option value="ai" ${ai.available?'':'disabled'} ${state.menuGenerationMode==='ai'?'selected':''}>AI${ai.available?'':'（未設定）'}</option></select>
+  ${generationModeButtons()}
   ${button('ルール設定','rules','text-button mini generation-rule-button',aiGenerating?'disabled':'')}
   ${button('生成','generate','primary mini generation-submit-button',aiGenerating?'disabled aria-busy="true"':'')}
   ${button('共有','family-dialog','family-share-button mini generation-share-button','data-kind="plan"'+(drive.connected?' title="共有"':' disabled title="設定画面でGoogle ドライブに接続してください"'))}
@@ -1965,6 +1973,14 @@ const actions={
  'notice-settings':()=>{closeModal();tab='settings';notify('');render();prepareGoogleIdentity();},
  'notice-master':()=>{closeModal();openMasterTab();},
  'notice-use-rules':()=>{closeModal();state.menuGenerationMode='rules';persist();tab='generate';render();notify('ルールベースに切り替えました。生成ボタンで献立を作れます。');},
+ 'generation-mode':b=>{
+  if(aiGenerating)return;
+  const mode=b.dataset.mode;
+  if(!['rules','ai'].includes(mode)||mode==='ai'&&!ai.available)return;
+  if(state.menuGenerationMode===mode)return;
+  state.menuGenerationMode=mode;
+  persist();render();
+ },
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
  'open-extra-calendars':()=>openExtraCalendarPicker(),
  'open-preset-legend':()=>openPresetLegend(),
@@ -2015,7 +2031,7 @@ const actions={
   const requested=Number($('#days')?.value||state.rules.days);
   if(!Number.isInteger(requested)||requested<1||requested>MAX_GENERATION_DAYS)throw Error('日数は1〜15日で指定してください。');
   if(state.draft.slice(requested).some(day=>day.dishes.some(d=>d.locked)))throw Error('減らす日数の範囲に固定した料理があります。固定を解除するか、生成日数を戻してください。');
-  const aiMode=($('#generate-mode')?.value||state.menuGenerationMode)==='ai';
+  const aiMode=state.menuGenerationMode==='ai';
   state.rules.days=requested;
   for(const day of state.draft)for(const d of day.dishes)d.name=resolveName(d.name,data().aliases);
   if(aiMode){
@@ -2518,7 +2534,6 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   if(!Number.isInteger(n)||n<1||n>MAX_SHOPPING_SERVINGS)throw Error('買い物人数は1〜30人で指定してください。');
   state.shopping.servings=n;persist();render();return;
  }
- if(el.id==='generate-mode'){state.menuGenerationMode=el.value==='ai'&&ai.available?'ai':'rules';el.value=state.menuGenerationMode;persist();return;}
  if(el.id==='drive-auto'){
   if(!el.checked){
    drive.disableAuto();driveAutoReady=false;driveSyncStatus='';
