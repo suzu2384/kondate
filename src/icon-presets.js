@@ -20,10 +20,6 @@ export function matchingDisplayPreset(event,calendarId,rules=[]){
  if(exact)return exact;
  const title=String(event?.summary??event?.title??'').normalize('NFKC').toLocaleLowerCase('ja');
  return rules.find(rule=>{
-  // A configured destination scopes title-based icon matching to that calendar.
-  // Otherwise a similarly titled event in another calendar can look like a
-  // preset was written to the wrong destination.
-  if(rule.calendarId&&rule.calendarId!==calendarId)return false;
   const keyword=String(rule.keyword||'').normalize('NFKC').trim().toLocaleLowerCase('ja');
   return keyword&&title.includes(keyword)&&typeof rule.icon==='string';
  })||null;

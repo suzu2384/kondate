@@ -8,11 +8,11 @@ const read=path=>readFileSync(new URL('../'+path,import.meta.url),'utf8');
 const app=read('src/app.js'),css=read('style.css');
 const rule={id:'abc',calendarId:'calendar-expected',keyword:'資源回収',memo:'',icon:'recycle_fill'};
 const date='2026-10-28';
-test('destination-bound preset icons never appear on another calendar by keyword coincidence',()=>{
+test('cross-calendar title icon matches are display-only, not evidence of wrong write targets',()=>{
  const event={summary:'資源回収のお知らせ',description:''};
  assert.equal(matchingDisplayPreset(event,'calendar-expected',[rule])?.id,'abc');
- assert.equal(matchingDisplayPreset(event,'calendar-other',[rule]),null);
- assert.equal(presetIcon(event,'calendar-other',[rule]),'');
+ assert.equal(matchingDisplayPreset(event,'calendar-other',[rule])?.id,'abc');
+ assert.equal(presetIcon(event,'calendar-other',[rule]),'recycle_fill');
  assert.equal(matchingDisplayPreset(event,'calendar-other',[{...rule,calendarId:''}])?.id,'abc',
   'Unbound display-only keyword rules still match across calendars');
 });
@@ -27,10 +27,10 @@ test('calendar preset taps require a confirmed writable destination and first ev
   render:()=>{}
  };
  const click=runInNewContext(app.slice(begin,end)+';togglePresetOnDate',ctx);
- assert.throws(()=>click(date),/カレンダー一覧/);
+ assert.throws(()=>click(date),/一覧を取得/);
  ctx.calendarAutoReady=true;
  ctx.calendars=[{id:'calendar-other',accessRole:'owner'}];
- assert.throws(()=>click(date),/カレンダー一覧/);
+ assert.throws(()=>click(date),/一覧を取得/);
  ctx.calendars=[{id:rule.calendarId,accessRole:'reader'}];
  assert.throws(()=>click(date),/編集できません/);
  ctx.calendars=[{id:rule.calendarId,accessRole:'writer'}];

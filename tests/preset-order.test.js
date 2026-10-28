@@ -24,11 +24,11 @@ test('preset calendar events sort by saved order and unrelated events remain at 
 });
 test('matching uses calendar, title and memo, never device-specific preset IDs',()=>{
  assert.equal(presetOrderIndex({calendarId:'cal',title:'資源',memo:''},rules),1);
- assert.equal(presetOrderIndex({calendarId:'wrong',title:'資源',memo:''},rules),-1);
+ assert.equal(presetOrderIndex({calendarId:'wrong',title:'資源',memo:''},rules),1);
  assert.equal(presetOrderIndex({calendarId:'cal',title:'旅行',memo:'家族',presetId:'b'},rules),0);
  assert.equal(presetOrderIndex({calendarId:'cal',title:'知らない予定'},rules),-1);
- assert.equal(presetOrderIndex({calendarId:'shared',title:'家族の旅行計画',memo:'他人のメモ'},rules),-1);
- assert.equal(presetOrderIndex({calendarId:'shared',title:'来週の仕事',memo:'外部予定'},rules),-1);
+ assert.equal(presetOrderIndex({calendarId:'shared',title:'家族の旅行計画',memo:'他人のメモ'},rules),0);
+ assert.equal(presetOrderIndex({calendarId:'shared',title:'来週の仕事',memo:'外部予定'},rules),2);
 });
 test('move up/down, boundaries, and invalid order protect existing presets',()=>{
  const moved=movePresetRule(rules,'c',-1);
@@ -76,11 +76,11 @@ test('cross-calendar preset order is applied to the combined event list',()=>{
  assert.deepEqual(sortCalendarExtras(grouped.flat(),rules).map(e=>e.presetId),['a','b','c']);
 });
 
-test('events in other calendars no longer masquerade as destination-bound presets',()=>{
+test('read-only events without preset IDs sort by the same title match as their icons',()=>{
  const shared=[
   {calendarId:'other',title:'来週の仕事',memo:'他人の予定'},
   {calendarId:'other',title:'資源回収日',memo:'他人の予定'},
   {calendarId:'other',title:'家族旅行の準備',memo:'他人の予定'}
  ];
- assert.deepEqual(sortCalendarExtras(shared,rules).map(e=>e.title),['来週の仕事','資源回収日','家族旅行の準備']);
+ assert.deepEqual(sortCalendarExtras(shared,rules).map(e=>e.title),['家族旅行の準備','資源回収日','来週の仕事']);
 });
