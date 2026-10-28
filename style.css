@@ -1775,3 +1775,24 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
   font-size:13px;line-height:1.2
  }
 }
+
+
+/* v1.17.10: memo-bearing calendar icons use exactly the same size as
+   memo-free preset icons; only their caption remains meal-name sized. */
+.month-grid .day .event-chip.general-event.has-icon:not(.icon-only){
+ font-size:15px;line-height:1.2;gap:3px;align-items:center
+}
+.month-grid .day .event-chip.general-event.has-icon:not(.icon-only) .calendar-event-icon{
+ height:1.2em;line-height:1;flex:0 0 auto
+}
+.month-grid .day .event-chip.general-event.has-icon:not(.icon-only) .calendar-event-note{
+ font-size:13px;line-height:1.35;min-width:0;flex:1 1 auto;align-self:center
+}
+@media(max-width:760px){
+ .month-grid .day .event-chip.general-event.has-icon:not(.icon-only){
+  font-size:13px;gap:2px
+ }
+ .month-grid .day .event-chip.general-event.has-icon:not(.icon-only) .calendar-event-note{
+  font-size:9px
+ }
+}

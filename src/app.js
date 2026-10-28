@@ -1818,7 +1818,22 @@ async function flushPendingPresets(){
  if(presetFlushPromise)return presetFlushPromise;
  if(!presetQueue.size)return;
  if(busy||!api.connected||navigator.onLine===false){showStatus();return;}
+ // If a preset was edited or removed while an insert was waiting, its
+ // original calendar ID must not silently receive the old insertion.
+ let staleInserts=0;
+ for(const entry of presetQueue.list()){
+  if(!entry.present)continue; // A pending deletion still targets its original event.
+  const current=state.iconRules.find(rule=>rule.id===entry.rule.id);
+  if(current&&current.calendarId===entry.rule.calendarId&&
+     String(current.keyword||'').trim()===entry.rule.keyword&&
+     String(current.memo||'')===entry.rule.memo)continue;
+  if(presetQueue.ack(entry.key,entry.version))staleInserts++;
+ }
  const entries=presetQueue.list(),keys=entries.map(e=>e.key);
+ if(!entries.length){
+  if(staleInserts)notify(staleInserts+'件の未送信予定はプリセットの登録先・内容が変更されていたため送信しませんでした。必要なら新しい登録先で配置し直してください。');
+  showStatus();render();return;
+ }
  presetQueue.markInflight(keys);
  presetFlushing=true;showStatus();
  presetFlushPromise=(async()=>{
@@ -1870,7 +1885,9 @@ async function flushPendingPresets(){
    for(const [key,record] of counts){
     if(record.ok===record.total)presetQueue.ack(key,record.version);
    }
-   if(failed)notify(`${failed}件の予定を保存できませんでした。未同期のまま保持しています。${errorMessage}`);
+   if(failed)notify(`${failed}件の予定を保存できませんでした。未同期のまま保持しています。${errorMessage}`+
+    (staleInserts?' また、登録先・内容が変更された未送信予定'+staleInserts+'件は送信しませんでした。':''));
+   else if(staleInserts)notify('プリセット変更前の未送信予定'+staleInserts+'件は送信しませんでした。必要なら新しい登録先で配置し直してください。');
    else if(changed)notify('Googleカレンダーに予定をまとめて保存しました。');
   }catch(error){
    notify('予定の一括保存に失敗しました。未同期の変更は保持しています：'+error.message);
@@ -1890,8 +1907,13 @@ function togglePresetOnDate(date){
  const calendarId=String(rule.calendarId||''),title=String(rule.keyword||'').trim();
  if(!title)throw Error('プリセットのタイトルが未設定です。');
  if(!calendarId)throw Error('このプリセットの登録先カレンダーが未設定です。設定から指定してください。');
- if(calendars.length&&!calendars.some(c=>c.id===calendarId&&['owner','writer'].includes(c.accessRole)))
+ if(!api.connected)throw Error('Googleカレンダーに接続してから予定を登録してください。');
+ const destination=calendars.find(c=>c.id===calendarId);
+ if(!calendarAutoReady||!destination)throw Error('登録先カレンダーを確認できません。Googleカレンダーに接続して一覧を取得してください。');
+ if(!['owner','writer'].includes(destination.accessRole))
   throw Error('指定されたカレンダーを編集できません。Googleカレンダーの設定・アクセス権を確認してください。');
+ if(!dataFor(calendarId).lastSync)
+  throw Error('登録先カレンダーの初回同期が終わっていません。「今すぐ同期」で取得してから配置してください。');
  presetQueue.toggle(rule,date,dataFor(calendarId).events);
  render();
 }
