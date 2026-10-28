@@ -716,7 +716,7 @@ function generationModeButtons(){
   ${[['rules','ルールベース','cpu'],['ai','AI','bot']].map(([mode,label,icon])=>
    button(`<span class="generation-mode-icon generation-mode-icon-${icon}" aria-hidden="true"></span>`,
     'generation-mode','generation-mode-button'+(state.menuGenerationMode===mode?' selected':''),
-    `data-mode="${mode}" aria-label="${label}で生成" title="${label}${mode==='ai'&&!ai.available?'（未設定）':''}" aria-pressed="${state.menuGenerationMode===mode}"${aiGenerating||(mode==='ai'&&!ai.available)?' disabled':''}`)).join('')}
+    `data-mode="${mode}" aria-label="${label}${mode==='ai'&&!ai.available?'（未設定）':''}" title="${label}${mode==='ai'&&!ai.available?'（未設定）':''}" aria-pressed="${state.menuGenerationMode===mode}" ${aiGenerating||(mode==='ai'&&!ai.available)?'disabled':''}`)).join('')}
  </div>`;
 }
 function generateScreen(){
@@ -1973,14 +1973,6 @@ const actions={
  'notice-settings':()=>{closeModal();tab='settings';notify('');render();prepareGoogleIdentity();},
  'notice-master':()=>{closeModal();openMasterTab();},
  'notice-use-rules':()=>{closeModal();state.menuGenerationMode='rules';persist();tab='generate';render();notify('ルールベースに切り替えました。生成ボタンで献立を作れます。');},
- 'generation-mode':b=>{
-  if(aiGenerating)return;
-  const mode=b.dataset.mode;
-  if(!['rules','ai'].includes(mode)||mode==='ai'&&!ai.available)return;
-  if(state.menuGenerationMode===mode)return;
-  state.menuGenerationMode=mode;
-  persist();render();
- },
  settings:()=>{tab='settings';render();prepareGoogleIdentity();},
  'open-extra-calendars':()=>openExtraCalendarPicker(),
  'open-preset-legend':()=>openPresetLegend(),
@@ -2070,6 +2062,11 @@ const actions={
  'confirm-category':()=>{const name=$('#category-new').value.trim();if(!name)throw Error('分類名を入力してください。');if(state.categories.some(c=>c.name===name))throw Error('同じ名前の分類があります。');const id='c'+uid().slice(0,10);state.categories.push({id,name});state.rules.counts[id]=0;persist();closeModal();render();},
  'remove-category':b=>{const id=b.dataset.category;if(id==='main')throw Error('主菜は削除できません。');if(editor?.dishes?.some(d=>d.category===id))throw Error('この分類を使っている入力途中の実績があります。先に保存または破棄してください。');state.categories=state.categories.filter(c=>c.id!==id);state.draft=state.draft.map(day=>({...day,dishes:day.dishes.filter(d=>d.category!==id)}));delete state.rules.counts[id];delete state.categoryCalendars[id];persist();render();notify('分類を削除しました。Googleカレンダーの予定は削除していません。');},
  'shopping-open-master':()=>openMasterTab(),
+ 'generation-mode':b=>{
+  const mode=b.dataset.mode;
+  if(aiGenerating||!['rules','ai'].includes(mode)||(mode==='ai'&&!ai.available)||state.menuGenerationMode===mode)return;
+  state.menuGenerationMode=mode;persist();render();
+ },
  'shopping-mode':b=>{const mode=b.dataset.mode;if(!['list','prices'].includes(mode))return;shoppingMode=mode;render();const list=$('#main .shopping-list');if(list)list.scrollTop=0;},
  'shopping-price-add':()=>editShoppingPrice(),
  'shopping-price-edit':b=>editShoppingPrice(b.dataset.key),

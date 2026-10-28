@@ -19,14 +19,14 @@ function harness(mode,generated){
   draft:[],
   recentNewMains:[],recentSuggested:[],
  };
- const select={value:mode},days={value:'7'};
+ const days={value:'7'};
  const deps={
   state,
   ai:{
    available:true,
    generate:async()=>{if(generated instanceof Error)throw generated;return generated.plan;}
   },
-  $:selector=>selector==='#days'?days:selector==='#generate-mode'?select:null,
+  $:selector=>selector==='#days'?days:null,
   master:()=>[],
   MAX_GENERATION_DAYS:15,
   data:()=>({aliases:{}}),

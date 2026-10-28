@@ -754,9 +754,6 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 
 /* v1.4.3: readable AI mode and stable left/right generation controls. */
-.generation-screen .generation-controls #generate-mode{
- min-width:150px;max-width:none;width:auto;
-}
 .generation-screen .generation-rule-button{flex:0 0 auto}
 .generation-screen .generation-submit-button{
  margin-left:auto;flex:0 0 auto;min-width:58px;white-space:nowrap;
@@ -774,11 +771,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .generation-screen .generation-controls #days{
   width:38px;min-width:38px;min-height:34px;padding:3px 1px;font-size:16px;
  }
- .generation-screen .generation-controls #generate-mode{
-  flex:0 0 132px;width:132px;min-width:132px;max-width:132px;
-  min-height:34px;padding:3px 4px;font-size:16px;
- }
- .generation-screen .generation-rule-button{
+  .generation-screen .generation-rule-button{
   flex:0 0 auto;white-space:nowrap;min-height:34px;padding:4px 5px;font-size:12px;
  }
  .generation-screen .generation-submit-button{
@@ -1437,10 +1430,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .generation-screen .generation-controls .generation-share-button{
   flex:0 0 48px;width:48px;min-width:48px;padding:0 3px;font-size:11px;
  }
- .generation-screen .generation-controls #generate-mode{
-  flex:1 1 112px;width:auto;min-width:92px;max-width:132px;
- }
- .generation-screen .generation-controls .generation-rule-button{
+  .generation-screen .generation-controls .generation-rule-button{
   padding:4px 3px;font-size:11px;
  }
  .generation-screen .generation-controls{gap:3px;padding:0 4px}
@@ -1449,10 +1439,7 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .generation-screen .generation-controls .generation-share-button{
   flex:0 0 44px;width:44px;min-width:44px;padding:0 2px;font-size:10px;
  }
- .generation-screen .generation-controls #generate-mode{
-  flex:1 1 98px;width:auto;min-width:90px;max-width:116px;
- }
- .generation-screen .generation-controls .generation-rule-button{padding:3px 2px;font-size:10px}
+  .generation-screen .generation-controls .generation-rule-button{padding:3px 2px;font-size:10px}
  .generation-screen .generation-controls .generation-submit-button{min-width:32px;padding:3px 2px}
  .generation-screen .generation-controls{gap:2px;padding:0 2px}
 }
@@ -1798,18 +1785,18 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 }
 
 
-/* v1.17.11: rules/AI toggle shares the compact geometry and selected-state
-   treatment of the shopping tab's two icon buttons. */
+/* v1.17.11 — rule-based / AI selector, sized like the shopping-mode toggle.
+   Keep the shared top toolbar and all neighboring controls in one row. */
 .generation-screen .generation-controls .generation-mode-toggle{
- display:inline-flex;align-items:center;justify-content:center;
- gap:1px;flex:0 0 70px;width:70px;min-width:70px;
- height:var(--kondate-top-control-height);min-height:var(--kondate-top-control-height);
- border:1px solid var(--line);border-radius:9px;padding:2px;background:var(--surface)
+ display:inline-flex;align-items:center;gap:1px;
+ flex:0 0 auto;padding:2px;
+ border:1px solid var(--line);border-radius:9px;background:var(--surface)
 }
 .generation-screen .generation-controls .generation-mode-button{
  display:inline-flex;align-items:center;justify-content:center;
- flex:0 0 31px;width:31px;min-width:31px;height:30px;min-height:30px;
- padding:3px!important;border:0;border-radius:6px;background:transparent;color:var(--muted)
+ flex:0 0 32px;width:32px;min-width:32px;
+ height:30px;min-height:30px;padding:3px!important;
+ border:0;border-radius:6px;background:transparent;color:var(--muted)
 }
 .generation-screen .generation-controls .generation-mode-button.selected{
  color:var(--accent);background:var(--tint)
@@ -1817,24 +1804,28 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 .generation-screen .generation-controls .generation-mode-button:focus-visible{
  outline:2px solid var(--accent);outline-offset:0
 }
-.generation-screen .generation-controls .generation-mode-button:disabled{cursor:not-allowed}
 .generation-mode-icon{
- display:block;flex:0 0 19px;width:19px;height:19px;background-color:currentColor;
- -webkit-mask-size:contain;mask-size:contain;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+ display:block;flex:0 0 19px;width:19px;height:19px;
+ background-color:currentColor;
+ -webkit-mask-size:contain;mask-size:contain;
+ -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
  -webkit-mask-position:center;mask-position:center
 }
 .generation-mode-icon-cpu{
- -webkit-mask-image:url('./icons/actions/cpu.svg');mask-image:url('./icons/actions/cpu.svg')
+ -webkit-mask-image:url('./icons/actions/cpu.svg');
+ mask-image:url('./icons/actions/cpu.svg')
 }
 .generation-mode-icon-bot{
- -webkit-mask-image:url('./icons/tabs/bot.svg');mask-image:url('./icons/tabs/bot.svg')
+ -webkit-mask-image:url('./icons/tabs/bot.svg');
+ mask-image:url('./icons/tabs/bot.svg')
 }
 @media(max-width:760px){
  .generation-screen .generation-controls .generation-mode-toggle{
-  flex-basis:66px;width:66px;min-width:66px;padding:1px
+  flex-basis:66px;padding:1px
  }
  .generation-screen .generation-controls .generation-mode-button{
-  flex-basis:31px;width:31px;min-width:31px;height:31px;min-height:31px;padding:2px!important
+  flex:0 0 31px;width:31px;min-width:31px;
+  height:31px;min-height:31px;padding:2px!important
  }
  .generation-mode-icon{flex-basis:18px;width:18px;height:18px}
 }

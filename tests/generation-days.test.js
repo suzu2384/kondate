@@ -31,24 +31,27 @@ test('generation controls use a 1-15 select shared by both generation modes',()=
  assert.match(app,/el\.id==='days'\)\{state\.rules\.days=normalizeGenerationDays\(el\.value\)/);
 });
 
-test('AI / rules mode is retained and the toggle remains in one mobile toolbar row',()=>{
+test('AI / rules selection persists through icon toggle and fits the same one-row mobile toolbar',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
  const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
  const drive=readFileSync(new URL('../src/drive-backup.js',import.meta.url),'utf8');
  assert.match(app,/menuGenerationMode:'rules'/);
  assert.match(app,/state\.menuGenerationMode=state\.menuGenerationMode==='ai'\?'ai':'rules'/);
  assert.match(app,/'generation-mode':b=>\{/);
- assert.match(app,/state\.menuGenerationMode=mode;\s*persist\(\);render\(\);/);
+ assert.match(app,/state\.menuGenerationMode=mode;persist\(\);render\(\)/);
  assert.match(app,/const aiMode=state\.menuGenerationMode==='ai'/);
+ assert.doesNotMatch(app,/id="generate-mode"/);
+ assert.doesNotMatch(app,/if\(el\.id==='generate-mode'\)/);
  assert.doesNotMatch(app,/let aiGenerating=false,menuGenerationMode=/);
- assert.doesNotMatch(app,/<select[^>]*id="generate-mode"/);
  assert.match(drive,/,'menuGenerationMode','theme'/);
- assert.match(css,/\.generation-screen \.generation-controls \.generation-mode-toggle\{[\s\S]*?flex:0 0 70px/);
+ assert.match(css,/\.generation-screen \.generation-controls \.generation-mode-toggle\{[\s\S]*?display:inline-flex/);
+ assert.match(css,/\.generation-screen \.generation-controls \.generation-mode-button\{[\s\S]*?min-width:32px/);
  assert.match(css,/\.generation-screen \.generation-controls \.generation-mode-button\.selected\{/);
  assert.match(css,/@media\(max-width:520px\)\{[\s\S]*?display:flex;flex-wrap:nowrap;align-items:center/);
  const phoneControls=css.match(/@media\(max-width:520px\)\{[\s\S]*?\.generation-screen \.generation-controls\{([^}]*)\}/)?.[1]||'';
  assert.doesNotMatch(phoneControls,/display:grid|grid-template-columns|flex-wrap:wrap/);
- assert.match(css,/\.generation-screen \.generation-controls \.generation-rule-button\{[\s\S]*?font-size:12px/);
+ assert.match(css,/\.generation-screen \.generation-submit-button\{[\s\S]*?margin-left:auto/);
+ assert.match(css,/\.generation-screen \.generation-rule-button\{[\s\S]*?font-size:12px/);
  assert.match(css,/\.generation-screen \.generation-submit-button:disabled\{opacity:\.45;filter:none\}/);
 });
 
