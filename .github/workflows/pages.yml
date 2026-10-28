@@ -726,6 +726,7 @@ jobs:
                   '',
                   '添付のkondate-web.zipは静的Web公開用ファイルです。ソース一式はSource codeから取得できます。'
                 ].join('\n');
+            if (version === '1.17.11') body=body.replace('### このバージョンの変更\n','### このバージョンの変更\n- 献立生成方法のCPU／AIトグルを操作行の先頭に配置\n');
             if (body.includes(autoNotesMarker)) {
               // A new version without curated notes still needs actual changes in the release.
               const generated=(await github.rest.repos.generateReleaseNotes({
@@ -767,6 +768,25 @@ jobs:
                 owner, repo, release_id: legacyRelease.id,
                 body: legacyRelease.body.replace(legacyPlaceholder,legacyNotes)
               });
+            }
+            // Explicit, one-time correction of the existing v1.17.11 release.
+            // All other release tags and archives retain immutable semantics.
+            if (version === '1.17.11') {
+              const originalTag = '966d383470ae109d766168715fc58a5fbc2ae3b3';
+              const releaseTag = (await github.rest.git.getRef({owner,repo,ref:'tags/'+tag})).data;
+              if (releaseTag.object.type === 'commit' && releaseTag.object.sha === originalTag) {
+                const mainHead = (await github.rest.repos.getBranch({owner,repo,branch:'main'})).data.commit.sha;
+                const priorZip = release.assets.find(asset => asset.name === 'kondate-web.zip');
+                await github.rest.git.updateRef({owner,repo,ref:'tags/'+tag,sha:mainHead,force:true});
+                if (priorZip) await github.rest.repos.deleteReleaseAsset({owner,repo,asset_id:priorZip.id});
+                await github.rest.repos.uploadReleaseAsset({
+                  owner,repo,release_id:release.id,name:'kondate-web.zip',
+                  data:fs.readFileSync('kondate-web.zip'),
+                  headers:{'content-type':'application/zip'}
+                });
+                release.assets = [{name:'kondate-web.zip'}];
+                core.notice('Updated the v1.17.11 tag and ZIP to include the final toggle order');
+              }
             }
             if (!release.assets.some(asset => asset.name === 'kondate-web.zip')) {
               // An existing version is immutable: only recover an upload for this commit.
