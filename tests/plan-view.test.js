@@ -6,7 +6,9 @@ const source=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
 const css=readFileSync(new URL('../style.css',import.meta.url),'utf8');
 const match=source.match(/function generateScreen\(\)\{([\s\S]*?)\n\}\nfunction buyMasterDish\(/);
 assert.ok(match,'generator screen template is available');
-const view=new Function('state','ai','issues','button','esc','categoryName','empty','aiGenerating','MAX_GENERATION_DAYS','drive',match[1]);
+const toggle=source.slice(source.indexOf('function generationModeButtons(){'),source.indexOf('function generateScreen(){'));
+assert.match(toggle,/function generationModeButtons\(\)/);
+const view=new Function('state','ai','issues','button','esc','categoryName','empty','aiGenerating','MAX_GENERATION_DAYS','drive',toggle+match[1]);
 const button=(text,action,cls='',attrs='')=>'<button class="'+cls+'" data-action="'+action+'" '+attrs+'>'+text+'</button>';
 const escape=v=>String(v);
 function screen(days,mode='rules',generating=false,problems=[]){
@@ -75,12 +77,14 @@ test('two dishes per day use compact height budget and the day label is vertical
 
 test('generation mode stays selected and generating retains a fixed-size label',()=>{
  const html=screen([[]],'ai');
- assert.match(html,/<option value="ai"[^>]*selected[^>]*>AI<\/option>/);
+ assert.match(html,/data-action="generation-mode"[^>]*data-mode="ai"[^>]*aria-pressed="true"/);
+ assert.match(html,/data-action="generation-mode"[^>]*data-mode="rules"[^>]*aria-pressed="false"/);
  assert.match(html,/data-action="rules"/);
  assert.match(html,/data-action="generate"/);
  assert.ok(html.indexOf('data-action="rules"')<html.indexOf('data-action="generate"'));
  const busy=screen([[]],'ai',true);
  assert.match(busy,/data-action="generate"[^>]*disabled aria-busy="true"[^>]*>生成<\/button>/);
+ assert.equal((busy.match(/data-action="generation-mode"[^>]*disabled/g)||[]).length,2);
  assert.doesNotMatch(busy,/考え中/);
 });
 
