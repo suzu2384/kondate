@@ -1,7 +1,8 @@
+import {normalizeCalendarCellColors} from './calendar-cell-colors.js';
 import {validateDishes} from './model.js';
 import {validateIngredients} from './ingredients.js';
 import {shoppingSettings,validateShoppingSettings} from './shopping.js';
-export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','iconRules','calendarRefreshMinutes','draft','recentNewMains','recentSuggested','shopping'];
+export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','calendarCellColors','iconRules','calendarRefreshMinutes','draft','recentNewMains','recentSuggested','shopping'];
 const FORMAT='kondate-drive-settings-v2';
 const copy=x=>structuredClone(x);
 export function createDriveSnapshot(state){
@@ -13,7 +14,7 @@ export function createDriveSnapshot(state){
    master[key]=copy(prefs);
  }
  return {format:FORMAT,updatedAt:new Date().toISOString(),
-  settings:Object.fromEntries(SETTINGS.map(k=>[k,copy(k==='shopping'?shoppingSettings(state.shopping):state[k])])),
+  settings:Object.fromEntries(SETTINGS.map(k=>[k,copy(k==='shopping'?shoppingSettings(state.shopping):k==='calendarCellColors'?normalizeCalendarCellColors(state.calendarCellColors):state[k])])),
   master};
 }
 export function readDriveSnapshot(raw,state,validateImport){
@@ -50,6 +51,7 @@ export function readDriveSnapshot(raw,state,validateImport){
 }
 export function restoreDriveSnapshot(state,snapshot){
  for(const key of SETTINGS)if(Object.hasOwn(snapshot.settings,key))state[key]=copy(snapshot.settings[key]);
+ state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);
  state.shopping=shoppingSettings(state.shopping);
  for(const [key,prefs] of Object.entries(snapshot.master)){
   state.scopes[key]={...(state.scopes[key]||{}),...copy(prefs)};

@@ -20,6 +20,7 @@ import {dateTapAction,monthSnapOffset,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependentDriveChanges,mergeDriveSnapshots} from './drive-sync.js';
 import {recordDishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {renderDayDetail} from './day-detail.js';
+import {calendarCellBackground,normalizeCalendarCellColors,validateCalendarCellColors,MAX_CALENDAR_COLOR_ENTRIES} from './calendar-cell-colors.js';
 import {getSettingsHelp} from './settings-help.js';
 import {searchPlaces,filterPlaceCandidates,LOCATION_ATTRIBUTION} from './place-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
@@ -36,13 +37,14 @@ import {priceKey,validatePrice,catalogPrices,estimateItem,shoppingBudget,MAX_PRI
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme,normalizeThemeColor,isSupportedThemeColor} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
-const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],iconRules:[],scopes:{},draft:[],recentNewMains:[],recentSuggested:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{},prices:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,pendingCalendarRenames:[],...loaded};
+const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],calendarCellColors:{saturday:'',sunday:'',calendars:{}},iconRules:[],scopes:{},draft:[],recentNewMains:[],recentSuggested:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{},prices:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,pendingCalendarRenames:[],...loaded};
 state.rules={...defaultRules,...loaded.rules,counts:{...defaultRules.counts,...loaded.rules?.counts}};
 state.pendingCalendarRenames=(Array.isArray(loaded.pendingCalendarRenames)?loaded.pendingCalendarRenames:[]).filter(item=>
  item&&typeof item.from==='string'&&item.from.length>0&&item.from.length<=100&&
  typeof item.to==='string'&&item.to.length>0&&item.to.length<=100).slice(-100);
 state.rules.days=normalizeGenerationDays(state.rules.days);
 state.theme.color=normalizeThemeColor(state.theme.color);
+state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);
 state.shopping=shoppingSettings(state.shopping);
 state.menuGenerationMode=state.menuGenerationMode==='ai'?'ai':'rules';
 state.recentNewMains=rememberNewMainSuggestions(state.recentNewMains);
@@ -671,12 +673,22 @@ function chooseMonthFromPicker(monthNumber){
  selected=`${year}-${String(monthNumber).padStart(2,'0')}-01`;
  closeModal();render();
 }
+function visibleCalendarIdsForColors(){
+ return [...new Set([...assignedIds(),...state.extraCalendarIds])].filter(Boolean);
+}
+function dayBackground(date,list,extras){
+ return calendarCellBackground(date,list,extras,state.calendarCellColors,visibleCalendarIdsForColors());
+}
+function dayBackgroundStyle(date,list,extras){
+ const bg=dayBackground(date,list,extras);
+ return bg?' style="--day-cell-background:'+bg+'"':'';
+}
 function calendarScreen(){
  const list=records(),extras=extraEvents();
  const gridFor=(displayMonth,neighbor=false)=>{
  const cells=monthGridDates(displayMonth.getFullYear(),displayMonth.getMonth()).map(date=>{
   const d=new Date(`${date}T12:00:00`),cell=calendarCellInfo(date,list,extras);
-  return `<button class="day ${d.getMonth()!==displayMonth.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-pressed="${date===selected}" aria-label="${date}、${cell.count}件">${cell.html}</button>`;
+  return `<button class="day ${d.getMonth()!==displayMonth.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-pressed="${date===selected}" aria-label="${date}、${cell.count}件"${dayBackgroundStyle(date,list,extras)}>${cell.html}</button>`;
  }).join('');
   return `<div class="month-grid ${neighbor?'month-grid-neighbor':'month-grid-current'}" ${neighbor?'aria-hidden="true" inert':''}>${cells}</div>`;
  };
@@ -687,6 +699,9 @@ function patchCalendarCells(){
  // The 42 buttons and unchanged chips retain their actual DOM nodes.
  for(const day of document.querySelectorAll('#main .month-grid .day[data-date]')){
   const date=day.dataset.date,cell=calendarCellInfo(date,list,extras);
+  const bg=dayBackground(date,list,extras);
+  if(bg)day.style.setProperty('--day-cell-background',bg);
+  else day.style.removeProperty('--day-cell-background');
   if(day.innerHTML!==cell.html){
    const template=document.createElement('template');
    template.innerHTML=cell.html;
@@ -1076,6 +1091,33 @@ function openCalendarCreation(ruleId){
 }
 const SETTINGS_CATEGORIES=['calendar','generate','master','shopping','data','ai','appearance'];
 let settingsCategory='calendar';
+function calendarCellColorSettings(){
+ const prefs=state.calendarCellColors;
+ const choice=(label,target,value,fallback,kind)=>`<div class="calendar-cell-color-row">
+  <span class="calendar-cell-color-label" title="${esc(label)}">${esc(label)}</span>
+  <input type="color" aria-label="${esc(label)}のマス色" value="${value||fallback}"
+   ${kind==='day'?`data-cell-color-day="${target}"`:`data-cell-color-calendar="${esc(target)}"`}>
+  <span class="calendar-cell-color-status">${value?'設定中':'標準'}</span>
+  ${button('解除','reset-cell-color','mini',`data-kind="${kind}" data-target="${esc(target)}" ${value?'':'disabled'} aria-label="${esc(label)}のマス色を解除"`)}
+ </div>`;
+ const weekends=choice('日曜日','sunday',prefs.sunday,'#f3b6ba','day')+
+  choice('土曜日','saturday',prefs.saturday,'#b7d5f9','day');
+ const ids=visibleCalendarIdsForColors().slice(0,MAX_CALENDAR_COLOR_ENTRIES);
+ const calendarsMarkup=ids.map(id=>{
+  const calendar=calendars.find(c=>c.id===id);
+  const label=calendar?.summary||'保存済みカレンダー（要再接続）';
+  return choice(label,id,prefs.calendars[id]||'','#a8d9b8','calendar');
+ }).join('');
+ return `<section class="calendar-cell-color-section" aria-label="カレンダーのマス色">
+  <h3>カレンダーのマス色</h3>
+  <p class="hint">土日の背景色と、予定があるカレンダーの背景色を指定できます。解除すると標準色に戻ります。</p>
+  <h4>曜日</h4>
+  <div class="calendar-cell-color-rows">${weekends}</div>
+  <h4>表示中のカレンダー</h4>
+  <div class="calendar-cell-color-rows">${calendarsMarkup||'<p class="hint">表示するカレンダーを設定すると、ここで色を選べます。</p>'}</div>
+  <p class="hint">カレンダーの色を優先し、複数ある日は等幅に色分けします。土日の色は対象カレンダーの色がない場合に適用されます。色は文字が読みやすい薄さで表示します。</p>
+ </section>`;
+}
 function settingsCategoryContent(){switch(settingsCategory){
  case 'calendar':return `<section class="settings-card card"><h2 class="settings-heading-with-help">Googleカレンダー${settingsHelpButton('calendar-connection','Googleカレンダー')}</h2><p>カレンダーの接続と保存先を設定します。</p>${!GOOGLE_CLIENT_ID?'<p class="hint" role="alert">Googleログインを利用できません。管理者にお問い合わせください。</p>':''}<div class="toolbar">${button(api.connected?'再接続':authReady?'Googleでログイン':authLoadError?'認証読み込みを再試行':'Google認証を準備中','connect','primary',busy||(!api.connected&&!authReady&&!authLoadError)?'disabled':'')}${button('接続を解除','disconnect','',api.connected?'':'disabled')}</div><div class="check-row"><input type="checkbox" id="keep-connected" ${api.keepConnected?'checked':''}><label for="keep-connected">接続を保持する</label></div>${calendarLoadError?`<p class="hint" role="alert">${esc(calendarLoadError)}</p>`:''}${api.connected&&!calendars.length?button('カレンダー一覧を再取得','refresh-calendars','mini'):''}${categoryCalendarSettings()}<label class="field"><span>カレンダーの自動更新間隔</span><select id="calendar-refresh-minutes">${CALENDAR_REFRESH_MINUTES.map(minutes=>`<option value="${minutes}" ${state.calendarRefreshMinutes===minutes?'selected':''}>${minutes===0?'自動更新しない':minutes+'分ごと'}</option>`).join('')}</select></label><label class="field"><span>履歴の取得開始日</span><div class="history-date-control"><input type="date" id="history-from" value="${state.from}"></div></label>${button('今すぐ同期','sync','full',busy||!api.connected||!hasSyncedCalendars()?'disabled':'')}</section>${additionalCalendarSettings()}`;
  case 'generate':return `<section class="settings-card card"><h2 class="settings-heading-with-help">献立生成ルール${settingsHelpButton('menu-rules','献立生成ルール')}</h2>${rulesFields()}<h3 style="margin-top:30px">献立の初期候補</h3><div class="check-row"><input id="seed-enabled" type="checkbox" ${state.seedEnabled?'checked':''}><label for="seed-enabled">初期候補の料理を使う</label></div>${''}</section>`;
@@ -1083,7 +1125,7 @@ function settingsCategoryContent(){switch(settingsCategory){
  case 'shopping':return `<section class="settings-card card"><h2 class="settings-heading-with-help">買い物${settingsHelpButton('shopping','買い物')}</h2><label class="field"><span>買い物リストの自動更新間隔</span><select id="family-interval">${SHOPPING_SYNC_SECONDS.map(n=>`<option value="${n}"${family.settings.seconds===n?' selected':''}>${n}秒</option>`).join('')}</select></label></section>`;
  case 'data':return `<section class="settings-card card"><h2 class="settings-heading-with-help">設定のバックアップ${settingsHelpButton('drive-backup','設定のバックアップ')}</h2><p>設定をドライブに保存・復元します。</p><div class="toolbar">${button(drive.connected?'ドライブ接続済み':'ドライブに接続','drive-reconnect','mini')}${button('ドライブにバックアップ','drive-save','mini primary')}${button('ドライブから復元','drive-load','mini')}</div><div class="check-row"><input id="drive-auto" type="checkbox" ${drive.autoEnabled?'checked':''}><label for="drive-auto">設定を自動同期する</label></div><div class="drive-sync-tools"><span id="drive-sync-state" class="hint" role="status"></span>${button('今すぐ同期','drive-sync-now','mini',drive.autoEnabled?'':'disabled')}</div></section><section class="settings-card card"><h2 class="settings-heading-with-help">家族共有${settingsHelpButton('family-share','家族共有')}</h2><p>料理・献立・買い物リストを家族と共有します。</p><div class="toolbar">${button('料理マスターを共有','family-dialog','mini','data-kind="master"')}${button('買い物リストを共有','family-dialog','mini','data-kind="shopping"')}${button('献立を共有','family-dialog','mini','data-kind="plan"')}</div></section><section class="settings-card card"><h2 class="settings-heading-with-help">設定ファイル${settingsHelpButton('local-export','設定ファイル')}</h2><p>設定を書き出し・読み込みできます。</p>${button('設定・下書きを書き出す','export','mini')} ${button('読み込む','import','mini')}<input type="file" accept="application/json,.json" class="hidden-input" id="import-file"></section>`;
  case 'ai':return `<section class="settings-card card"><h2 class="settings-heading-with-help">AI${settingsHelpButton('ai','AI')}</h2><span class="tag neutral">${ai.available?'利用可能':'利用不可'}</span><p style="margin-top:12px">AIを利用できない場合も、ルールベースで献立を作れます。</p></section>`;
- case 'appearance':return `<section class="settings-card card"><h2 class="settings-heading-with-help">配色テーマ${settingsHelpButton('theme','配色テーマ')}</h2><p>アプリの色と表示モードを選びます。</p><div class="theme-options">${[['暗め',false],['明るめ',true]].map(([label,rich])=>`<div class="theme-tone-row"><span class="theme-tone-label">${label}</span><div class="theme-tone-swatches">${Object.entries(colors).filter(([,c])=>!!c.rich===rich).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.rich?c.dark:c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div></div>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label></section>`;
+ case 'appearance':return `<section class="settings-card card"><h2 class="settings-heading-with-help">配色テーマ${settingsHelpButton('theme','配色テーマ')}</h2><p>アプリの色と表示モードを選びます。</p><div class="theme-options">${[['暗め',false],['明るめ',true]].map(([label,rich])=>`<div class="theme-tone-row"><span class="theme-tone-label">${label}</span><div class="theme-tone-swatches">${Object.entries(colors).filter(([,c])=>!!c.rich===rich).map(([key,c])=>`<button class="swatch ${state.theme.color===key?'active':''}" style="--swatch:${c.rich?c.dark:c.light}" data-action="theme" data-color="${key}" aria-label="${c.name}" title="${c.name}" aria-pressed="${state.theme.color===key}"></button>`).join('')}</div></div>`).join('')}</div><label class="field"><span>選択色：${colors[state.theme.color]?.name||'緑'}</span><select id="theme-mode"><option value="light" ${state.theme.mode==='light'?'selected':''}>ライト</option><option value="dark" ${state.theme.mode==='dark'?'selected':''}>ダーク</option><option value="auto" ${state.theme.mode==='auto'?'selected':''}>OSに合わせる</option></select></label>${calendarCellColorSettings()}</section>`;
  default:return '';
 }}
 function settingsCategoryButtons(){
@@ -1658,7 +1700,7 @@ async function applyRemoteSettings(remoteVersion,remoteSnapshot){
  const saved=readDriveSnapshot(remoteSnapshot,state,validateImport);
  const wasBooting=driveAutoBooting;driveAutoBooting=true;
  try{
-  restoreDriveSnapshot(state,saved);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.shopping=shoppingSettings(state.shopping);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.recentNewMains=rememberNewMainSuggestions(state.recentNewMains);state.recentSuggested=rememberMenuSuggestions(state.recentSuggested);
+  restoreDriveSnapshot(state,saved);state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.shopping=shoppingSettings(state.shopping);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.recentNewMains=rememberNewMainSuggestions(state.recentNewMains);state.recentSuggested=rememberMenuSuggestions(state.recentSuggested);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
   // Private backups must not revert shared purchases or recipes. The shared
@@ -2078,6 +2120,14 @@ const actions={
  },
  disconnect:()=>{calendarAutoReady=false;api.disconnect();currentNotice='';currentNoticeData=null;calendars=[];calendarLoadError='';for(const bucket of Object.values(state.scopes)){bucket.events=[];bucket.lastSync=null;}render();notify('Googleとの接続を解除しました。端末の下書きは残しています。');},sync,
  theme:b=>{state.theme.color=b.dataset.color;persist();render();},
+ 'reset-cell-color':b=>{
+  const kind=b.dataset.kind,target=b.dataset.target;
+  if(kind==='day'&&['saturday','sunday'].includes(target))state.calendarCellColors[target]='';
+  else if(kind==='calendar'&&Object.hasOwn(state.calendarCellColors.calendars,target))
+   delete state.calendarCellColors.calendars[target];
+  else return;
+  persist();render();
+ },
  rules:()=>{settingsCategory='generate';tab='settings';render();prepareGoogleIdentity();},
  'settings-help':b=>showSettingsHelp(b.dataset.help),
  'settings-category':b=>{if(!SETTINGS_CATEGORIES.includes(b.dataset.category))return;settingsCategory=b.dataset.category;render();const list=$('#main .settings-grid');if(list)list.scrollTop=0;},
@@ -2239,7 +2289,7 @@ const actions={
  },
  'confirm-drive-load':async()=>{
   if(!driveImported)throw Error('復元する設定がありません。');
-  restoreDriveSnapshot(state,driveImported);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);
+  restoreDriveSnapshot(state,driveImported);state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
   driveImported=null;
@@ -2289,7 +2339,7 @@ const actions={
    persist();render();
   },
   export:exportState,import:()=>$('#import-file').click(),
- 'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
+ 'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
 };
 async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))return;await actions[action]?.(b);}catch(error){
  if(action==='generate')notify(generationFailureNotice(error,state.menuGenerationMode));
@@ -2624,7 +2674,23 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   }catch(error){el.checked=api.keepConnected;throw error;}
   render();return;
  }
- if(el.dataset.categoryCalendar){state.categoryCalendars[el.dataset.categoryCalendar]=el.value;const c=calendars.find(c=>c.id===state.categoryCalendars.main);state.timeZone=c?.timeZone||state.timeZone;persist();render();if(api.connected&&hasSyncedCalendars())await sync();}
+ if(el.dataset.cellColorDay!==undefined||el.dataset.cellColorCalendar!==undefined){
+   const value=el.value;
+   if(!/^#[0-9a-f]{6}$/i.test(value))throw Error('マスの色が不正です。');
+   if(el.dataset.cellColorDay!==undefined){
+    if(!['saturday','sunday'].includes(el.dataset.cellColorDay))throw Error('曜日の指定が不正です。');
+    state.calendarCellColors[el.dataset.cellColorDay]=value.toLowerCase();
+   }else{
+    const id=el.dataset.cellColorCalendar;
+    if(!visibleCalendarIdsForColors().includes(id))throw Error('表示中のカレンダーではありません。');
+    if(!Object.hasOwn(state.calendarCellColors.calendars,id)&&
+      Object.keys(state.calendarCellColors.calendars).length>=MAX_CALENDAR_COLOR_ENTRIES)
+     throw Error('マス色を設定できるカレンダーは最大100件です。');
+    state.calendarCellColors.calendars[id]=value.toLowerCase();
+   }
+   persist();render();return;
+  }
+  if(el.dataset.categoryCalendar){state.categoryCalendars[el.dataset.categoryCalendar]=el.value;const c=calendars.find(c=>c.id===state.categoryCalendars.main);state.timeZone=c?.timeZone||state.timeZone;persist();render();if(api.connected&&hasSyncedCalendars())await sync();}
   if(el.dataset.extraCalendar){state.extraCalendarIds=el.checked?[...new Set([...state.extraCalendarIds,el.dataset.extraCalendar])]:state.extraCalendarIds.filter(id=>id!==el.dataset.extraCalendar);persist();render();if(api.connected)await sync();}
   if(el.matches('[data-preset-draft]')){
   capturePresetEditorFields();
@@ -2647,7 +2713,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
  persist();updateConnection();
  if(el.id==='calendar-refresh-minutes')await autoRefreshCalendar();
  }catch(error){notify({summary:error.message,severity:'error'});}});
-function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array.isArray(p.state.categories)||!Array.isArray(p.state.draft)||!p.state.rules||!p.state.scopes)throw Error('KonDateの設定ファイルではありません。');if(!['timeZone','from'].every(k=>typeof p.state[k]==='string')||!/^\d{4}-\d{2}-\d{2}$/.test(p.state.from)||!['oldDays','recentDays'].every(k=>Number.isInteger(p.state.rules[k])&&p.state.rules[k]>=1&&p.state.rules[k]<=365)||!['preferOld','excludeRecent','unique','balance','newMain'].every(k=>typeof p.state.rules[k]==='boolean'))throw Error('設定値の形式が不正です。');if(JSON.stringify(p).includes('"__proto__"'))throw Error('設定ファイルが不正です。');if(p.state.shopping!==undefined)validateShoppingSettings(p.state.shopping);if(!p.state.categories.every(c=>/^[a-z][a-z0-9-]*$/.test(c.id)&&typeof c.name==='string'&&c.name.length<=20)||!p.state.categories.some(c=>c.id==='main'))throw Error('分類の設定が不正です。');if(p.state.categoryCalendars&&(!Object.values(p.state.categoryCalendars).every(v=>typeof v==='string')||!Object.keys(p.state.categoryCalendars).every(k=>/^[a-z][a-z0-9-]*$/.test(k))))throw Error('分類別カレンダーの設定が不正です。');if(p.state.extraCalendarIds&&(!Array.isArray(p.state.extraCalendarIds)||!p.state.extraCalendarIds.every(x=>typeof x==='string')))throw Error('表示カレンダーの設定が不正です。');
+function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array.isArray(p.state.categories)||!Array.isArray(p.state.draft)||!p.state.rules||!p.state.scopes)throw Error('KonDateの設定ファイルではありません。');if(!['timeZone','from'].every(k=>typeof p.state[k]==='string')||!/^\d{4}-\d{2}-\d{2}$/.test(p.state.from)||!['oldDays','recentDays'].every(k=>Number.isInteger(p.state.rules[k])&&p.state.rules[k]>=1&&p.state.rules[k]<=365)||!['preferOld','excludeRecent','unique','balance','newMain'].every(k=>typeof p.state.rules[k]==='boolean'))throw Error('設定値の形式が不正です。');if(JSON.stringify(p).includes('"__proto__"'))throw Error('設定ファイルが不正です。');if(p.state.shopping!==undefined)validateShoppingSettings(p.state.shopping);if(p.state.calendarCellColors!==undefined)validateCalendarCellColors(p.state.calendarCellColors);if(!p.state.categories.every(c=>/^[a-z][a-z0-9-]*$/.test(c.id)&&typeof c.name==='string'&&c.name.length<=20)||!p.state.categories.some(c=>c.id==='main'))throw Error('分類の設定が不正です。');if(p.state.categoryCalendars&&(!Object.values(p.state.categoryCalendars).every(v=>typeof v==='string')||!Object.keys(p.state.categoryCalendars).every(k=>/^[a-z][a-z0-9-]*$/.test(k))))throw Error('分類別カレンダーの設定が不正です。');if(p.state.extraCalendarIds&&(!Array.isArray(p.state.extraCalendarIds)||!p.state.extraCalendarIds.every(x=>typeof x==='string')))throw Error('表示カレンダーの設定が不正です。');
  if(p.state.iconRules&&(!Array.isArray(p.state.iconRules)||!p.state.iconRules.every(r=>typeof r.id==='string'&&/^[0-9a-f]{10}$/.test(r.id)&&typeof r.keyword==='string'&&r.keyword.length<=80&&isSupportedIcon(r.icon)&&(r.color===undefined||/^#[0-9a-f]{6}$/i.test(r.color))&&(r.memo===undefined||(typeof r.memo==='string'&&r.memo.length<=2000))&&(r.calendarId===undefined||(typeof r.calendarId==='string'&&r.calendarId.length<=512)))))throw Error('アイコンルールが不正です。');
  if(p.state.calendarRefreshMinutes!==undefined&&!CALENDAR_REFRESH_MINUTES.includes(p.state.calendarRefreshMinutes))throw Error('カレンダーの自動更新間隔が不正です。');
  if(p.state.menuGenerationMode!==undefined&&!['rules','ai'].includes(p.state.menuGenerationMode))throw Error('献立生成モードが不正です。');

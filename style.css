@@ -1854,3 +1854,33 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .day-detail-other-events .day-event-edit{padding:5px 7px;font-size:10px}
  .day-detail-other-events .day-event-memo-editor{padding:6px 4px 8px}
 }
+
+
+/* User-configurable date-cell colors, only when enabled. Keep selected/today
+   outlines and the normal light/dark theme unchanged for uncolored cells. */
+#main .month-grid .day[style*="--day-cell-background"]{
+ background:var(--day-cell-background);
+}
+#main .month-grid .day.selected[style*="--day-cell-background"]{
+ box-shadow:inset 0 0 0 2px var(--accent);
+}
+.calendar-cell-color-section{margin-top:14px;padding-top:13px;border-top:1px solid var(--line)}
+.calendar-cell-color-section h3{font-size:14px;margin:0 0 6px}
+.calendar-cell-color-section h4{font-size:12px;margin:12px 0 7px;color:var(--muted)}
+.calendar-cell-color-section p{margin:0 0 7px}
+.calendar-cell-color-rows{display:flex;flex-direction:column;gap:5px;min-width:0}
+.calendar-cell-color-row{
+ display:flex;align-items:center;gap:9px;min-width:0;min-height:39px;
+ padding:3px 0;border-bottom:1px solid var(--line)
+}
+.calendar-cell-color-label{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:clip;font-size:12px}
+.calendar-cell-color-row input[type=color]{
+ flex:0 0 44px;width:44px;height:34px;min-height:34px;padding:2px;border-radius:7px;cursor:pointer
+}
+.calendar-cell-color-status{flex:0 0 36px;font-size:10px;color:var(--muted);text-align:center;white-space:nowrap}
+.calendar-cell-color-row button{flex:0 0 auto;min-width:42px;min-height:32px;padding:4px 7px;font-size:11px}
+@media(max-width:760px){
+ .calendar-cell-color-row{gap:6px}
+ .calendar-cell-color-row input[type=color]{flex-basis:40px;width:40px}
+ .calendar-cell-color-row button{min-width:38px;padding:4px 6px}
+}
