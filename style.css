@@ -1753,11 +1753,13 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  display:inline-flex;align-items:center;justify-content:center;height:1.2em;line-height:1
 }
 .month-grid .day .calendar-preset-no-memo .event-chip.general-event.no-icon{
- display:block;flex:0 0 100%;width:100%;margin:0;min-width:0;
+ display:flex;flex:0 0 100%;width:100%;margin:0;min-width:0;
+ min-height:18px;align-items:center;justify-content:flex-start;line-height:1.2;
  overflow:hidden;white-space:nowrap;text-overflow:clip
 }
 @media(max-width:760px){
  .month-grid .day .calendar-preset-no-memo{gap:1px 2px}
+ .month-grid .day .calendar-preset-no-memo .event-chip.general-event.no-icon{min-height:16px}
  .month-grid .day .calendar-preset-no-memo .event-chip.general-event.has-icon.icon-only{
   font-size:13px;line-height:1.2
  }

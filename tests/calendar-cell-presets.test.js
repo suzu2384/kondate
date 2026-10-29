@@ -76,6 +76,19 @@ test('meal entries remain ahead of presets and ordinary calendar events keep a f
  assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{[\s\S]*?flex:0 0 100%/);
 });
 
+test('non-preset, text-only events are vertically centered within their own rows',()=>{
+ const result=cell(date,[],[
+  {calendarId:'holidays',date,title:'スポーツの日',memo:'',icon:''},
+  event('プリセット','', 'star_fill')
+ ]);
+ assert.match(result.html,/class="event-chip general-event  no-icon/);
+ // The non-preset row keeps the same one-item-per-row layout, without
+ // vertically centering the entire day or shifting meal/preset priorities.
+ assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{[\s\S]*?display:flex;flex:0 0 100%/);
+ assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{[\s\S]*?min-height:18px;align-items:center;justify-content:flex-start/);
+ assert.match(css,/@media\(max-width:760px\)\{\s*\.month-grid \.day \.calendar-preset-no-memo\{[^}]*\}\s*\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{min-height:16px\}/);
+});
+
 test('pending changes keep their existing visual state and sparse memos are treated as absent',()=>{
  const result=cell(date,[],[
   {...event('予定','空白','car_fill'),memo:'  ',pending:true},
