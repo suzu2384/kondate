@@ -81,7 +81,7 @@ test('non-preset, text-only events are vertically centered within their own rows
   {calendarId:'holidays',date,title:'スポーツの日',memo:'',icon:''},
   event('プリセット','', 'star_fill')
  ]);
- assert.match(result.html,/class="event-chip general-event  no-icon/);
+ assert.match(result.html,/class="event-chip general-event\s+no-icon/);
  // The non-preset row keeps the same one-item-per-row layout, without
  // vertically centering the entire day or shifting meal/preset priorities.
  assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{[\s\S]*?display:flex;flex:0 0 100%/);
