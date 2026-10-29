@@ -10,7 +10,7 @@ import {rememberCalendarAccount} from './account-hint.js';
 import {masterSharedSnapshot,shoppingSharedSnapshot,applyShoppingEvents,applyMasterEvents,planSharedSnapshot,applyPlanEvents} from './family-data.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES,normalizeIcon,normalizeIconColor,isSupportedIcon} from './calendar-display.js';
-import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEvent,presetEventPayload} from './icon-presets.js';
+import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEvent,presetEventPayload,matchesPreset} from './icon-presets.js';
 import {PresetWriteQueue,PRESET_FLUSH_INTERVAL_MS} from './preset-queue.js';
 import {beginPresetEdit,commitPresetEdit} from './preset-editor.js';
 import {sortCalendarExtras,reorderPresetRules,movePresetRule} from './preset-order.js';
@@ -134,7 +134,7 @@ let calendarCreationBusy=false;
 let presetEditDraft=null,presetEditOriginalId=null;
 let aiGenerating=false;
 let tab='calendar',selected=today(),month=new Date(`${today().slice(0,7)}-01T12:00:00`),calendars=[],busy=false,issues=[],editor=null,masterQuery='',masterFilter='all',shoppingFilter='pending',shoppingMode='list',shoppingPriceQuery='';
-let calendarTouchStart=null,ignoreDateClickUntil=0,selectedPresetId=null;
+let calendarTouchStart=null,ignoreDateClickUntil=0,selectedPresetId=null,editingEventMemo=null;
 let calendarSwipeSettling=false,calendarSwipeToken=0,calendarSwipeTimer=null,calendarSwipeAnimation=null;
 const scopeKeyFor=id=>calendarKey(GOOGLE_CLIENT_ID,id);
 const primaryCalendarId=()=>activeCalendarIds('',state.categories,state.categoryCalendars)[0]||'';
@@ -169,7 +169,12 @@ function extraEvents(){
    const date=eventDay(event,state.timeZone);
    if(!date)return null;
    const title=event.summary||'無題の予定';
-   return {calendarId,date,title,memo:String(event.description||''),icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules),pending:!!event._presetPending};
+   const access=calendars.find(c=>c.id===calendarId)?.accessRole;
+   const editable=api.connected&&!busy&&!event._presetPending&&!!event.id&&!!event.etag&&
+    ['owner','writer'].includes(access);
+   return {id:event.id||'',calendarId,date,title,memo:String(event.description||''),
+    icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules),
+    pending:!!event._presetPending,editable};
   }).filter(Boolean)
  ).flat(),state.iconRules);
 }
@@ -707,10 +712,65 @@ function dayContent(date){
   date,
   records:records().filter(record=>record.date===date),
   otherEvents:extraEvents().filter(event=>event.date===date),
-  categoryName,iconMarkup,esc,button
+  editingMemo:editingEventMemo,categoryName,iconMarkup,esc,button
  });
 }
 
+function refreshEventMemoEditor(){
+ render();
+ // The calendar has an inline detail panel and a separate date-detail dialog.
+ if($('#dialog')?.open&&$('#dialog-title')?.textContent==='日付の詳細')
+  modal('日付の詳細',dayContent(editingEventMemo?.date||selected));
+}
+function openEventMemoEditor(button){
+ const calendarId=button.dataset.calendar,id=button.dataset.id,date=button.dataset.date;
+ const item=extraEvents().find(e=>e.id===id&&e.calendarId===calendarId&&e.date===date);
+ if(!item?.editable)throw Error('この予定は編集できません。Googleカレンダーへの接続と編集権限を確認してください。');
+ const source=dataFor(calendarId).events.find(e=>e.id===id);
+ if(!source?.etag)throw Error('この予定の編集情報がありません。カレンダーを同期してください。');
+ editingEventMemo={calendarId,id,date,value:String(source.description||''),etag:source.etag};
+ refreshEventMemoEditor();
+}
+async function saveEventMemo(button){
+ const draft=editingEventMemo;
+ if(!draft||draft.id!==button.dataset.id||draft.calendarId!==button.dataset.calendar)
+  throw Error('編集する予定を確認できません。');
+ const text=button.closest('.day-event-memo-editor')?.querySelector('[data-event-memo-input]');
+ if(!text)throw Error('メモ入力欄がありません。');
+ // An empty description is valid; do not require text or fall back to the original.
+ const memo=text.value;
+ if(memo.length>2000)throw Error('メモは2000文字以内で入力してください。');
+ editingEventMemo.value=memo;
+ if(!api.connected)throw Error('Googleカレンダーに接続してから確定してください。');
+ const calendar=calendars.find(c=>c.id===draft.calendarId);
+ if(!calendar||!['owner','writer'].includes(calendar.accessRole))
+  throw Error('このカレンダーには予定を編集する権限がありません。');
+ const bucket=dataFor(draft.calendarId),event=bucket.events.find(e=>e.id===draft.id);
+ if(!event||!event.etag||event.etag!==draft.etag||event._presetPending)
+  throw Error('編集中に予定が更新されました。同期してからもう一度編集してください。');
+ if(String(event.description||'')===memo){
+  editingEventMemo=null;refreshEventMemoEditor();return;
+ }
+ const patch={description:memo};
+ // Preserve the relationship to the original quick preset, even when its
+ // description no longer equals the preset's default memo.
+ const matched=state.iconRules.find(rule=>matchesPreset(event,draft.calendarId,rule));
+ if(matched&&isPresetEvent(event,draft.calendarId,state.iconRules))
+  patch.extendedProperties={private:{...event.extendedProperties?.private,
+   kondatePreset:'1',kondatePresetId:matched.id}};
+ busy=true;updateConnection();
+ button.disabled=true;
+ try{
+  const updated=await api.patchEvent(draft.calendarId,event,patch);
+  bucket.events=bucket.events.map(e=>e.id===draft.id?updated:e);
+  editingEventMemo=null;
+ }finally{
+  busy=false;updateConnection();
+  button.disabled=false;
+ }
+ refreshEventMemoEditor();
+ notify('予定のメモを更新しました。');
+}
 function generationModeButtons(){
  return `<div class="generation-mode-toggle" role="group" aria-label="献立の生成方法">
   ${[['rules','ルールベース','cpu'],['ai','AI','bot']].map(([mode,label,icon])=>
@@ -1984,6 +2044,9 @@ const actions={
  date:b=>selectCalendarDate(b.dataset.date),
  'select-preset':b=>{const rule=state.iconRules.find(rule=>rule.id===b.dataset.ruleId);if(!presetCalendarVisible(rule))return;selectedPresetId=selectedPresetId===b.dataset.ruleId?null:b.dataset.ruleId;renderPresetBar();},
  'new-record':b=>openRecord(null,{date:b.dataset.date||today()}),record:b=>openRecord(records().find(r=>r.id===b.dataset.id&&r.calendarId===(b.dataset.calendar||primaryCalendarId()))),
+ 'edit-event-memo':openEventMemoEditor,
+ 'cancel-event-memo':()=>{editingEventMemo=null;refreshEventMemoEditor();},
+ 'save-event-memo':saveEventMemo,
  'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
  'suggest-record-dish':pickRecordDishSuggestion,'pick-location':pickPlaceSuggestion,
  'close-place-search':()=>closePlaceSearchSheet(),
@@ -2448,6 +2511,7 @@ document.addEventListener('touchcancel',()=>{
 $('#connection').addEventListener('click',()=>run(api.connected?'settings':'connect'));
 $('#dialog').addEventListener('cancel',()=>{editor=null;presetEditDraft=null;presetEditOriginalId=null;});
 document.addEventListener('input',e=>{const el=e.target;
+ if(el.matches?.('[data-event-memo-input]')&&editingEventMemo)editingEventMemo.value=el.value;
  if(el.id==='family-join-link'){updateFamilyUrlAction(el.dataset.kind);return;}
  if(el.id==='preset-edit-color'){updatePresetEditorIconPreview();return;}
  if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;showDishSuggestions(el);}

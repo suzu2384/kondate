@@ -1,5 +1,5 @@
 import {addDays} from './model.js';
-import {matchesPreset,matchingPresetEvent,presetEventPayload} from './icon-presets.js';
+import {matchingPresetEvent,presetEventPayload} from './icon-presets.js';
 
 export const PRESET_QUEUE_STORAGE_KEY='kondate.preset-write-queue.v1';
 export const PRESET_FLUSH_INTERVAL_MS=5000;
@@ -53,7 +53,7 @@ export class PresetWriteQueue {
   let result=events.slice();
   for(const entry of this.entries.values()){
    if(entry.rule.calendarId!==calendarId)continue;
-   const matches=e=>!e.recurringEventId&&e.start?.date===entry.date&&matchesPreset(e,calendarId,entry.rule);
+   const matches=e=>!!matchingPresetEvent([e],calendarId,entry.date,entry.rule);
    const found=result.some(matches);
    if(!entry.present)result=result.filter(e=>!matches(e));
    else if(!found)result.push({...presetEventPayload(entry.date,entry.rule),id:entry.id,_presetPending:true});

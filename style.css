@@ -1829,3 +1829,26 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  }
  .generation-mode-icon{flex-basis:18px;width:18px;height:18px}
 }
+
+
+/* v1.17.12: editable notes for writable Google Calendar appointments. */
+.day-detail-other-events .day-other-entry{min-width:0}
+.day-detail-other-events .day-event-edit{
+ flex:0 0 auto;min-height:34px;padding:5px 9px;font-size:11px;white-space:nowrap
+}
+.day-detail-other-events .day-event-memo-editor{
+ display:flex;flex-direction:column;gap:7px;min-width:0;padding:7px 5px 10px;
+ margin:1px 0 5px;border:1px solid var(--line);border-radius:8px;background:var(--surface)
+}
+.day-event-memo-editor .field{min-width:0;margin:0}
+.day-event-memo-editor textarea{
+ display:block;box-sizing:border-box;width:100%;min-width:0;
+ max-width:100%;min-height:72px;resize:vertical;
+ font-size:16px;line-height:1.4;white-space:pre-wrap
+}
+.day-event-memo-actions{display:flex;gap:6px;justify-content:flex-end}
+.day-event-memo-actions button{min-height:34px;padding:5px 12px}
+@media(max-width:760px){
+ .day-detail-other-events .day-event-edit{padding:5px 7px;font-size:10px}
+ .day-detail-other-events .day-event-memo-editor{padding:6px 4px 8px}
+}

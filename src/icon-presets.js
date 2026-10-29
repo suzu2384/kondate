@@ -32,8 +32,11 @@ export function presetColor(event,calendarId,rules=[]){
  return normalizeIconColor(matchingDisplayPreset(event,calendarId,rules)?.color);
 }
 export function matchingPresetEvent(events,calendarId,date,rule){
- return events.find(e=>e.status!=='cancelled'&&!e.recurringEventId&&
-  e.start?.date===date&&matchesPreset(e,calendarId,rule));
+ return events.find(e=>e.status!=='cancelled'&&!e.recurringEventId&&e.start?.date===date&&
+  (matchesPreset(e,calendarId,rule)||
+   (rule?.calendarId===calendarId&&e.summary===titleOf(rule)&&
+    e.extendedProperties?.private?.kondatePreset==='1'&&
+    e.extendedProperties?.private?.kondatePresetId===String(rule.id))));
 }
 export function presetEventPayload(date,rule){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||Number.isNaN(Date.parse(date)))throw Error('日付の形式が不正です。');
