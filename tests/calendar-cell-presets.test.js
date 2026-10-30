@@ -76,19 +76,6 @@ test('meal entries remain ahead of presets and ordinary calendar events keep a f
  assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{[\s\S]*?flex:0 0 100%/);
 });
 
-test('non-preset, text-only events are vertically centered within their own rows',()=>{
- const result=cell(date,[],[
-  {calendarId:'holidays',date,title:'スポーツの日',memo:'',icon:''},
-  event('プリセット','', 'star_fill')
- ]);
- assert.match(result.html,/class="event-chip general-event\s+no-icon/);
- // The non-preset row keeps the same one-item-per-row layout, without
- // vertically centering the entire day or shifting meal/preset priorities.
- assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{[\s\S]*?display:flex;flex:0 0 100%/);
- assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{[\s\S]*?min-height:18px;align-items:center;justify-content:flex-start/);
- assert.match(css,/@media\(max-width:760px\)\{\s*\.month-grid \.day \.calendar-preset-no-memo\{[^}]*\}\s*\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{min-height:16px\}/);
-});
-
 test('pending changes keep their existing visual state and sparse memos are treated as absent',()=>{
  const result=cell(date,[],[
   {...event('予定','空白','car_fill'),memo:'  ',pending:true},
@@ -100,51 +87,32 @@ test('pending changes keep their existing visual state and sparse memos are trea
 });
 
 
-test('text-only calendar rows align their text box vertically, not its baseline',()=>{
+test('description and no-description iconless events retain their DOM positions',()=>{
  const html=cell(date,[],[
-  {calendarId:'holidays',date,title:'スポーツの日',memo:'',icon:''},
-  event('アイコン','', 'star_fill')
+  {calendarId:'holidays',date,title:'スポーツの日',memo:'国民の祝日',icon:''},
+  {calendarId:'holidays',date,title:'説明なし',memo:'',icon:''},
+  event('アイコン','','star_fill')
  ]).html;
- assert.match(html,/<span class="event-chip general-event\s+no-icon[^"]*"[^>]*><span class="calendar-event-note">スポーツの日<\/span><\/span>/);
- // Fixed row boxes on desktop and mobile: inherited line-height cannot
- // push the label upward or allow a taller anonymous inline line box.
- assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{\s*height:18px;min-height:18px;padding:0;align-items:stretch/);
- assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon \.calendar-event-note\{\s*display:flex;align-items:center;align-self:stretch;[\s\S]*?line-height:1;/);
- assert.match(css,/@media\(max-width:760px\)\{\s*\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{\s*height:16px;min-height:16px/);
+ const wrapper=html.indexOf('<span class="calendar-preset-no-memo">');
+ assert.ok(wrapper>0);
+ assert.match(html.slice(0,wrapper),/title="スポーツの日／国民の祝日"/);
+ assert.match(html.slice(0,wrapper),/class="event-chip general-event\s+no-icon/);
+ assert.match(html.slice(wrapper),/title="説明なし"/);
+ assert.match(html.slice(wrapper),/class="event-chip general-event\s+no-icon/);
+ assert.match(html.slice(wrapper),/role="img"/);
 });
-
-test('text-only calendar labels are optically lowered without shifting icon rows',()=>{
- // The flex rows retain their original heights; only the text element moves.
- const cssRule=css.match(/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon \.calendar-event-note\{([^}]+)\}/g);
- assert.ok(cssRule?.length,'targeted text-only label rule exists');
- const last=cssRule.at(-1);
- assert.match(last,/transform:translateY\(3px\)/);
- assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon \.calendar-event-note\{[\s\S]*?transform:translateY\(4px\)/);
- assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo\{overflow:visible\}/);
- assert.match(css,/height:18px;min-height:18px;padding:0;align-items:stretch;/);
- assert.match(css,/height:16px;min-height:16px/);
-});
-
-
-test('text-only events with description and without description share vertical alignment',()=>{
- const result=cell(date,[],[
-  event('スポーツの日','国民の祝日',''),
-  event('説明なし','',''),
-  event('プリセット','','star_fill')
- ]);
- const html=result.html,marker='<span class="calendar-preset-no-memo">';
- const before=html.slice(0,html.indexOf(marker));
- const after=html.slice(html.indexOf(marker));
- assert.ok(before.includes('title="スポーツの日／国民の祝日"'));
- assert.match(before,/class="event-chip general-event\s+no-icon/);
- assert.ok(after.includes('title="説明なし"'));
- assert.match(after,/class="event-chip general-event\s+no-icon/);
- // With a memo, the no-icon entry is a direct child of .day instead of
- // the .calendar-preset-no-memo wrapper. Both paths must receive the offset.
- assert.match(css,/\.month-grid \.day > \.event-chip\.general-event\.no-icon\{\s*display:flex;align-items:stretch;justify-content:flex-start;\s*height:18px;min-height:18px;padding:0;overflow:visible/);
- assert.match(css,/\.month-grid \.day > \.event-chip\.general-event\.no-icon > \.calendar-event-note\{[\s\S]*?transform:translateY\(4px\)/);
- assert.match(css,/@media\(max-width:760px\)\{\s*\.month-grid \.day > \.event-chip\.general-event\.no-icon\{\s*height:16px;min-height:16px/);
- assert.match(css,/\.month-grid \.day > \.event-chip\.general-event\.no-icon > \.calendar-event-note\{\s*transform:translateY\(3px\)/);
- // Existing no-memo styling is preserved.
- assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon \.calendar-event-note\{[\s\S]*?transform:translateY\(4px\)/);
+test('natural flex centering applies to both structures without offsets',()=>{
+ const row=css.match(/\.month-grid \.day > \.event-chip\.general-event\.no-icon,\s*\.month-grid \.day \.calendar-preset-no-memo > \.event-chip\.general-event\.no-icon\{([^}]+)\}/)?.[1];
+ assert.ok(row);
+ assert.match(row,/display:flex;align-items:center;justify-content:flex-start/);
+ assert.match(row,/height:auto;min-height:0/);
+ assert.match(row,/line-height:1\.35/);
+ const note=css.match(/\.month-grid \.day \.event-chip\.general-event\.no-icon > \.calendar-event-note\{([^}]+)\}/)?.[1];
+ assert.ok(note);
+ assert.match(note,/display:block;align-self:auto;flex:1 1 auto/);
+ assert.match(note,/height:auto;min-height:0/);
+ assert.match(note,/line-height:inherit/);
+ assert.match(css,/\.month-grid \.day > \.event-chip\.general-event\.no-icon\{\s*flex:0 0 auto/);
+ assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo > \.event-chip\.general-event\.no-icon\{\s*flex:0 0 100%;margin:0/);
+ assert.doesNotMatch(css.slice(css.indexOf('/* Shared natural-height layout')),/translateY\(/);
 });
