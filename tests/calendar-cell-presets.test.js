@@ -105,10 +105,10 @@ test('text-only calendar rows align their text box vertically, not its baseline'
   {calendarId:'holidays',date,title:'スポーツの日',memo:'',icon:''},
   event('アイコン','', 'star_fill')
  ]).html;
- assert.match(html,/<span class="event-chip general-event\\s+no-icon[^"]*"[^>]*><span class="calendar-event-note">スポーツの日<\\/span><\\/span>/);
+ assert.match(html,/<span class="event-chip general-event\s+no-icon[^"]*"[^>]*><span class="calendar-event-note">スポーツの日<\/span><\/span>/);
  // Fixed row boxes on desktop and mobile: inherited line-height cannot
  // push the label upward or allow a taller anonymous inline line box.
- assert.match(css,/\\.month-grid \\.day \\.calendar-preset-no-memo \\.event-chip\\.general-event\\.no-icon\\{\\s*height:18px;min-height:18px;padding:0;align-items:stretch/);
- assert.match(css,/\\.month-grid \\.day \\.calendar-preset-no-memo \\.event-chip\\.general-event\\.no-icon \\.calendar-event-note\\{\\s*display:flex;align-items:center;align-self:stretch;[\\s\\S]*?line-height:1;/);
- assert.match(css,/@media\\(max-width:760px\\)\\{\\s*\\.month-grid \\.day \\.calendar-preset-no-memo \\.event-chip\\.general-event\\.no-icon\\{\\s*height:16px;min-height:16px/);
+ assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{\s*height:18px;min-height:18px;padding:0;align-items:stretch/);
+ assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon \.calendar-event-note\{\s*display:flex;align-items:center;align-self:stretch;[\s\S]*?line-height:1;/);
+ assert.match(css,/@media\(max-width:760px\)\{\s*\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{\s*height:16px;min-height:16px/);
 });
