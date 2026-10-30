@@ -49,6 +49,14 @@ test('calendar colors are saved in Drive and older snapshots are supported',()=>
 test('appearance controls and calendar rendering are wired to color settings',()=>{
  const app=read('src/app.js'),css=read('style.css');
  assert.match(app,/function calendarCellColorSettings\(\)/);
+ assert.match(app,/function configurableCalendarIdsForColors\(\)/);
+ assert.match(app,/\.\.\.calendars\.map\(c=>c\.id\)/);
+ assert.match(app,/const ids=configurableCalendarIdsForColors\(\)/);
+ assert.doesNotMatch(app,/if\(!visibleCalendarIdsForColors\(\)\.includes\(id\)\)/);
+ assert.match(app,/if\(!configurableCalendarIdsForColors\(\)\.includes\(id\)\)/);
+ assert.match(app,/非表示のものも含む/);
+ assert.match(app,/'apply-cell-color':b=>/);
+ assert.match(app,/saveCalendarCellColor\(input\)/);
  assert.match(app,/case 'appearance':return [\s\S]*?calendarCellColorSettings\(\)/);
  assert.match(app,/data-cell-color-day=/);
  assert.match(app,/data-cell-color-calendar=/);

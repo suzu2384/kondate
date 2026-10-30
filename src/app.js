@@ -676,6 +676,15 @@ function chooseMonthFromPicker(monthNumber){
 function visibleCalendarIdsForColors(){
  return [...new Set([...assignedIds(),...state.extraCalendarIds])].filter(Boolean);
 }
+// Color settings are available for all Google calendars, even when hidden.
+// Keep configured IDs accessible while disconnected or pending reauthentication.
+function configurableCalendarIdsForColors(){
+ return [...new Set([
+  ...calendars.map(c=>c.id),...visibleCalendarIdsForColors(),
+  ...presetCalendarIds(state.iconRules),...Object.keys(state.calendarCellColors.calendars)
+ ])].filter(id=>typeof id==='string'&&id.length>0&&id.length<=512&&
+  !['__proto__','constructor','prototype'].includes(id));
+}
 function dayBackground(date,list,extras){
  return calendarCellBackground(date,list,extras,state.calendarCellColors,visibleCalendarIdsForColors());
 }
@@ -1089,6 +1098,22 @@ function openCalendarCreation(ruleId){
   <p class="hint">Googleカレンダーに新規作成して、編集中のプリセットの登録先に選びます。プリセット自体の登録は「決定」で行います。</p>`,
   button('戻る','return-preset-editor')+button('作成して選択','confirm-create-calendar','primary',`data-rule-id="${esc(ruleId)}"`));
 }
+function saveCalendarCellColor(el){
+ const value=el.value;
+ if(!/^#[0-9a-f]{6}$/i.test(value))throw Error('マスの色が不正です。');
+ if(el.dataset.cellColorDay!==undefined){
+  if(!['saturday','sunday'].includes(el.dataset.cellColorDay))throw Error('曜日の指定が不正です。');
+  state.calendarCellColors[el.dataset.cellColorDay]=value.toLowerCase();
+ }else{
+  const id=el.dataset.cellColorCalendar;
+  if(!configurableCalendarIdsForColors().includes(id))throw Error('設定できないカレンダーです。');
+  if(!Object.hasOwn(state.calendarCellColors.calendars,id)&&
+     Object.keys(state.calendarCellColors.calendars).length>=MAX_CALENDAR_COLOR_ENTRIES)
+   throw Error('マス色を設定できるカレンダーは最大100件です。');
+  state.calendarCellColors.calendars[id]=value.toLowerCase();
+ }
+ persist();render();
+}
 const SETTINGS_CATEGORIES=['calendar','generate','master','shopping','data','ai','appearance'];
 let settingsCategory='calendar';
 function calendarCellColorSettings(){
@@ -1097,25 +1122,27 @@ function calendarCellColorSettings(){
   <span class="calendar-cell-color-label" title="${esc(label)}">${esc(label)}</span>
   <input type="color" aria-label="${esc(label)}のマス色" value="${value||fallback}"
    ${kind==='day'?`data-cell-color-day="${target}"`:`data-cell-color-calendar="${esc(target)}"`}>
-  <span class="calendar-cell-color-status">${value?'設定中':'標準'}</span>
-  ${button('解除','reset-cell-color','mini',`data-kind="${kind}" data-target="${esc(target)}" ${value?'':'disabled'} aria-label="${esc(label)}のマス色を解除"`)}
+  <span class="calendar-cell-color-status">${value?'設定中':'未設定'}</span>
+  ${button(value?'解除':'適用',value?'reset-cell-color':'apply-cell-color','mini',
+   `data-kind="${kind}" data-target="${esc(target)}" aria-label="${esc(label)}のマス色を${value?'解除':'適用'}"`)}
  </div>`;
  const weekends=choice('日曜日','sunday',prefs.sunday,'#f3b6ba','day')+
   choice('土曜日','saturday',prefs.saturday,'#b7d5f9','day');
- const ids=visibleCalendarIdsForColors().slice(0,MAX_CALENDAR_COLOR_ENTRIES);
+ const ids=configurableCalendarIdsForColors();
+ const visible=new Set(visibleCalendarIdsForColors());
  const calendarsMarkup=ids.map(id=>{
   const calendar=calendars.find(c=>c.id===id);
-  const label=calendar?.summary||'保存済みカレンダー（要再接続）';
-  return choice(label,id,prefs.calendars[id]||'','#a8d9b8','calendar');
+  const label=calendar?.summary||`保存済みカレンダー（要再接続：${id}）`;
+  return choice(label+(calendar&&!visible.has(id)?'（非表示）':''),id,prefs.calendars[id]||'','#a8d9b8','calendar');
  }).join('');
  return `<section class="calendar-cell-color-section" aria-label="カレンダーのマス色">
   <h3>カレンダーのマス色</h3>
-  <p class="hint">土日の背景色と、予定があるカレンダーの背景色を指定できます。解除すると標準色に戻ります。</p>
+  <p class="hint">初期状態では色は付きません。色を変更するとすぐ設定され、見本の色をそのまま使う場合は「適用」を押します。「解除」で標準色に戻せます。</p>
   <h4>曜日</h4>
   <div class="calendar-cell-color-rows">${weekends}</div>
-  <h4>表示中のカレンダー</h4>
-  <div class="calendar-cell-color-rows">${calendarsMarkup||'<p class="hint">表示するカレンダーを設定すると、ここで色を選べます。</p>'}</div>
-  <p class="hint">カレンダーの色を優先し、複数ある日は等幅に色分けします。土日の色は対象カレンダーの色がない場合に適用されます。色は文字が読みやすい薄さで表示します。</p>
+  <h4>カレンダー（非表示のものも含む）</h4>
+  <div class="calendar-cell-color-rows">${calendarsMarkup||'<p class="hint">Googleカレンダーに接続すると、ここで各カレンダーの色を選べます。</p>'}</div>
+  <p class="hint">各カレンダーの指定色は、その予定を表示している日だけ反映されます。非表示のカレンダーにも事前に色を設定できます。複数ある日は等幅に色分けし、指定色がなければ土日の色を使います。</p>
  </section>`;
 }
 function settingsCategoryContent(){switch(settingsCategory){
@@ -2120,6 +2147,11 @@ const actions={
  },
  disconnect:()=>{calendarAutoReady=false;api.disconnect();currentNotice='';currentNoticeData=null;calendars=[];calendarLoadError='';for(const bucket of Object.values(state.scopes)){bucket.events=[];bucket.lastSync=null;}render();notify('Googleとの接続を解除しました。端末の下書きは残しています。');},sync,
  theme:b=>{state.theme.color=b.dataset.color;persist();render();},
+ 'apply-cell-color':b=>{
+  const input=b.closest('.calendar-cell-color-row')?.querySelector('input[type="color"]');
+  if(!input)throw Error('マス色の入力欄が見つかりません。');
+  saveCalendarCellColor(input);
+ },
  'reset-cell-color':b=>{
   const kind=b.dataset.kind,target=b.dataset.target;
   if(kind==='day'&&['saturday','sunday'].includes(target))state.calendarCellColors[target]='';
@@ -2675,21 +2707,8 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   render();return;
  }
  if(el.dataset.cellColorDay!==undefined||el.dataset.cellColorCalendar!==undefined){
-   const value=el.value;
-   if(!/^#[0-9a-f]{6}$/i.test(value))throw Error('マスの色が不正です。');
-   if(el.dataset.cellColorDay!==undefined){
-    if(!['saturday','sunday'].includes(el.dataset.cellColorDay))throw Error('曜日の指定が不正です。');
-    state.calendarCellColors[el.dataset.cellColorDay]=value.toLowerCase();
-   }else{
-    const id=el.dataset.cellColorCalendar;
-    if(!visibleCalendarIdsForColors().includes(id))throw Error('表示中のカレンダーではありません。');
-    if(!Object.hasOwn(state.calendarCellColors.calendars,id)&&
-      Object.keys(state.calendarCellColors.calendars).length>=MAX_CALENDAR_COLOR_ENTRIES)
-     throw Error('マス色を設定できるカレンダーは最大100件です。');
-    state.calendarCellColors.calendars[id]=value.toLowerCase();
-   }
-   persist();render();return;
-  }
+  saveCalendarCellColor(el);return;
+ }
   if(el.dataset.categoryCalendar){state.categoryCalendars[el.dataset.categoryCalendar]=el.value;const c=calendars.find(c=>c.id===state.categoryCalendars.main);state.timeZone=c?.timeZone||state.timeZone;persist();render();if(api.connected&&hasSyncedCalendars())await sync();}
   if(el.dataset.extraCalendar){state.extraCalendarIds=el.checked?[...new Set([...state.extraCalendarIds,el.dataset.extraCalendar])]:state.extraCalendarIds.filter(id=>id!==el.dataset.extraCalendar);persist();render();if(api.connected)await sync();}
   if(el.matches('[data-preset-draft]')){
