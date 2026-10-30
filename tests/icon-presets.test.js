@@ -280,7 +280,7 @@ test('calendar grid excludes events from hidden preset destination calendars',()
  const extra=app.slice(app.indexOf('function extraEvents(){'),app.indexOf('const categoryName='));
  assert.match(extra,/\.filter\(calendarId=>\s*\(assigned\.has\(calendarId\)\|\|explicit\.has\(calendarId\)\)\&\&calendarDisplayMode\(calendarId\)!=='hidden'/);
  assert.doesNotMatch(extra,/explicit\.has\(calendarId\)\|\|isPresetEvent\(event/);
- assert.match(app,/const syncedCalendarIds=\(\)=>.*presetCalendarIds/);
+ assert.match(app,/const syncedCalendarIds=\(\)=>[\s\S]*?presetCalendarIds\(state\.iconRules\)/);
 });
 
 test('read-only calendar events resolve icon and order without a preset ID',async()=>{
