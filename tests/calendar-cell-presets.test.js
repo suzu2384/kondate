@@ -112,3 +112,15 @@ test('text-only calendar rows align their text box vertically, not its baseline'
  assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon \.calendar-event-note\{\s*display:flex;align-items:center;align-self:stretch;[\s\S]*?line-height:1;/);
  assert.match(css,/@media\(max-width:760px\)\{\s*\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon\{\s*height:16px;min-height:16px/);
 });
+
+test('text-only calendar labels are optically lowered without shifting icon rows',()=>{
+ // The flex rows retain their original heights; only the text element moves.
+ const cssRule=css.match(/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon \.calendar-event-note\{([^}]+)\}/g);
+ assert.ok(cssRule?.length,'targeted text-only label rule exists');
+ const last=cssRule.at(-1);
+ assert.match(last,/transform:translateY\(3px\)/);
+ assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon \.calendar-event-note\{[\s\S]*?transform:translateY\(4px\)/);
+ assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo\{overflow:visible\}/);
+ assert.match(css,/height:18px;min-height:18px;padding:0;align-items:stretch;/);
+ assert.match(css,/height:16px;min-height:16px/);
+});
