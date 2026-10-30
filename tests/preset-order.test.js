@@ -56,8 +56,8 @@ test('settings uses draggable handles and calendar places meals before sorted ex
  const cell=app.slice(app.indexOf('function calendarCellInfo('),app.indexOf('function calendarScreen(){'));
  assert.ok(cell.indexOf('events.map(')<cell.indexOf('extra.map('),'meals precede presets');
  const details=app.slice(app.indexOf('function dayContent('),app.indexOf('function generateScreen(){'));
- assert.ok(details.includes("records:records().filter("));
- assert.ok(details.includes("otherEvents:extraEvents().filter("));
+ assert.ok(details.includes("records:forCalendarDisplay(records(),'detail').filter("));
+ assert.ok(details.includes("otherEvents:forCalendarDisplay(extraEvents(),'detail').filter("));
  const renderer=readFileSync(new URL('../src/day-detail.js',import.meta.url),'utf8');
  assert.ok(renderer.indexOf('records.map(')<renderer.indexOf('ordered.map('),'meal details precede presets');
  assert.match(app,/const PRESET_DRAG_HOLD_MS=320/);

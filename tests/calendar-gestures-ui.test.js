@@ -32,7 +32,8 @@ test('month title is centered, month controls share a height, and extras use a d
  assert.match(heading,/data-action="open-month-picker"/);
  assert.match(heading,/open-extra-calendars/);
  assert.match(app,/function openExtraCalendarPicker\(\)/);
- assert.match(app,/data-extra-calendar/);
+ assert.match(app,/data-calendar-display-mode/);
+ assert.match(app,/\['detail','詳細のみ'\]/);
  assert.match(css,/\.month-heading\{display:grid;grid-template-columns:minmax\(0,1fr\) auto minmax\(0,1fr\)/);
  assert.match(css,/\.month-heading \.toolbar button,\.month-heading \.calendar-switch-button/);
  const settings=app.slice(app.indexOf('function additionalCalendarSettings()'),app.indexOf('function capturePresetEditorFields()'));
