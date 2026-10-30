@@ -124,3 +124,27 @@ test('text-only calendar labels are optically lowered without shifting icon rows
  assert.match(css,/height:18px;min-height:18px;padding:0;align-items:stretch;/);
  assert.match(css,/height:16px;min-height:16px/);
 });
+
+
+test('text-only events with description and without description share vertical alignment',()=>{
+ const result=cell(date,[],[
+  event('スポーツの日','国民の祝日',''),
+  event('説明なし','',''),
+  event('プリセット','','star_fill')
+ ]);
+ const html=result.html,marker='<span class="calendar-preset-no-memo">';
+ const before=html.slice(0,html.indexOf(marker));
+ const after=html.slice(html.indexOf(marker));
+ assert.ok(before.includes('title="スポーツの日／国民の祝日"'));
+ assert.match(before,/class="event-chip general-event\s+no-icon/);
+ assert.ok(after.includes('title="説明なし"'));
+ assert.match(after,/class="event-chip general-event\s+no-icon/);
+ // With a memo, the no-icon entry is a direct child of .day instead of
+ // the .calendar-preset-no-memo wrapper. Both paths must receive the offset.
+ assert.match(css,/\.month-grid \.day > \.event-chip\.general-event\.no-icon\{\s*display:flex;align-items:stretch;justify-content:flex-start;\s*height:18px;min-height:18px;padding:0;overflow:visible/);
+ assert.match(css,/\.month-grid \.day > \.event-chip\.general-event\.no-icon > \.calendar-event-note\{[\s\S]*?transform:translateY\(4px\)/);
+ assert.match(css,/@media\(max-width:760px\)\{\s*\.month-grid \.day > \.event-chip\.general-event\.no-icon\{\s*height:16px;min-height:16px/);
+ assert.match(css,/\.month-grid \.day > \.event-chip\.general-event\.no-icon > \.calendar-event-note\{\s*transform:translateY\(3px\)/);
+ // Existing no-memo styling is preserved.
+ assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo \.event-chip\.general-event\.no-icon \.calendar-event-note\{[\s\S]*?transform:translateY\(4px\)/);
+});
