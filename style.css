@@ -1914,13 +1914,14 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .extra-calendar-list .calendar-display-row select{flex-basis:102px;width:102px;min-width:102px}
 }
 
-/* Shared natural-height layout for iconless events, with or without memo.
-   Let the line box center itself; never translate glyphs by fixed pixels. */
+/* Center glyphs rather than just font line boxes. An em-relative minimum
+   height gives flex centering room to act, while text-box-trim removes
+   font-derived leading in supporting browsers. No pixel translations. */
 .month-grid .day > .event-chip.general-event.no-icon,
 .month-grid .day .calendar-preset-no-memo > .event-chip.general-event.no-icon{
  display:flex;align-items:center;justify-content:flex-start;
  width:100%;min-width:0;max-width:100%;
- height:auto;min-height:0;padding:0;line-height:1.35;
+ height:auto;min-height:1.5em;padding:0;line-height:1.35;
  overflow:hidden;white-space:nowrap;text-overflow:clip
 }
 .month-grid .day > .event-chip.general-event.no-icon{
@@ -1933,5 +1934,6 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  display:block;align-self:auto;flex:1 1 auto;
  min-width:0;width:auto;height:auto;min-height:0;
  line-height:inherit;
+ text-box-trim:trim-both;text-box-edge:text;
  overflow:hidden;white-space:nowrap;text-overflow:clip
 }

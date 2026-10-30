@@ -105,14 +105,28 @@ test('natural flex centering applies to both structures without offsets',()=>{
  const row=css.match(/\.month-grid \.day > \.event-chip\.general-event\.no-icon,\s*\.month-grid \.day \.calendar-preset-no-memo > \.event-chip\.general-event\.no-icon\{([^}]+)\}/)?.[1];
  assert.ok(row);
  assert.match(row,/display:flex;align-items:center;justify-content:flex-start/);
- assert.match(row,/height:auto;min-height:0/);
+ assert.match(row,/height:auto;min-height:1\.5em/);
  assert.match(row,/line-height:1\.35/);
  const note=css.match(/\.month-grid \.day \.event-chip\.general-event\.no-icon > \.calendar-event-note\{([^}]+)\}/)?.[1];
  assert.ok(note);
  assert.match(note,/display:block;align-self:auto;flex:1 1 auto/);
  assert.match(note,/height:auto;min-height:0/);
  assert.match(note,/line-height:inherit/);
+ assert.match(note,/text-box-trim:trim-both;text-box-edge:text/);
  assert.match(css,/\.month-grid \.day > \.event-chip\.general-event\.no-icon\{\s*flex:0 0 auto/);
  assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo > \.event-chip\.general-event\.no-icon\{\s*flex:0 0 100%;margin:0/);
  assert.doesNotMatch(css.slice(css.indexOf('/* Shared natural-height layout')),/translateY\(/);
 });
+
+test('iconless calendar text centers in a font-relative row without a pixel offset',()=>{
+ const row=css.match(/\.month-grid \.day > \.event-chip\.general-event\.no-icon,\s*\.month-grid \.day \.calendar-preset-no-memo > \.event-chip\.general-event\.no-icon\{([^}]+)\}/)?.[1];
+ const note=css.match(/\.month-grid \.day \.event-chip\.general-event\.no-icon > \.calendar-event-note\{([^}]+)\}/)?.[1];
+ assert.ok(row&&note);
+ assert.match(row,/align-items:center/);
+ assert.match(row,/height:auto;min-height:1\.5em/);
+ assert.match(note,/text-box-trim:trim-both;text-box-edge:text/);
+ assert.doesNotMatch(row+note,/translateY\(|transform:translate|height:\d+px/);
+ assert.match(css,/\.month-grid \.day > \.event-chip\.general-event\.no-icon,/);
+ assert.match(css,/\.month-grid \.day \.calendar-preset-no-memo > \.event-chip\.general-event\.no-icon\{/);
+});
+
