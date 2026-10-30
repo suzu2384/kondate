@@ -67,5 +67,14 @@ test('appearance controls and calendar rendering are wired to color settings',()
  assert.match(app,/dayBackgroundStyle\(date,list,extras\)/);
  assert.match(css,/\.month-grid \.day\[style\*="--day-cell-background"\]\{[\s\S]*?background:var\(--day-cell-background\)/);
  assert.match(css,/\.day\.selected\[style\*="--day-cell-background"\]\{[\s\S]*?box-shadow:inset/);
+ // Adjacent-month date cells keep assigned solid or striped colors, but
+ // mute their backgrounds without dimming event chips or date numbers.
+ const other=css.match(/#main \.month-grid \.day\.other\[style\*="--day-cell-background"\]\{([^}]+)\}/)?.[1];
+ assert.ok(other,'colored adjacent-month cells need their own background rule');
+ assert.match(other,/linear-gradient\(/);
+ assert.match(other,/color-mix\(in srgb, var\(--panel\) 42%, transparent\)/);
+ assert.match(other,/var\(--day-cell-background\)/);
+ assert.doesNotMatch(other,/opacity:|filter:/);
+ assert.match(app,/d\.getMonth\(\)!==displayMonth\.getMonth\(\)\?'other':''/);
  assert.doesNotMatch(app,/state\.theme\.mode=el\.value;state\.calendarCellColors=/);
 });

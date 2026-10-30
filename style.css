@@ -1861,6 +1861,17 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
 #main .month-grid .day[style*="--day-cell-background"]{
  background:var(--day-cell-background);
 }
+/* Dim colored dates from adjacent months toward the existing muted panel tone.
+   A translucent layer works for both solid colors and multi-calendar gradients,
+   without desaturating event text/icons or affecting uncolored day cells. */
+#main .month-grid .day.other[style*="--day-cell-background"]{
+ background:
+  linear-gradient(
+   color-mix(in srgb, var(--panel) 42%, transparent),
+   color-mix(in srgb, var(--panel) 42%, transparent)
+  ),
+  var(--day-cell-background);
+}
 #main .month-grid .day.selected[style*="--day-cell-background"]{
  box-shadow:inset 0 0 0 2px var(--accent);
 }
