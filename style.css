@@ -1895,3 +1895,21 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .calendar-cell-color-row input[type=color]{flex-basis:40px;width:40px}
  .calendar-cell-color-row button{min-width:38px;padding:4px 6px}
 }
+
+/* Compact, accessible three-state calendar visibility selector. */
+.extra-calendar-list .calendar-display-row{
+ display:flex;align-items:center;gap:10px;min-width:0;
+ min-height:42px;padding:5px 3px;border-bottom:1px solid var(--line)
+}
+.extra-calendar-list .calendar-display-row:last-child{border-bottom:0}
+.extra-calendar-list .calendar-display-name{
+ flex:1;min-width:0;font-size:12px;overflow-wrap:anywhere
+}
+.extra-calendar-list .calendar-display-row select{
+ flex:0 0 112px;width:112px;min-width:112px;
+ min-height:34px;padding:4px 8px;font-size:12px
+}
+@media(max-width:760px){
+ .extra-calendar-list .calendar-display-row{gap:7px}
+ .extra-calendar-list .calendar-display-row select{flex-basis:102px;width:102px;min-width:102px}
+}

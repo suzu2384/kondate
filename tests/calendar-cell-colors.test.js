@@ -50,6 +50,11 @@ test('appearance controls and calendar rendering are wired to color settings',()
  const app=read('src/app.js'),css=read('style.css');
  assert.match(app,/function calendarCellColorSettings\(\)/);
  assert.match(app,/function configurableCalendarIdsForColors\(\)/);
+ assert.match(app,/calendarDisplayMode\(id\)!=='hidden'/);
+ assert.match(app,/dayBackground\(date,list,extras\)/);
+ assert.match(app,/forCalendarDisplay\(list,'cell'\)/);
+ assert.match(app,/forCalendarDisplay\(extras,'cell'\)/);
+ assert.match(app,/calendarCellInfo\(date,cellList,cellExtras\)/);
  assert.match(app,/\.\.\.calendars\.map\(c=>c\.id\)/);
  assert.match(app,/const ids=configurableCalendarIdsForColors\(\)/);
  assert.doesNotMatch(app,/if\(!visibleCalendarIdsForColors\(\)\.includes\(id\)\)/);

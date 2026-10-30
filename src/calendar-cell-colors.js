@@ -1,4 +1,4 @@
-/** User-defined calendar date cell tints. Only displayed calendars may contribute. */
+/** User-defined calendar date cell tints; detail-only calendars may contribute too. */
 export const DEFAULT_CALENDAR_CELL_COLORS=Object.freeze({saturday:'',sunday:'',calendars:{}});
 export const MAX_CALENDAR_COLOR_ENTRIES=100;
 const safeHex=value=>typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value);

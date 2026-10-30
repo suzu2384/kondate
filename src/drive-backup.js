@@ -1,8 +1,9 @@
 import {normalizeCalendarCellColors} from './calendar-cell-colors.js';
+import {normalizeCalendarDisplayModes,validateCalendarDisplayModes} from './calendar-display-modes.js';
 import {validateDishes} from './model.js';
 import {validateIngredients} from './ingredients.js';
 import {shoppingSettings,validateShoppingSettings} from './shopping.js';
-export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','calendarCellColors','iconRules','calendarRefreshMinutes','draft','recentNewMains','recentSuggested','shopping'];
+export const SETTINGS=['timeZone','from','categories','rules','menuGenerationMode','theme','seedEnabled','categoryCalendars','extraCalendarIds','calendarDisplayModes','calendarCellColors','iconRules','calendarRefreshMinutes','draft','recentNewMains','recentSuggested','shopping'];
 const FORMAT='kondate-drive-settings-v2';
 const copy=x=>structuredClone(x);
 export function createDriveSnapshot(state){
@@ -14,7 +15,7 @@ export function createDriveSnapshot(state){
    master[key]=copy(prefs);
  }
  return {format:FORMAT,updatedAt:new Date().toISOString(),
-  settings:Object.fromEntries(SETTINGS.map(k=>[k,copy(k==='shopping'?shoppingSettings(state.shopping):k==='calendarCellColors'?normalizeCalendarCellColors(state.calendarCellColors):state[k])])),
+  settings:Object.fromEntries(SETTINGS.map(k=>[k,copy(k==='shopping'?shoppingSettings(state.shopping):k==='calendarCellColors'?normalizeCalendarCellColors(state.calendarCellColors):k==='calendarDisplayModes'?normalizeCalendarDisplayModes(state.calendarDisplayModes):state[k])])),
   master};
 }
 export function readDriveSnapshot(raw,state,validateImport){
@@ -26,6 +27,7 @@ export function readDriveSnapshot(raw,state,validateImport){
   throw Error('バックアップの形式・サイズが不正です。');
  const settings=Object.fromEntries(SETTINGS.filter(k=>Object.hasOwn(raw.settings,k)).map(k=>[k,copy(raw.settings[k])]));
  if(settings.shopping!==undefined)validateShoppingSettings(settings.shopping);
+ if(settings.calendarDisplayModes!==undefined)validateCalendarDisplayModes(settings.calendarDisplayModes);
  if(settings.recentNewMains!==undefined&&(!Array.isArray(settings.recentNewMains)||
   settings.recentNewMains.length>16||!settings.recentNewMains.every(s=>typeof s==='string'&&s.length>0&&s.length<=100)))
   throw Error('AIの新規料理履歴が不正です。');
@@ -52,6 +54,7 @@ export function readDriveSnapshot(raw,state,validateImport){
 export function restoreDriveSnapshot(state,snapshot){
  for(const key of SETTINGS)if(Object.hasOwn(snapshot.settings,key))state[key]=copy(snapshot.settings[key]);
  state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);
+ state.calendarDisplayModes=normalizeCalendarDisplayModes(state.calendarDisplayModes);
  state.shopping=shoppingSettings(state.shopping);
  for(const [key,prefs] of Object.entries(snapshot.master)){
   state.scopes[key]={...(state.scopes[key]||{}),...copy(prefs)};

@@ -21,6 +21,7 @@ import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependent
 import {recordDishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {renderDayDetail} from './day-detail.js';
 import {calendarCellBackground,normalizeCalendarCellColors,validateCalendarCellColors,MAX_CALENDAR_COLOR_ENTRIES} from './calendar-cell-colors.js';
+import {CALENDAR_DISPLAY_OPTIONS,MAX_CALENDAR_DISPLAY_ENTRIES,calendarDisplayMode as resolveCalendarDisplayMode,filterCalendarEntries,normalizeCalendarDisplayModes,validateCalendarDisplayModes} from './calendar-display-modes.js';
 import {getSettingsHelp} from './settings-help.js';
 import {searchPlaces,filterPlaceCandidates,LOCATION_ATTRIBUTION} from './place-suggestions.js';
 import {createDriveSnapshot,readDriveSnapshot,restoreDriveSnapshot} from './drive-backup.js';
@@ -37,7 +38,7 @@ import {priceKey,validatePrice,catalogPrices,estimateItem,shoppingBudget,MAX_PRI
 import {hasPlannedDishes,initialMasterFilter,masterFilterItems} from './master-filter.js';
 import {colors,applyTheme,normalizeThemeColor,isSupportedThemeColor} from './themes.js';
 const {clientId:ignoredSavedClientId,...loaded}=readState();
-const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],calendarCellColors:{saturday:'',sunday:'',calendars:{}},iconRules:[],scopes:{},draft:[],recentNewMains:[],recentSuggested:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{},prices:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,pendingCalendarRenames:[],...loaded};
+const state={calendarId:'',calendarName:'',timeZone:'Asia/Tokyo',from:'2000-01-01',categories:structuredClone(defaultCategories),rules:structuredClone(defaultRules),theme:{color:'green',mode:'auto'},categoryCalendars:{},extraCalendarIds:[],calendarDisplayModes:{},calendarCellColors:{saturday:'',sunday:'',calendars:{}},iconRules:[],scopes:{},draft:[],recentNewMains:[],recentSuggested:[],shopping:{servings:DEFAULT_SHOPPING_SERVINGS,selected:[],manual:[],checked:{},excluded:{},prices:{}},seedEnabled:true,menuGenerationMode:'rules',calendarRefreshMinutes:5,pendingCalendarRenames:[],...loaded};
 state.rules={...defaultRules,...loaded.rules,counts:{...defaultRules.counts,...loaded.rules?.counts}};
 state.pendingCalendarRenames=(Array.isArray(loaded.pendingCalendarRenames)?loaded.pendingCalendarRenames:[]).filter(item=>
  item&&typeof item.from==='string'&&item.from.length>0&&item.from.length<=100&&
@@ -53,6 +54,7 @@ state.categoryCalendars=migrateCategoryCalendars(state.categories,loaded.categor
 // Legacy standard-calendar setting has been migrated to Main.
 state.calendarId='';state.calendarName='';
 state.extraCalendarIds=Array.isArray(loaded.extraCalendarIds)?loaded.extraCalendarIds:[];
+state.calendarDisplayModes=normalizeCalendarDisplayModes(state.calendarDisplayModes);
 const normalizePresetRules=rules=>(Array.isArray(rules)?rules:[]).map(rule=>({...rule,icon:normalizeIcon(rule.icon),color:normalizeIconColor(rule.color)}));
 state.iconRules=normalizePresetRules(loaded.iconRules);
 const presetQueue=new PresetWriteQueue(globalThis.localStorage,()=>uid());
@@ -144,9 +146,17 @@ const scopeKey=()=>scopeKeyFor(primaryCalendarId());
 function dataFor(id){return state.scopes[scopeKeyFor(id)]??={events:[],legacy:{},aliases:{},metadata:{},manual:[],lastSync:null};}
 function data(){return dataFor(primaryCalendarId());}
 const assignedIds=()=>activeCalendarIds('',state.categories,state.categoryCalendars);
-const syncedCalendarIds=()=>[...new Set([...assignedIds(),...state.extraCalendarIds,...presetCalendarIds(state.iconRules)])].filter(Boolean);
+const calendarDisplayMode=id=>resolveCalendarDisplayMode(id,state.calendarDisplayModes,assignedIds(),state.extraCalendarIds);
+const syncedCalendarIds=()=>[...new Set([
+ ...assignedIds(),
+ ...state.extraCalendarIds.filter(id=>calendarDisplayMode(id)!=='hidden'),
+ ...Object.entries(state.calendarDisplayModes).filter(([,mode])=>mode!=='hidden').map(([id])=>id),
+ ...presetCalendarIds(state.iconRules)
+])].filter(Boolean);
 const hasSyncedCalendars=()=>syncedCalendarIds().length>0;
-const presetCalendarVisible=rule=>!!rule?.calendarId&&(state.extraCalendarIds.includes(rule.calendarId)||assignedIds().includes(rule.calendarId));
+const presetCalendarVisible=rule=>!!rule?.calendarId&&calendarDisplayMode(rule.calendarId)!=='hidden';
+const forCalendarDisplay=(entries,target)=>filterCalendarEntries(
+ entries,state.calendarDisplayModes,assignedIds(),state.extraCalendarIds,target);
 function records(){return assignedIds().flatMap(calendarId=>{
  const bucket=dataFor(calendarId);
  const assigned=state.categories.filter(c=>calendarForCategory(c.id,'',state.categoryCalendars)===calendarId);
@@ -161,9 +171,11 @@ function records(){return assignedIds().flatMap(calendarId=>{
 });}
 function master(){const enabled=new Set(state.categories.map(c=>c.id));return buildMaster(records(),data().aliases,data().metadata,[...(state.seedEnabled?catalog.filter(d=>enabled.has(d.category)):[]),...data().manual.filter(d=>enabled.has(d.category))]);}
 function extraEvents(){
- const assigned=new Set(assignedIds()),explicit=new Set(state.extraCalendarIds);
+ const assigned=new Set(assignedIds());
+ const explicit=new Set([...state.extraCalendarIds,
+  ...Object.keys(state.calendarDisplayModes).filter(id=>calendarDisplayMode(id)!=='hidden')]);
  return sortCalendarExtras([...new Set([...explicit,...presetCalendarIds(state.iconRules)])].filter(calendarId=>
-  assigned.has(calendarId)||explicit.has(calendarId)
+  (assigned.has(calendarId)||explicit.has(calendarId))&&calendarDisplayMode(calendarId)!=='hidden'
  ).flatMap(calendarId=>
   presetQueue.project(calendarId,dataFor(calendarId).events).filter(event=>assigned.has(calendarId)?
    isPresetEvent(event,calendarId,state.iconRules):true
@@ -674,14 +686,17 @@ function chooseMonthFromPicker(monthNumber){
  closeModal();render();
 }
 function visibleCalendarIdsForColors(){
- return [...new Set([...assignedIds(),...state.extraCalendarIds])].filter(Boolean);
+ // Detail-only calendars still tint date cells; fully hidden calendars do not.
+ return [...new Set([...assignedIds(),...state.extraCalendarIds,...Object.keys(state.calendarDisplayModes)])]
+  .filter(id=>id&&calendarDisplayMode(id)!=='hidden');
 }
 // Color settings are available for all Google calendars, even when hidden.
 // Keep configured IDs accessible while disconnected or pending reauthentication.
 function configurableCalendarIdsForColors(){
  return [...new Set([
-  ...calendars.map(c=>c.id),...visibleCalendarIdsForColors(),
-  ...presetCalendarIds(state.iconRules),...Object.keys(state.calendarCellColors.calendars)
+  ...calendars.map(c=>c.id),...assignedIds(),...state.extraCalendarIds,
+  ...Object.keys(state.calendarDisplayModes),...presetCalendarIds(state.iconRules),
+  ...Object.keys(state.calendarCellColors.calendars)
  ])].filter(id=>typeof id==='string'&&id.length>0&&id.length<=512&&
   !['__proto__','constructor','prototype'].includes(id));
 }
@@ -694,9 +709,10 @@ function dayBackgroundStyle(date,list,extras){
 }
 function calendarScreen(){
  const list=records(),extras=extraEvents();
+ const cellList=forCalendarDisplay(list,'cell'),cellExtras=forCalendarDisplay(extras,'cell');
  const gridFor=(displayMonth,neighbor=false)=>{
  const cells=monthGridDates(displayMonth.getFullYear(),displayMonth.getMonth()).map(date=>{
-  const d=new Date(`${date}T12:00:00`),cell=calendarCellInfo(date,list,extras);
+  const d=new Date(`${date}T12:00:00`),cell=calendarCellInfo(date,cellList,cellExtras);
   return `<button class="day ${d.getMonth()!==displayMonth.getMonth()?'other':''} ${date===selected?'selected':''} ${date===today()?'today':''}" data-action="date" data-date="${date}" aria-pressed="${date===selected}" aria-label="${date}、${cell.count}件"${dayBackgroundStyle(date,list,extras)}>${cell.html}</button>`;
  }).join('');
   return `<div class="month-grid ${neighbor?'month-grid-neighbor':'month-grid-current'}" ${neighbor?'aria-hidden="true" inert':''}>${cells}</div>`;
@@ -705,9 +721,10 @@ function calendarScreen(){
 }
 function patchCalendarCells(){
  const list=records(),extras=extraEvents();
+ const cellList=forCalendarDisplay(list,'cell'),cellExtras=forCalendarDisplay(extras,'cell');
  // The 42 buttons and unchanged chips retain their actual DOM nodes.
  for(const day of document.querySelectorAll('#main .month-grid .day[data-date]')){
-  const date=day.dataset.date,cell=calendarCellInfo(date,list,extras);
+  const date=day.dataset.date,cell=calendarCellInfo(date,cellList,cellExtras);
   const bg=dayBackground(date,list,extras);
   if(bg)day.style.setProperty('--day-cell-background',bg);
   else day.style.removeProperty('--day-cell-background');
@@ -734,8 +751,8 @@ function patchCalendarCells(){
 function dayContent(date){
  return renderDayDetail({
   date,
-  records:records().filter(record=>record.date===date),
-  otherEvents:extraEvents().filter(event=>event.date===date),
+  records:forCalendarDisplay(records(),'detail').filter(record=>record.date===date),
+  otherEvents:forCalendarDisplay(extraEvents(),'detail').filter(event=>event.date===date),
   editingMemo:editingEventMemo,categoryName,iconMarkup,esc,button
  });
 }
@@ -1026,13 +1043,27 @@ function openPresetLegend(){
  layoutPresetLegend();
 }
 function openExtraCalendarPicker(){
- const candidates=[...calendars].sort((a,b)=>{
+ const known=[...calendars].sort((a,b)=>{
   const readOnly=c=>!['owner','writer'].includes(c.accessRole);
   return Number(readOnly(a))-Number(readOnly(b))||String(a.summary||'').localeCompare(String(b.summary||''),'ja');
- }).map(c=>`<label class="check-row"><input type="checkbox" data-extra-calendar="${esc(c.id)}" ${state.extraCalendarIds.includes(c.id)?'checked':''}><span>${esc(c.summary)}${['owner','writer'].includes(c.accessRole)?'':'（読み取り専用）'}</span></label>`).join('');
- const unavailable=state.extraCalendarIds.filter(id=>!calendars.some(c=>c.id===id));
- const remaining=unavailable.map(id=>`<label class="check-row"><input type="checkbox" data-extra-calendar="${esc(id)}" checked><span>保存済みのカレンダー（要再接続）</span></label>`).join('');
- modal('表示するカレンダー',`<p>選択したカレンダーの予定を献立と一緒に表示します。料理履歴には含めず、元の予定は変更しません。</p><div class="extra-calendar-list">${candidates||'<p class="hint">Googleでログインするとカレンダーが選べます。</p>'}${remaining}</div>`,button('閉じる','close-dialog','primary'));
+ });
+ const ids=new Set(known.map(c=>c.id));
+ const saved=[...new Set([...assignedIds(),...state.extraCalendarIds,
+  ...Object.keys(state.calendarDisplayModes),...presetCalendarIds(state.iconRules)])]
+  .filter(id=>id&&!ids.has(id));
+ const row=(id,name,readOnly=false)=>{
+  const mode=calendarDisplayMode(id);
+  const choices=[['visible','表示'],['detail','詳細のみ'],['hidden','非表示']]
+   .map(([value,label])=>`<option value="${value}" ${mode===value?'selected':''}>${label}</option>`).join('');
+  return `<div class="calendar-display-row">
+   <span class="calendar-display-name" title="${esc(name)}">${esc(name)}${readOnly?'（読み取り専用）':''}</span>
+   <select data-calendar-display-mode="${esc(id)}" aria-label="${esc(name)}の表示方法">${choices}</select>
+  </div>`;
+ };
+ const candidates=known.map(c=>row(c.id,c.summary||c.id,!['owner','writer'].includes(c.accessRole))).join('');
+ const remaining=saved.map(id=>row(id,'保存済みのカレンダー（要再接続：'+id+'）')).join('');
+ modal('表示するカレンダー',`<p>表示：マスと詳細の両方／詳細のみ：マスには予定を出さず詳細に表示／非表示：どちらにも表示しません。詳細のみでも設定したマスの色は反映されます。調理履歴とGoogleカレンダーの予定は削除されません。</p><div class="extra-calendar-list">${candidates||'<p class="hint">Googleでログインするとカレンダーが選べます。</p>'}${remaining}</div>`,
+  button('閉じる','close-dialog','primary'));
 }
 function additionalCalendarSettings(){
  const rules=state.iconRules.map(rule=>{
@@ -1727,7 +1758,7 @@ async function applyRemoteSettings(remoteVersion,remoteSnapshot){
  const saved=readDriveSnapshot(remoteSnapshot,state,validateImport);
  const wasBooting=driveAutoBooting;driveAutoBooting=true;
  try{
-  restoreDriveSnapshot(state,saved);state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.shopping=shoppingSettings(state.shopping);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.recentNewMains=rememberNewMainSuggestions(state.recentNewMains);state.recentSuggested=rememberMenuSuggestions(state.recentSuggested);
+  restoreDriveSnapshot(state,saved);state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);state.calendarDisplayModes=normalizeCalendarDisplayModes(state.calendarDisplayModes);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.shopping=shoppingSettings(state.shopping);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.recentNewMains=rememberNewMainSuggestions(state.recentNewMains);state.recentSuggested=rememberMenuSuggestions(state.recentSuggested);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
   // Private backups must not revert shared purchases or recipes. The shared
@@ -2321,7 +2352,7 @@ const actions={
  },
  'confirm-drive-load':async()=>{
   if(!driveImported)throw Error('復元する設定がありません。');
-  restoreDriveSnapshot(state,driveImported);state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);
+  restoreDriveSnapshot(state,driveImported);state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);state.calendarDisplayModes=normalizeCalendarDisplayModes(state.calendarDisplayModes);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);
   state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);
   state.calendarId='';state.calendarName='';
   driveImported=null;
@@ -2371,7 +2402,7 @@ const actions={
    persist();render();
   },
   export:exportState,import:()=>$('#import-file').click(),
- 'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
+ 'confirm-import':()=>{selectedPresetId=null;const {clientId:ignoredImportedClientId,...restored}=imported;Object.assign(state,storedState(restored));state.calendarCellColors=normalizeCalendarCellColors(state.calendarCellColors);state.calendarDisplayModes=normalizeCalendarDisplayModes(state.calendarDisplayModes);state.rules.days=normalizeGenerationDays(state.rules.days);state.theme.color=normalizeThemeColor(state.theme.color);state.menuGenerationMode=state.menuGenerationMode==='ai'&&ai.available?'ai':'rules';state.iconRules=normalizePresetRules(state.iconRules);state.categoryCalendars=migrateCategoryCalendars(state.categories,state.categoryCalendars,state.calendarId);state.calendarId='';state.calendarName='';imported=null;api.disconnect();calendars=[];persist();closeModal();render();notify('設定と下書きを読み込みました。Googleに再接続してください。');}
 };
 async function run(action,b){try{if(busy&&!['close-dialog'].includes(action))return;await actions[action]?.(b);}catch(error){
  if(action==='generate')notify(generationFailureNotice(error,state.menuGenerationMode));
@@ -2710,7 +2741,18 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   saveCalendarCellColor(el);return;
  }
   if(el.dataset.categoryCalendar){state.categoryCalendars[el.dataset.categoryCalendar]=el.value;const c=calendars.find(c=>c.id===state.categoryCalendars.main);state.timeZone=c?.timeZone||state.timeZone;persist();render();if(api.connected&&hasSyncedCalendars())await sync();}
-  if(el.dataset.extraCalendar){state.extraCalendarIds=el.checked?[...new Set([...state.extraCalendarIds,el.dataset.extraCalendar])]:state.extraCalendarIds.filter(id=>id!==el.dataset.extraCalendar);persist();render();if(api.connected)await sync();}
+  if(el.dataset.calendarDisplayMode!==undefined){
+   const id=el.dataset.calendarDisplayMode,mode=el.value;
+   if(!CALENDAR_DISPLAY_OPTIONS.includes(mode))throw Error('表示方法が不正です。');
+   if(!configurableCalendarIdsForColors().includes(id))throw Error('設定できないカレンダーです。');
+   if(!Object.hasOwn(state.calendarDisplayModes,id)&&
+      Object.keys(state.calendarDisplayModes).length>=MAX_CALENDAR_DISPLAY_ENTRIES)
+    throw Error('表示方法を設定できるカレンダーは最大200件です。');
+   state.calendarDisplayModes[id]=mode;
+   persist();render();
+   if(api.connected)await sync();
+   return;
+  }
   if(el.matches('[data-preset-draft]')){
   capturePresetEditorFields();
   if(el.id==='preset-edit-color')updatePresetEditorIconPreview();
@@ -2732,7 +2774,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
  persist();updateConnection();
  if(el.id==='calendar-refresh-minutes')await autoRefreshCalendar();
  }catch(error){notify({summary:error.message,severity:'error'});}});
-function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array.isArray(p.state.categories)||!Array.isArray(p.state.draft)||!p.state.rules||!p.state.scopes)throw Error('KonDateの設定ファイルではありません。');if(!['timeZone','from'].every(k=>typeof p.state[k]==='string')||!/^\d{4}-\d{2}-\d{2}$/.test(p.state.from)||!['oldDays','recentDays'].every(k=>Number.isInteger(p.state.rules[k])&&p.state.rules[k]>=1&&p.state.rules[k]<=365)||!['preferOld','excludeRecent','unique','balance','newMain'].every(k=>typeof p.state.rules[k]==='boolean'))throw Error('設定値の形式が不正です。');if(JSON.stringify(p).includes('"__proto__"'))throw Error('設定ファイルが不正です。');if(p.state.shopping!==undefined)validateShoppingSettings(p.state.shopping);if(p.state.calendarCellColors!==undefined)validateCalendarCellColors(p.state.calendarCellColors);if(!p.state.categories.every(c=>/^[a-z][a-z0-9-]*$/.test(c.id)&&typeof c.name==='string'&&c.name.length<=20)||!p.state.categories.some(c=>c.id==='main'))throw Error('分類の設定が不正です。');if(p.state.categoryCalendars&&(!Object.values(p.state.categoryCalendars).every(v=>typeof v==='string')||!Object.keys(p.state.categoryCalendars).every(k=>/^[a-z][a-z0-9-]*$/.test(k))))throw Error('分類別カレンダーの設定が不正です。');if(p.state.extraCalendarIds&&(!Array.isArray(p.state.extraCalendarIds)||!p.state.extraCalendarIds.every(x=>typeof x==='string')))throw Error('表示カレンダーの設定が不正です。');
+function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array.isArray(p.state.categories)||!Array.isArray(p.state.draft)||!p.state.rules||!p.state.scopes)throw Error('KonDateの設定ファイルではありません。');if(!['timeZone','from'].every(k=>typeof p.state[k]==='string')||!/^\d{4}-\d{2}-\d{2}$/.test(p.state.from)||!['oldDays','recentDays'].every(k=>Number.isInteger(p.state.rules[k])&&p.state.rules[k]>=1&&p.state.rules[k]<=365)||!['preferOld','excludeRecent','unique','balance','newMain'].every(k=>typeof p.state.rules[k]==='boolean'))throw Error('設定値の形式が不正です。');if(JSON.stringify(p).includes('"__proto__"'))throw Error('設定ファイルが不正です。');if(p.state.shopping!==undefined)validateShoppingSettings(p.state.shopping);if(p.state.calendarCellColors!==undefined)validateCalendarCellColors(p.state.calendarCellColors);if(p.state.calendarDisplayModes!==undefined)validateCalendarDisplayModes(p.state.calendarDisplayModes);if(!p.state.categories.every(c=>/^[a-z][a-z0-9-]*$/.test(c.id)&&typeof c.name==='string'&&c.name.length<=20)||!p.state.categories.some(c=>c.id==='main'))throw Error('分類の設定が不正です。');if(p.state.categoryCalendars&&(!Object.values(p.state.categoryCalendars).every(v=>typeof v==='string')||!Object.keys(p.state.categoryCalendars).every(k=>/^[a-z][a-z0-9-]*$/.test(k))))throw Error('分類別カレンダーの設定が不正です。');if(p.state.extraCalendarIds&&(!Array.isArray(p.state.extraCalendarIds)||!p.state.extraCalendarIds.every(x=>typeof x==='string')))throw Error('表示カレンダーの設定が不正です。');
  if(p.state.iconRules&&(!Array.isArray(p.state.iconRules)||!p.state.iconRules.every(r=>typeof r.id==='string'&&/^[0-9a-f]{10}$/.test(r.id)&&typeof r.keyword==='string'&&r.keyword.length<=80&&isSupportedIcon(r.icon)&&(r.color===undefined||/^#[0-9a-f]{6}$/i.test(r.color))&&(r.memo===undefined||(typeof r.memo==='string'&&r.memo.length<=2000))&&(r.calendarId===undefined||(typeof r.calendarId==='string'&&r.calendarId.length<=512)))))throw Error('アイコンルールが不正です。');
  if(p.state.calendarRefreshMinutes!==undefined&&!CALENDAR_REFRESH_MINUTES.includes(p.state.calendarRefreshMinutes))throw Error('カレンダーの自動更新間隔が不正です。');
  if(p.state.menuGenerationMode!==undefined&&!['rules','ai'].includes(p.state.menuGenerationMode))throw Error('献立生成モードが不正です。');
