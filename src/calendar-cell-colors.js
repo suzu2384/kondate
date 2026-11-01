@@ -3,6 +3,7 @@ export const DEFAULT_CALENDAR_CELL_COLORS=Object.freeze({saturday:'',sunday:'',c
 export const MAX_CALENDAR_COLOR_ENTRIES=100;
 const safeHex=value=>typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value);
 const cleanColor=value=>safeHex(value)?value.toLowerCase():'';
+export const normalizePresetCellColor=cleanColor;
 const safeId=id=>typeof id==='string'&&id.length>0&&id.length<=512&&
  !['__proto__','constructor','prototype'].includes(id);
 
@@ -38,11 +39,16 @@ function tint(hex){
 export function calendarCellBackground(date,records=[],extras=[],config={},visibleCalendarIds=[]){
  const prefs=normalizeCalendarCellColors(config);
  const visible=new Set(visibleCalendarIds);
- const present=new Set([...records,...extras]
-  .filter(e=>e?.date===date&&visible.has(e.calendarId)).map(e=>e.calendarId));
- const assigned=visibleCalendarIds.filter(id=>present.has(id)&&prefs.calendars[id])
-  .filter((id,i,list)=>list.indexOf(id)===i)
-  .map(id=>prefs.calendars[id]);
+ const entries=[...records,...extras].filter(e=>e?.date===date&&visible.has(e.calendarId));
+ const assigned=[],seen=new Set();
+ // A preset color overrides its calendar color for that event only.
+ // Other events with another color still contribute their equal-width band.
+ for(const id of visibleCalendarIds){
+  for(const event of entries.filter(e=>e.calendarId===id)){
+   const color=normalizePresetCellColor(event.cellColor)||prefs.calendars[id];
+   if(color&&!seen.has(color)){assigned.push(color);seen.add(color);}
+  }
+ }
  if(assigned.length===1)return tint(assigned[0]);
  if(assigned.length>1){
   // Equal-width bands for simultaneous calendar colors on the same date.

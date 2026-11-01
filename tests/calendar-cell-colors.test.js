@@ -83,3 +83,38 @@ test('appearance controls and calendar rendering are wired to color settings',()
  assert.match(app,/d\.getMonth\(\)!==displayMonth\.getMonth\(\)\?'other':''/);
  assert.doesNotMatch(app,/state\.theme\.mode=el\.value;state\.calendarCellColors=/);
 });
+
+test('preset tint overrides the source calendar tint for its own event',()=>{
+ const p={saturday:'#999999',calendars:{'my-cal':'#a1b2c3','other-cal':'#d4e5f6'}};
+ const highlighted={date:sat,calendarId:'my-cal',cellColor:'#EF4455'};
+ const other={date:sat,calendarId:'other-cal'};
+ const one=calendarCellBackground(sat,[],[highlighted],p,['my-cal','other-cal']);
+ assert.match(one,/#ef4455/);
+ assert.doesNotMatch(one,/#a1b2c3|#999999/);
+ const two=calendarCellBackground(sat,[],[highlighted,other],p,['my-cal','other-cal']);
+ assert.match(two,/^linear-gradient\(90deg/);
+ assert.ok(two.indexOf('#ef4455')<two.indexOf('#d4e5f6'));
+ assert.doesNotMatch(two,/#a1b2c3|#999999/);
+});
+
+test('multiple preset tints on the same date share stripes with no duplicates',()=>{
+ const two=[{date:fri,calendarId:'my-cal',cellColor:'#ff0000'},
+            {date:fri,calendarId:'my-cal',cellColor:'#0000ff'}];
+ const bg=calendarCellBackground(fri,[],two,prefs,['my-cal']);
+ assert.match(bg,/^linear-gradient\(90deg/);
+ assert.match(bg,/#ff0000/);
+ assert.match(bg,/#0000ff/);
+ assert.match(bg,/50\.0000%/);
+ assert.equal(calendarCellBackground(fri,[],[two[0],two[0]],prefs,['my-cal']).includes('linear-gradient'),false);
+ const bad={date:fri,calendarId:'my-cal',cellColor:'url(fake)'};
+ assert.match(calendarCellBackground(fri,[],[bad],prefs,['my-cal']),/#a1b2c3/);
+ assert.equal(calendarCellBackground(fri,[],two,prefs,['not-visible']),'');
+});
+
+test('detail-only preset colors remain visible but hidden calendar colors do not',()=>{
+ const extras=[{date:fri,calendarId:'detail-cal',cellColor:'#33cc99'},
+               {date:fri,calendarId:'hidden-cal',cellColor:'#ff0000'}];
+ const bg=calendarCellBackground(fri,[],extras,{},['detail-cal']);
+ assert.match(bg,/#33cc99/);
+ assert.doesNotMatch(bg,/#ff0000/);
+});

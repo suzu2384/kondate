@@ -1,5 +1,6 @@
 import {addDays} from './model.js';
 import {normalizeIcon,normalizeIconColor} from './calendar-display.js';
+import {normalizePresetCellColor} from './calendar-cell-colors.js';
 export function presetCalendarIds(rules=[]){
  return [...new Set(rules.filter(r=>String(r.keyword||'').trim()&&r.calendarId).map(r=>r.calendarId))];
 }
@@ -30,6 +31,9 @@ export function presetIcon(event,calendarId,rules=[]){
 }
 export function presetColor(event,calendarId,rules=[]){
  return normalizeIconColor(matchingDisplayPreset(event,calendarId,rules)?.color);
+}
+export function presetCellColor(event,calendarId,rules=[]){
+ return normalizePresetCellColor(matchingDisplayPreset(event,calendarId,rules)?.cellColor);
 }
 export function matchingPresetEvent(events,calendarId,date,rule){
  return events.find(e=>e.status!=='cancelled'&&!e.recurringEventId&&e.start?.date===date&&

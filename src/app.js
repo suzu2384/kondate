@@ -10,7 +10,7 @@ import {rememberCalendarAccount} from './account-hint.js';
 import {masterSharedSnapshot,shoppingSharedSnapshot,applyShoppingEvents,applyMasterEvents,planSharedSnapshot,applyPlanEvents} from './family-data.js';
 import {calendarForCategory,activeCalendarIds,splitRecordByCalendar,migrateCategoryCalendars} from './calendar-routing.js';
 import {eventDay,matchIcon,ICON_CHOICES,normalizeIcon,normalizeIconColor,isSupportedIcon} from './calendar-display.js';
-import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,matchingPresetEvent,presetEventPayload,matchesPreset} from './icon-presets.js';
+import {presetCalendarIds,isPresetEvent,presetIcon,presetColor,presetCellColor,matchingPresetEvent,presetEventPayload,matchesPreset} from './icon-presets.js';
 import {PresetWriteQueue,PRESET_FLUSH_INTERVAL_MS} from './preset-queue.js';
 import {beginPresetEdit,commitPresetEdit} from './preset-editor.js';
 import {sortCalendarExtras,reorderPresetRules,movePresetRule} from './preset-order.js';
@@ -20,7 +20,7 @@ import {dateTapAction,monthSnapOffset,moveMonth} from './calendar-gestures.js';
 import {driveSettingsDigest,decideDriveSync,driveSectionDigests,mergeIndependentDriveChanges,mergeDriveSnapshots} from './drive-sync.js';
 import {recordDishSuggestions,selectRecordDish} from './dish-suggestions.js';
 import {renderDayDetail} from './day-detail.js';
-import {calendarCellBackground,normalizeCalendarCellColors,validateCalendarCellColors,MAX_CALENDAR_COLOR_ENTRIES} from './calendar-cell-colors.js';
+import {calendarCellBackground,normalizeCalendarCellColors,normalizePresetCellColor,validateCalendarCellColors,MAX_CALENDAR_COLOR_ENTRIES} from './calendar-cell-colors.js';
 import {CALENDAR_DISPLAY_OPTIONS,MAX_CALENDAR_DISPLAY_ENTRIES,calendarDisplayMode as resolveCalendarDisplayMode,filterCalendarEntries,normalizeCalendarDisplayModes,validateCalendarDisplayModes} from './calendar-display-modes.js';
 import {JAPANESE_HOLIDAY_SELECTIONS,isJapaneseHolidayCalendarId,holidayEventSourceId,normalizeJapaneseHolidaySelection,validateJapaneseHolidaySelection} from './holiday-calendars.js';
 import {getSettingsHelp} from './settings-help.js';
@@ -57,7 +57,7 @@ state.calendarId='';state.calendarName='';
 state.extraCalendarIds=Array.isArray(loaded.extraCalendarIds)?loaded.extraCalendarIds:[];
 state.calendarDisplayModes=normalizeCalendarDisplayModes(state.calendarDisplayModes);
 state.japaneseHolidaySelection=normalizeJapaneseHolidaySelection(state.japaneseHolidaySelection);
-const normalizePresetRules=rules=>(Array.isArray(rules)?rules:[]).map(rule=>({...rule,icon:normalizeIcon(rule.icon),color:normalizeIconColor(rule.color)}));
+const normalizePresetRules=rules=>(Array.isArray(rules)?rules:[]).map(rule=>({...rule,icon:normalizeIcon(rule.icon),color:normalizeIconColor(rule.color),cellColor:normalizePresetCellColor(rule.cellColor)}));
 state.iconRules=normalizePresetRules(loaded.iconRules);
 const presetQueue=new PresetWriteQueue(globalThis.localStorage,()=>uid());
 let presetFlushing=false,presetFlushPromise=null;
@@ -190,6 +190,7 @@ function extraEvents(){
     ['owner','writer'].includes(access);
    return {id:event.id||'',calendarId,date,title,memo:String(event.description||''),
     icon:presetIcon(event,calendarId,state.iconRules),color:presetColor(event,calendarId,state.iconRules),
+    cellColor:presetCellColor(event,calendarId,state.iconRules),
     pending:!!event._presetPending,editable};
   }).filter(Boolean)
  ).flat(),state.iconRules);
@@ -1090,10 +1091,13 @@ function additionalCalendarSettings(){
 function capturePresetEditorFields(){
  if(!presetEditDraft)return;
  const title=$('#preset-edit-title'),memo=$('#preset-edit-memo'),calendar=$('#preset-edit-calendar'),color=$('#preset-edit-color');
+ const cellColor=$('#preset-edit-cell-color'),enabled=$('#preset-edit-cell-color-enabled');
  if(title)presetEditDraft.keyword=title.value;
  if(memo)presetEditDraft.memo=memo.value;
  if(calendar&&calendar.value!==NEW_CALENDAR_VALUE)presetEditDraft.calendarId=calendar.value;
  if(color)presetEditDraft.color=normalizeIconColor(color.value);
+ if(cellColor&&enabled)presetEditDraft.cellColor=
+  enabled.checked?normalizePresetCellColor(cellColor.value):'';
 }
 function updatePresetEditorIconPreview(){
  if(!presetEditDraft)return;
@@ -1121,6 +1125,13 @@ function showPresetEditor(){
   `<div class="preset-edit-symbols">
     <button type="button" class="icon-picker-trigger" data-action="open-icon-picker" title="アイコンを変更" aria-label="アイコンを変更">${iconMarkup(rule.icon,rule.color)}<span aria-hidden="true">▾</span></button>
     <label class="preset-edit-color"><span>アイコンの色</span><input id="preset-edit-color" data-preset-draft type="color" value="${normalizeIconColor(rule.color)}"></label>
+   </div>
+   <div class="field preset-cell-color-setting"><span>カレンダーのマス色</span>
+    <div class="preset-cell-color-controls">
+     <input id="preset-edit-cell-color" data-preset-draft type="color" value="${rule.cellColor||'#a8d9b8'}" aria-label="プリセットのマス色">
+     <label for="preset-edit-cell-color-enabled"><input id="preset-edit-cell-color-enabled" data-preset-draft type="checkbox" ${rule.cellColor?'checked':''}>色を適用する</label>
+    </div>
+    <small>未設定ならカレンダーの色を使います。アイコン色とは別に設定できます。</small>
    </div>
    <label class="field"><span>タイトル（必須）</span><input id="preset-edit-title" data-preset-draft type="text" maxlength="80" required value="${esc(rule.keyword)}" placeholder="例：可燃ごみ"></label>
    <label class="field"><span>メモ</span><textarea id="preset-edit-memo" data-preset-draft maxlength="2000" rows="2" placeholder="カレンダーの予定の説明欄に保存します">${esc(rule.memo)}</textarea><small>同じタイトルでもメモが違えば別のプリセットにできます。</small></label>
@@ -2776,6 +2787,10 @@ document.addEventListener('change',async e=>{const el=e.target;try{
    return;
   }
   if(el.matches('[data-preset-draft]')){
+  if(el.id==='preset-edit-cell-color'){
+   const enabled=$('#preset-edit-cell-color-enabled');
+   if(enabled)enabled.checked=true;
+  }
   capturePresetEditorFields();
   if(el.id==='preset-edit-color')updatePresetEditorIconPreview();
   if(el.id==='preset-edit-calendar'&&el.value===NEW_CALENDAR_VALUE){
@@ -2797,7 +2812,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
  if(el.id==='calendar-refresh-minutes')await autoRefreshCalendar();
  }catch(error){notify({summary:error.message,severity:'error'});}});
 function validateImport(p){if(p.format!=='kondate-settings-v1'||!p.state||!Array.isArray(p.state.categories)||!Array.isArray(p.state.draft)||!p.state.rules||!p.state.scopes)throw Error('KonDateの設定ファイルではありません。');if(!['timeZone','from'].every(k=>typeof p.state[k]==='string')||!/^\d{4}-\d{2}-\d{2}$/.test(p.state.from)||!['oldDays','recentDays'].every(k=>Number.isInteger(p.state.rules[k])&&p.state.rules[k]>=1&&p.state.rules[k]<=365)||!['preferOld','excludeRecent','unique','balance','newMain'].every(k=>typeof p.state.rules[k]==='boolean'))throw Error('設定値の形式が不正です。');if(JSON.stringify(p).includes('"__proto__"'))throw Error('設定ファイルが不正です。');if(p.state.shopping!==undefined)validateShoppingSettings(p.state.shopping);if(p.state.calendarCellColors!==undefined)validateCalendarCellColors(p.state.calendarCellColors);if(p.state.calendarDisplayModes!==undefined)validateCalendarDisplayModes(p.state.calendarDisplayModes);if(p.state.japaneseHolidaySelection!==undefined)validateJapaneseHolidaySelection(p.state.japaneseHolidaySelection);if(!p.state.categories.every(c=>/^[a-z][a-z0-9-]*$/.test(c.id)&&typeof c.name==='string'&&c.name.length<=20)||!p.state.categories.some(c=>c.id==='main'))throw Error('分類の設定が不正です。');if(p.state.categoryCalendars&&(!Object.values(p.state.categoryCalendars).every(v=>typeof v==='string')||!Object.keys(p.state.categoryCalendars).every(k=>/^[a-z][a-z0-9-]*$/.test(k))))throw Error('分類別カレンダーの設定が不正です。');if(p.state.extraCalendarIds&&(!Array.isArray(p.state.extraCalendarIds)||!p.state.extraCalendarIds.every(x=>typeof x==='string')))throw Error('表示カレンダーの設定が不正です。');
- if(p.state.iconRules&&(!Array.isArray(p.state.iconRules)||!p.state.iconRules.every(r=>typeof r.id==='string'&&/^[0-9a-f]{10}$/.test(r.id)&&typeof r.keyword==='string'&&r.keyword.length<=80&&isSupportedIcon(r.icon)&&(r.color===undefined||/^#[0-9a-f]{6}$/i.test(r.color))&&(r.memo===undefined||(typeof r.memo==='string'&&r.memo.length<=2000))&&(r.calendarId===undefined||(typeof r.calendarId==='string'&&r.calendarId.length<=512)))))throw Error('アイコンルールが不正です。');
+ if(p.state.iconRules&&(!Array.isArray(p.state.iconRules)||!p.state.iconRules.every(r=>typeof r.id==='string'&&/^[0-9a-f]{10}$/.test(r.id)&&typeof r.keyword==='string'&&r.keyword.length<=80&&isSupportedIcon(r.icon)&&(r.color===undefined||/^#[0-9a-f]{6}$/i.test(r.color))&&(r.cellColor===undefined||r.cellColor===''||/^#[0-9a-f]{6}$/i.test(r.cellColor))&&(r.memo===undefined||(typeof r.memo==='string'&&r.memo.length<=2000))&&(r.calendarId===undefined||(typeof r.calendarId==='string'&&r.calendarId.length<=512)))))throw Error('アイコンルールが不正です。');
  if(p.state.calendarRefreshMinutes!==undefined&&!CALENDAR_REFRESH_MINUTES.includes(p.state.calendarRefreshMinutes))throw Error('カレンダーの自動更新間隔が不正です。');
  if(p.state.menuGenerationMode!==undefined&&!['rules','ai'].includes(p.state.menuGenerationMode))throw Error('献立生成モードが不正です。');
  if(!Number.isInteger(p.state.rules.days)||p.state.rules.days<1||p.state.rules.days>31||!Object.values(p.state.rules.counts).every(n=>Number.isInteger(n)&&n>=0&&n<=5)||!isSupportedThemeColor(p.state.theme?.color)||!['light','dark','auto'].includes(p.state.theme?.mode))throw Error('生成ルールまたはテーマが不正です。');for(const day of p.state.draft)if(day.dishes.length)validateDishes(day.dishes);for(const s of Object.values(p.state.scopes))if(!Array.isArray(s.events)||!s.legacy||!s.aliases||!s.metadata||!Array.isArray(s.manual))throw Error('履歴データが不正です。');}

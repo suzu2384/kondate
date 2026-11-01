@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync,existsSync} from 'node:fs';
 import {spawnSync} from 'node:child_process';
-import {presetCalendarIds,isPresetEvent,presetIcon,matchingPresetEvent,presetEventPayload} from '../src/icon-presets.js';
+import {presetCalendarIds,isPresetEvent,presetIcon,presetCellColor,matchingPresetEvent,presetEventPayload} from '../src/icon-presets.js';
 const date='2026-10-10';
 const old={id:'old',keyword:'可燃ごみ',icon:'🗑️'};
 const a={id:'aaa',keyword:'ごみ回収',memo:'A地区',icon:'🗑️',calendarId:'calendar'};
@@ -308,4 +308,22 @@ test('calendar picker sorts writable calendars by Japanese name before read-only
  assert.match(picker,/\[\.\.\.calendars\]\.sort\(/);
  assert.match(picker,/Number\(readOnly\(a\)\)-Number\(readOnly\(b\)\)/);
  assert.match(picker,/localeCompare\(String\(b\.summary\|\|''\),'ja'\)/);
+});
+
+test('preset background matches exact and keyword-only display replacements',()=>{
+ const rules=[{id:'one',calendarId:'main',keyword:'スポーツの日',memo:'',icon:'tag_fill',color:'#ffffff',cellColor:'#F0E0D0'}];
+ assert.equal(presetCellColor({summary:'スポーツの日',description:''},'main',rules),'#f0e0d0');
+ assert.equal(presetCellColor({summary:'今日はスポーツの日です',description:'祝日'},'other',rules),'#f0e0d0');
+ assert.equal(presetCellColor({summary:'無関係',description:''},'main',rules),'');
+ assert.equal(presetCellColor({summary:'スポーツの日',description:''},'main',[{...rules[0],cellColor:''}]),'');
+});
+test('preset editor offers optional cell color separate from icon color',()=>{
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ assert.match(app,/id="preset-edit-cell-color"/);
+ assert.match(app,/id="preset-edit-cell-color-enabled"/);
+ assert.match(app,/cellColor:presetCellColor\(event,calendarId,state\.iconRules\)/);
+ assert.match(app,/cellColor:normalizePresetCellColor\(rule\.cellColor\)/);
+ assert.match(app,/presetEditDraft\.cellColor=/);
+ assert.match(app,/if\(el\.id==='preset-edit-cell-color'\)/);
+ assert.match(app,/r\.cellColor===undefined\|\|r\.cellColor===''/);
 });

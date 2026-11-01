@@ -79,7 +79,7 @@ test('other calendar visibility and preset ordering round-trip through Drive set
  const source=state();
  source.extraCalendarIds=['calendar-a@example.com','calendar-b@example.com'];
  source.calendarDisplayModes={'calendar-a@example.com':'detail','calendar-b@example.com':'hidden'};
- source.iconRules=[{id:'1111111111',keyword:'予定B',memo:'',calendarId:'calendar-a@example.com',icon:'home_2_fill',color:'#ffffff'},
+ source.iconRules=[{id:'1111111111',keyword:'予定B',memo:'',calendarId:'calendar-a@example.com',icon:'home_2_fill',color:'#ffffff',cellColor:'#aabbcc'},
   {id:'2222222222',keyword:'予定A',memo:'',calendarId:'calendar-b@example.com',icon:'car_fill',color:'#ffffff'}];
  const snapshot=createDriveSnapshot(source);
  assert.deepEqual(snapshot.settings.extraCalendarIds,source.extraCalendarIds);
@@ -90,6 +90,7 @@ test('other calendar visibility and preset ordering round-trip through Drive set
  assert.deepEqual(receiving.extraCalendarIds,source.extraCalendarIds);
  assert.deepEqual(receiving.calendarDisplayModes,source.calendarDisplayModes);
  assert.deepEqual(receiving.iconRules.map(r=>r.id),['1111111111','2222222222']);
+ assert.equal(receiving.iconRules[0].cellColor,'#aabbcc');
 });
 
 test('new main history and generated draft both survive Drive save and restore',()=>{
