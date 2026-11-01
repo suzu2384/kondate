@@ -1091,13 +1091,10 @@ function additionalCalendarSettings(){
 function capturePresetEditorFields(){
  if(!presetEditDraft)return;
  const title=$('#preset-edit-title'),memo=$('#preset-edit-memo'),calendar=$('#preset-edit-calendar'),color=$('#preset-edit-color');
- const cellColor=$('#preset-edit-cell-color'),enabled=$('#preset-edit-cell-color-enabled');
  if(title)presetEditDraft.keyword=title.value;
  if(memo)presetEditDraft.memo=memo.value;
  if(calendar&&calendar.value!==NEW_CALENDAR_VALUE)presetEditDraft.calendarId=calendar.value;
  if(color)presetEditDraft.color=normalizeIconColor(color.value);
- if(cellColor&&enabled)presetEditDraft.cellColor=
-  enabled.checked?normalizePresetCellColor(cellColor.value):'';
 }
 function updatePresetEditorIconPreview(){
  if(!presetEditDraft)return;
@@ -1126,13 +1123,6 @@ function showPresetEditor(){
     <button type="button" class="icon-picker-trigger" data-action="open-icon-picker" title="アイコンを変更" aria-label="アイコンを変更">${iconMarkup(rule.icon,rule.color)}<span aria-hidden="true">▾</span></button>
     <label class="preset-edit-color"><span>アイコンの色</span><input id="preset-edit-color" data-preset-draft type="color" value="${normalizeIconColor(rule.color)}"></label>
    </div>
-   <div class="field preset-cell-color-setting"><span>カレンダーのマス色</span>
-    <div class="preset-cell-color-controls">
-     <input id="preset-edit-cell-color" data-preset-draft type="color" value="${rule.cellColor||'#a8d9b8'}" aria-label="プリセットのマス色">
-     <label for="preset-edit-cell-color-enabled"><input id="preset-edit-cell-color-enabled" data-preset-draft type="checkbox" ${rule.cellColor?'checked':''}>色を適用する</label>
-    </div>
-    <small>未設定ならカレンダーの色を使います。アイコン色とは別に設定できます。</small>
-   </div>
    <label class="field"><span>タイトル（必須）</span><input id="preset-edit-title" data-preset-draft type="text" maxlength="80" required value="${esc(rule.keyword)}" placeholder="例：可燃ごみ"></label>
    <label class="field"><span>メモ</span><textarea id="preset-edit-memo" data-preset-draft maxlength="2000" rows="2" placeholder="カレンダーの予定の説明欄に保存します">${esc(rule.memo)}</textarea><small>同じタイトルでもメモが違えば別のプリセットにできます。</small></label>
    <label class="field"><span>予定の登録先カレンダー</span><select id="preset-edit-calendar" data-preset-draft>${options}</select></label>`,
@@ -1152,7 +1142,11 @@ function openCalendarCreation(ruleId){
 function saveCalendarCellColor(el){
  const value=el.value;
  if(!/^#[0-9a-f]{6}$/i.test(value))throw Error('マスの色が不正です。');
- if(el.dataset.cellColorDay!==undefined){
+ if(el.dataset.cellColorPreset!==undefined){
+  const rule=state.iconRules.find(r=>r.id===el.dataset.cellColorPreset);
+  if(!rule)throw Error('設定できないプリセットです。');
+  rule.cellColor=normalizePresetCellColor(value);
+ }else if(el.dataset.cellColorDay!==undefined){
   if(!['saturday','sunday'].includes(el.dataset.cellColorDay))throw Error('曜日の指定が不正です。');
   state.calendarCellColors[el.dataset.cellColorDay]=value.toLowerCase();
  }else{
@@ -1172,7 +1166,7 @@ function calendarCellColorSettings(){
  const choice=(label,target,value,fallback,kind)=>`<div class="calendar-cell-color-row">
   <span class="calendar-cell-color-label" title="${esc(label)}">${esc(label)}</span>
   <input type="color" aria-label="${esc(label)}のマス色" value="${value||fallback}"
-   ${kind==='day'?`data-cell-color-day="${target}"`:`data-cell-color-calendar="${esc(target)}"`}>
+   ${kind==='day'?`data-cell-color-day="${target}"`:kind==='preset'?`data-cell-color-preset="${esc(target)}"`:`data-cell-color-calendar="${esc(target)}"`}>
   <span class="calendar-cell-color-status">${value?'設定中':'未設定'}</span>
   ${button(value?'解除':'適用',value?'reset-cell-color':'apply-cell-color','mini',
    `data-kind="${kind}" data-target="${esc(target)}" aria-label="${esc(label)}のマス色を${value?'解除':'適用'}"`)}
@@ -1186,6 +1180,11 @@ function calendarCellColorSettings(){
   const label=calendar?.summary||`保存済みカレンダー（要再接続：${id}）`;
   return choice(label+(calendar&&!visible.has(id)?'（非表示）':''),id,prefs.calendars[id]||'','#a8d9b8','calendar');
  }).join('');
+ const presetsMarkup=state.iconRules.map(rule=>{
+  const label=String(rule.keyword||'（名称未設定）')+
+   (rule.memo?'／'+String(rule.memo).replace(/\r?\n/g,' '):'');
+  return choice(label,rule.id,normalizePresetCellColor(rule.cellColor),'#a8d9b8','preset');
+ }).join('');
  return `<section class="calendar-cell-color-section" aria-label="カレンダーのマス色">
   <h3>カレンダーのマス色</h3>
   <p class="hint">初期状態では色は付きません。色を変更するとすぐ設定され、見本の色をそのまま使う場合は「適用」を押します。「解除」で標準色に戻せます。</p>
@@ -1193,7 +1192,9 @@ function calendarCellColorSettings(){
   <div class="calendar-cell-color-rows">${weekends}</div>
   <h4>カレンダー（非表示のものも含む）</h4>
   <div class="calendar-cell-color-rows">${calendarsMarkup||'<p class="hint">Googleカレンダーに接続すると、ここで各カレンダーの色を選べます。</p>'}</div>
-  <p class="hint">各カレンダーの指定色は、その予定を表示している日だけ反映されます。非表示のカレンダーにも事前に色を設定できます。複数ある日は等幅に色分けし、指定色がなければ土日の色を使います。</p>
+  <h4>プリセット</h4>
+  <div class="calendar-cell-color-rows">${presetsMarkup||'<p class="hint">プリセットを追加すると、ここでマスの色を設定できます。</p>'}</div>
+  <p class="hint">プリセットの指定色はカレンダー色に優先し、色が複数あれば等幅で色分けします。どちらも未設定なら土日の色を使います。</p>
  </section>`;
 }
 function settingsCategoryContent(){switch(settingsCategory){
@@ -2208,7 +2209,11 @@ const actions={
   if(kind==='day'&&['saturday','sunday'].includes(target))state.calendarCellColors[target]='';
   else if(kind==='calendar'&&Object.hasOwn(state.calendarCellColors.calendars,target))
    delete state.calendarCellColors.calendars[target];
-  else return;
+  else if(kind==='preset'){
+   const rule=state.iconRules.find(r=>r.id===target);
+   if(!rule||!rule.cellColor)return;
+   rule.cellColor='';
+  }else return;
   persist();render();
  },
  rules:()=>{settingsCategory='generate';tab='settings';render();prepareGoogleIdentity();},
@@ -2757,7 +2762,7 @@ document.addEventListener('change',async e=>{const el=e.target;try{
   }catch(error){el.checked=api.keepConnected;throw error;}
   render();return;
  }
- if(el.dataset.cellColorDay!==undefined||el.dataset.cellColorCalendar!==undefined){
+ if(el.dataset.cellColorDay!==undefined||el.dataset.cellColorCalendar!==undefined||el.dataset.cellColorPreset!==undefined){
   saveCalendarCellColor(el);return;
  }
  if(el.dataset.holidayCalendarSelection!==undefined){
@@ -2787,10 +2792,6 @@ document.addEventListener('change',async e=>{const el=e.target;try{
    return;
   }
   if(el.matches('[data-preset-draft]')){
-  if(el.id==='preset-edit-cell-color'){
-   const enabled=$('#preset-edit-cell-color-enabled');
-   if(enabled)enabled.checked=true;
-  }
   capturePresetEditorFields();
   if(el.id==='preset-edit-color')updatePresetEditorIconPreview();
   if(el.id==='preset-edit-calendar'&&el.value===NEW_CALENDAR_VALUE){

@@ -1953,19 +1953,3 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  .extra-calendar-list .calendar-holiday-options{padding-left:10px;gap:6px}
  .extra-calendar-list .calendar-holiday-options select{flex-basis:152px;width:152px;min-width:130px}
 }
-/* Preset date-cell background selector; independent from the icon tint. */
-.preset-cell-color-setting .preset-cell-color-controls{
- display:flex;align-items:center;gap:12px;min-width:0
-}
-.preset-cell-color-setting input[type=color]{
- flex:0 0 48px;width:48px;min-width:48px;height:39px;min-height:39px;
- padding:3px;cursor:pointer
-}
-.preset-cell-color-setting label{
- display:inline-flex;align-items:center;gap:8px;min-width:0;
- font-size:12px;cursor:pointer
-}
-.preset-cell-color-setting label input[type=checkbox]{
- width:20px;min-width:20px;min-height:20px;margin:0
-}
-

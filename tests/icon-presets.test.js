@@ -317,13 +317,14 @@ test('preset background matches exact and keyword-only display replacements',()=
  assert.equal(presetCellColor({summary:'無関係',description:''},'main',rules),'');
  assert.equal(presetCellColor({summary:'スポーツの日',description:''},'main',[{...rules[0],cellColor:''}]),'');
 });
-test('preset editor offers optional cell color separate from icon color',()=>{
+test('preset cell tint is changed from the appearance settings, not the preset editor',()=>{
  const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
- assert.match(app,/id="preset-edit-cell-color"/);
- assert.match(app,/id="preset-edit-cell-color-enabled"/);
+ const editor=app.slice(app.indexOf('function showPresetEditor(){'),app.indexOf('function openCalendarCreation('));
+ const colors=app.slice(app.indexOf('function calendarCellColorSettings(){'),app.indexOf('function settingsCategoryContent(){'));
+ assert.doesNotMatch(editor,/preset-edit-cell-color|マス色/);
+ assert.match(editor,/id="preset-edit-color"/);
+ assert.match(colors,/<h4>プリセット<\/h4>/);
+ assert.match(colors,/data-cell-color-preset=/);
+ assert.match(colors,/state\.iconRules\.map\(rule=>/);
  assert.match(app,/cellColor:presetCellColor\(event,calendarId,state\.iconRules\)/);
- assert.match(app,/cellColor:normalizePresetCellColor\(rule\.cellColor\)/);
- assert.match(app,/presetEditDraft\.cellColor=/);
- assert.match(app,/if\(el\.id==='preset-edit-cell-color'\)/);
- assert.match(app,/r\.cellColor===undefined\|\|r\.cellColor===''/);
 });

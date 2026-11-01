@@ -118,3 +118,17 @@ test('detail-only preset colors remain visible but hidden calendar colors do not
  assert.match(bg,/#33cc99/);
  assert.doesNotMatch(bg,/#ff0000/);
 });
+
+test('preset and weekday and calendar cell colors share one appearance editor',()=>{
+ const app=read('src/app.js'),panel=app.slice(app.indexOf('function calendarCellColorSettings(){'),app.indexOf('function settingsCategoryContent(){'));
+ assert.match(panel,/<h4>曜日<\/h4>/);
+ assert.match(panel,/<h4>カレンダー（非表示のものも含む）<\/h4>/);
+ assert.match(panel,/<h4>プリセット<\/h4>/);
+ assert.match(panel,/choice\(label,rule\.id,normalizePresetCellColor\(rule\.cellColor\),'#a8d9b8','preset'\)/);
+ assert.match(app,/el\.dataset\.cellColorPreset!==undefined/);
+ assert.match(app,/rule\.cellColor=normalizePresetCellColor\(value\)/);
+ assert.match(app,/else if\(kind==='preset'\)/);
+ assert.match(app,/rule\.cellColor=''/);
+ assert.match(app,/'apply-cell-color':b=>/);
+ assert.doesNotMatch(app,/preset-edit-cell-color/);
+});
