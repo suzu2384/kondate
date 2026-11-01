@@ -1885,14 +1885,27 @@ dialog, #dialog-content, .dialog-body, .dialog-body .field,
  padding:3px 0;border-bottom:1px solid var(--line)
 }
 .calendar-cell-color-label{flex:1 1 0;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:clip;font-size:12px}
-.calendar-cell-color-row input[type=color]{
- flex:0 0 44px;width:44px;height:34px;min-height:34px;padding:2px;border-radius:7px;cursor:pointer
+/* A color input cannot represent alpha=0. Keep its native picker usable,
+   while a neutral checkerboard shows that the color is not configured. */
+.calendar-cell-color-picker{
+ position:relative;display:block;flex:0 0 44px;width:44px;height:34px;min-width:0;
+ border-radius:7px
 }
+.calendar-cell-color-picker input[type=color]{
+ display:block;box-sizing:border-box;width:100%;height:100%;min-height:34px;
+ padding:2px;border-radius:7px;cursor:pointer
+}
+.calendar-cell-color-picker.is-unset{
+ background:repeating-conic-gradient(#c7c9cd 0% 25%,#f6f6f6 0% 50%) 50% / 10px 10px;
+ border:1px solid var(--line)
+}
+.calendar-cell-color-picker.is-unset input[type=color]{opacity:0}
+.calendar-cell-color-picker:focus-within{outline:2px solid var(--accent);outline-offset:2px}
 .calendar-cell-color-status{flex:0 0 36px;font-size:10px;color:var(--muted);text-align:center;white-space:nowrap}
 .calendar-cell-color-row button{flex:0 0 auto;min-width:42px;min-height:32px;padding:4px 7px;font-size:11px}
 @media(max-width:760px){
  .calendar-cell-color-row{gap:6px}
- .calendar-cell-color-row input[type=color]{flex-basis:40px;width:40px}
+ .calendar-cell-color-picker{flex-basis:40px;width:40px}
  .calendar-cell-color-row button{min-width:38px;padding:4px 6px}
 }
 

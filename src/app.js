@@ -1165,8 +1165,10 @@ function calendarCellColorSettings(){
  const prefs=state.calendarCellColors;
  const choice=(label,target,value,fallback,kind)=>`<div class="calendar-cell-color-row">
   <span class="calendar-cell-color-label" title="${esc(label)}">${esc(label)}</span>
-  <input type="color" aria-label="${esc(label)}のマス色" value="${value||fallback}"
-   ${kind==='day'?`data-cell-color-day="${target}"`:kind==='preset'?`data-cell-color-preset="${esc(target)}"`:`data-cell-color-calendar="${esc(target)}"`}>
+  <span class="calendar-cell-color-picker ${value?'':'is-unset'}" title="${esc(label)}のマス色：${value?'設定中':'未設定（透明）'}">
+   <input type="color" aria-label="${esc(label)}のマス色${value?'':'（未設定・透明）'}" value="${value||fallback}"
+    ${kind==='day'?`data-cell-color-day="${target}"`:kind==='preset'?`data-cell-color-preset="${esc(target)}"`:`data-cell-color-calendar="${esc(target)}"`}>
+  </span>
   <span class="calendar-cell-color-status">${value?'設定中':'未設定'}</span>
   ${button(value?'解除':'適用',value?'reset-cell-color':'apply-cell-color','mini',
    `data-kind="${kind}" data-target="${esc(target)}" aria-label="${esc(label)}のマス色を${value?'解除':'適用'}"`)}
@@ -1187,7 +1189,7 @@ function calendarCellColorSettings(){
  }).join('');
  return `<section class="calendar-cell-color-section" aria-label="カレンダーのマス色">
   <h3>カレンダーのマス色</h3>
-  <p class="hint">初期状態では色は付きません。色を変更するとすぐ設定され、見本の色をそのまま使う場合は「適用」を押します。「解除」で標準色に戻せます。</p>
+  <p class="hint">未設定の色見本はチェック柄（透明）で表示します。色を選ぶとすぐ設定され、初期の候補色を使う場合は「適用」を押します。「解除」で未設定に戻せます。</p>
   <h4>曜日</h4>
   <div class="calendar-cell-color-rows">${weekends}</div>
   <h4>カレンダー（非表示のものも含む）</h4>

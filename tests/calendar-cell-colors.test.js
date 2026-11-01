@@ -132,3 +132,33 @@ test('preset and weekday and calendar cell colors share one appearance editor',(
  assert.match(app,/'apply-cell-color':b=>/);
  assert.doesNotMatch(app,/preset-edit-cell-color/);
 });
+
+test('unconfigured cell colors show transparent checkerboard instead of fallback sample',()=>{
+ const app=read('src/app.js'),css=read('style.css');
+ const markup=app.slice(app.indexOf('function calendarCellColorSettings(){'),app.indexOf('function settingsCategoryContent(){'));
+ const styles=css.slice(css.indexOf('/* A color input cannot represent alpha=0.'));
+ assert.match(markup,/class="calendar-cell-color-picker \$\{value\?'':'is-unset'\}"/);
+ assert.match(markup,/未設定（透明）/);
+ assert.match(markup,/value="\$\{value\|\|fallback\}"/);
+ assert.match(markup,/data-cell-color-day=/);
+ assert.match(markup,/data-cell-color-preset=/);
+ assert.match(markup,/data-cell-color-calendar=/);
+ assert.match(markup,/\$\{value\?'解除':'適用'\}/);
+ assert.match(styles,/\.calendar-cell-color-picker\.is-unset\{[\s\S]*?repeating-conic-gradient\(/);
+ assert.match(styles,/\.calendar-cell-color-picker\.is-unset input\[type=color\]\{opacity:0\}/);
+ assert.match(styles,/\.calendar-cell-color-picker input\[type=color\]\{[\s\S]*?cursor:pointer/);
+ assert.match(styles,/\.calendar-cell-color-picker:focus-within\{/);
+ assert.match(styles,/@media\(max-width:760px\)\{[\s\S]*?\.calendar-cell-color-picker\{flex-basis:40px;width:40px\}/);
+ assert.doesNotMatch(markup,/value\?'設定中':'未設定'\}\s*<\/span>\s*<input/);
+});
+test('transparent preview does not change any saved background-color values',()=>{
+ const app=read('src/app.js');
+ const save=app.slice(app.indexOf('function saveCalendarCellColor(el){'),app.indexOf('const SETTINGS_CATEGORIES='));
+ const reset=app.slice(app.indexOf("'reset-cell-color':b=>{"),app.indexOf(' rules:()=>',app.indexOf("'reset-cell-color':b=>{")));
+ assert.match(save,/rule\.cellColor=normalizePresetCellColor\(value\)/);
+ assert.match(save,/state\.calendarCellColors\[el\.dataset\.cellColorDay\]=value\.toLowerCase\(\)/);
+ assert.match(save,/state\.calendarCellColors\.calendars\[id\]=value\.toLowerCase\(\)/);
+ assert.match(reset,/rule\.cellColor=''/);
+ assert.match(reset,/delete state\.calendarCellColors\.calendars\[target\]/);
+ assert.match(app,/'apply-cell-color':b=>/);
+});
