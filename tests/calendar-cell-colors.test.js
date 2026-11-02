@@ -136,7 +136,7 @@ test('preset and weekday and calendar cell colors share one appearance editor',(
 test('unconfigured cell colors show transparent checkerboard instead of fallback sample',()=>{
  const app=read('src/app.js'),css=read('style.css');
  const markup=app.slice(app.indexOf('function calendarCellColorSettings(){'),app.indexOf('function settingsCategoryContent(){'));
- const styles=css.slice(css.indexOf('/* A color input cannot represent alpha=0.'));
+ const styles=css.slice(css.indexOf('/* Show transparency only inside the native color swatch'));
  assert.match(markup,/class="calendar-cell-color-picker \$\{value\?'':'is-unset'\}"/);
  assert.match(markup,/未設定（透明）/);
  assert.match(markup,/value="\$\{value\|\|fallback\}"/);
@@ -144,8 +144,10 @@ test('unconfigured cell colors show transparent checkerboard instead of fallback
  assert.match(markup,/data-cell-color-preset=/);
  assert.match(markup,/data-cell-color-calendar=/);
  assert.match(markup,/\$\{value\?'解除':'適用'\}/);
- assert.match(styles,/\.calendar-cell-color-picker\.is-unset\{[\s\S]*?repeating-conic-gradient\(/);
- assert.match(styles,/\.calendar-cell-color-picker\.is-unset input\[type=color\]\{opacity:0\}/);
+ assert.match(styles,/\.calendar-cell-color-picker\.is-unset input\[type=color\]::-webkit-color-swatch\{[\s\S]*?repeating-conic-gradient\(/);
+ assert.match(styles,/\.calendar-cell-color-picker\.is-unset input\[type=color\]::-moz-color-swatch\{[\s\S]*?repeating-conic-gradient\(/);
+ assert.doesNotMatch(styles,/\.calendar-cell-color-picker\.is-unset\{[\s\S]*?background:repeating-conic-gradient\(/);
+ assert.doesNotMatch(styles,/\.calendar-cell-color-picker\.is-unset input\[type=color\]\{opacity:0\}/);
  assert.match(styles,/\.calendar-cell-color-picker input\[type=color\]\{[\s\S]*?cursor:pointer/);
  assert.match(styles,/\.calendar-cell-color-picker:focus-within\{/);
  assert.match(styles,/@media\(max-width:760px\)\{[\s\S]*?\.calendar-cell-color-picker\{flex-basis:40px;width:40px\}/);
