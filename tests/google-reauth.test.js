@@ -108,3 +108,25 @@ test('the UI routes reauth buttons to the shared renewal but leaves initial logi
  assert.match(app,/await api\.authorize\(GOOGLE_CLIENT_ID\)/);
  assert.match(app,/await drive\.authorize\(GOOGLE_CLIENT_ID\)/);
 });
+
+
+test('tapping reauthentication during SDK preparation does not show an error notice',async()=>{
+ const {readFileSync}=await import('node:fs');
+ const {runInNewContext}=await import('node:vm');
+ const app=readFileSync(new URL('../src/app.js',import.meta.url),'utf8');
+ const start=app.indexOf('async function reauthenticateExpiredGoogle(){');
+ const end=app.indexOf('function prepareDriveAuthorization(){',start);
+ assert.ok(start>=0&&end>start);
+ let prepared=0;
+ const ctx={
+  GOOGLE_CLIENT_ID:'test.apps.googleusercontent.com',
+  authReady:false,
+  prepareGoogleIdentity:()=>{prepared++;},
+  notify:()=>{throw Error('OAuth preparation should not notify an error');}
+ };
+ const action=runInNewContext(app.slice(start,end)+';reauthenticateExpiredGoogle',ctx);
+ await assert.doesNotReject(action());
+ assert.equal(prepared,1);
+ assert.doesNotMatch(app.slice(start,end),/throw Error\('Google認証を準備しています/);
+ assert.match(app.slice(start,end),/if\(!globalThis\.google\?\.accounts\?\.oauth2\)\{\s*\/\/[\s\S]*?prepareGoogleIdentity\(\);\s*return;/);
+});

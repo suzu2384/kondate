@@ -637,16 +637,31 @@ function renderPresetBar(){
  }).join('');
  if(bar.innerHTML!==nextMarkup)bar.innerHTML=nextMarkup;
 }
+// Loading OAuth is not a failed authorization. Old versions retained this
+// particular preparation message as an error even after the SDK became ready.
+const GOOGLE_AUTH_PREPARATION_MESSAGE='Google認証を準備しています。少し待って再試行してください。';
+function clearStaleGoogleAuthPreparationNotice(){
+ if(currentNotice===GOOGLE_AUTH_PREPARATION_MESSAGE)dismissNotice();
+}
+let googleIdentityPreparing=false;
 function prepareGoogleIdentity(){
  if(!GOOGLE_CLIENT_ID)return;
- if(authReady)return;
- authLoadError='';updateConnection();
+ if(globalThis.google?.accounts?.oauth2){
+  authReady=true;authLoadError='';
+  clearStaleGoogleAuthPreparationNotice();
+  updateConnection();
+  return;
+ }
+ if(googleIdentityPreparing)return;
+ googleIdentityPreparing=true;
+ authReady=false;authLoadError='';updateConnection();
  api.loadIdentity().then(()=>{
   authReady=true;authLoadError='';
+  clearStaleGoogleAuthPreparationNotice();
   if(tab==='settings')render();else updateConnection();
  }).catch(error=>{
   authLoadError=error.message;updateConnection();notify(error.message);
- });
+ }).finally(()=>{googleIdentityPreparing=false;});
 }
 function empty(title,text,action=''){return `<div class="empty"><div class="empty-symbol">⌑</div><strong>${title}</strong><p>${text}</p>${action}</div>`;}
 function button(text,action,cls='',attrs=''){return `<button class="${cls}" data-action="${action}" ${attrs}>${text}</button>`;}
@@ -1901,10 +1916,14 @@ async function autoDriveSync(){
 // Sign in only to services with an expired session. Initial sign-in is unchanged.
 async function reauthenticateExpiredGoogle(){
  if(!GOOGLE_CLIENT_ID)throw Error('Googleログインの設定が完了していません。');
- if(!authReady||!globalThis.google?.accounts?.oauth2){
+ if(!globalThis.google?.accounts?.oauth2){
+  // The user may tap reauthentication while the OAuth SDK is still loading.
+  // Keep the actual reauthentication-required status, not a persistent error.
   prepareGoogleIdentity();
-  throw Error('Google認証を準備しています。少し待って再試行してください。');
+  return;
  }
+ authReady=true;
+ clearStaleGoogleAuthPreparationNotice();
  // Start OAuth immediately in the click handler; no preceding asynchronous work.
  const refreshing=renewExpiredGoogleServices(api,drive,GOOGLE_CLIENT_ID);
  const refreshed=await refreshing;

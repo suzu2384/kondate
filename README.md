@@ -117,7 +117,7 @@ Googleカレンダーの調理実績を正本とする、献立作成・料理�
 | `src/app.js`, `index.html`, `style.css` | 画面生成・操作・レイアウト |
 | `src/settings-help.js` | 各設定項目の利用者向けヘルプ |
 | `src/model.js`, `src/calendar-*.js` | カレンダーの日付・履歴・表示・操作 |
-| `src/google.js`, `src/google-reauth.js` | カレンダーAPIとGoogle認証 |
+| `src/google.js`, `src/google-reauth.js` | カレンダーAPIとGoogle認証。Google OAuthライブラリの準備中に再認証操作をしてもエラーとして残さず、ライブラリ読み込み完了時に旧バージョンで残った「準備しています」の通知だけを消す。ほかの警告・エラーは維持する |
 | `src/generator.js`, `src/ai*.js` | 献立生成・AI連携・検証 |
 | `src/dish-suggestions.js`, `src/master-filter.js` | 料理候補と一覧の抽出 |
 | `src/ingredients.js`, `src/shopping.js` | 材料の正規化と買い物集計 |
