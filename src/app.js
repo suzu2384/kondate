@@ -1415,10 +1415,12 @@ function pickPlaceSuggestion(button){
  hidePlaceSuggestions();updatePlaceSearchMessage('');field.blur();
 }
 const recordDishChoices=new Map();
+let planDishChoices=[];
 function hideDishSuggestions(){
  for(const list of document.querySelectorAll('.dish-suggestions'))list.hidden=true;
- for(const input of document.querySelectorAll('[data-editor-name]'))input.setAttribute('aria-expanded','false');
+ for(const input of document.querySelectorAll('[data-editor-name], #plan-name'))input.setAttribute('aria-expanded','false');
  recordDishChoices.clear();
+ planDishChoices=[];
 }
 function showDishSuggestions(input){
  if(!input||!editor)return;
@@ -1431,6 +1433,16 @@ function showDishSuggestions(input){
  list.hidden=!choices.length;
  input.setAttribute('aria-expanded',String(!!choices.length));
 }
+function showPlanDishSuggestions(input){
+ if(!editingPlan||!input)return;
+ const list=input.closest('.dish-input-group')?.querySelector('.dish-suggestions');
+ const category=$('#plan-category')?.value;
+ if(!list||!category)return;
+ planDishChoices=recordDishSuggestions(master(),state.draft,input.value,category,48);
+ list.innerHTML=planDishChoices.map((d,n)=>`<button type="button" class="dish-suggestion" role="option" data-action="suggest-plan-dish" data-choice="${n}"><span>${esc(d.name)}</span><small>${esc(categoryName(d.category))}</small></button>`).join('');
+ list.hidden=!planDishChoices.length;
+ input.setAttribute('aria-expanded',String(!!planDishChoices.length));
+}
 function pickRecordDishSuggestion(button){
  if(!editor||!button)return;
  const index=Number(button.dataset.index);
@@ -1441,6 +1453,17 @@ function pickRecordDishSuggestion(button){
  input.value=selected.name;
  const category=input.closest('.dish-editor')?.querySelector('[data-editor-category]');
  if(category)category.value=selected.category;
+ hideDishSuggestions();
+ input.blur();
+}
+function pickPlanDishSuggestion(button){
+ if(!editingPlan||!button)return;
+ const selected=planDishChoices[Number(button.dataset.choice)];
+ const input=$('#plan-name'),category=$('#plan-category');
+ if(!selected||!input||!category)return;
+ // Only 反映 commits the selected dish to the draft.
+ input.value=selected.name;
+ category.value=selected.category;
  hideDishSuggestions();
  input.blur();
 }
@@ -1652,7 +1675,21 @@ async function generateMasterIngredients(){
   }
  }
 }
-function editPlanDish(dayIndex,dishIndex=null){editingPlan={dayIndex,dishIndex};const d=state.draft[dayIndex].dishes[dishIndex]||{name:'',category:'main'};modal(dishIndex===null?'料理を追加':'料理を差し替える',`<label class="field"><span>料理名</span><input id="plan-name" value="${esc(d.name)}" list="plan-options" maxlength="100" placeholder="料理名を入力・候補から選択"></label><datalist id="plan-options">${master().map(d=>`<option value="${esc(d.name)}">${esc(categoryName(d.category))}</option>`).join('')}</datalist><label class="field"><span>分類</span><select id="plan-category">${categoryOptions(d.category)}</select></label><p class="hint">変更は下書きに反映されます。カレンダーには登録されません。</p>`,`${dishIndex!==null?button('この料理を削除','delete-plan-dish','danger'):''}${button('反映','save-plan-dish','primary')}`);}
+function editPlanDish(dayIndex,dishIndex=null){
+ editingPlan={dayIndex,dishIndex};
+ const d=state.draft[dayIndex].dishes[dishIndex]||{name:'',category:'main'};
+ planDishChoices=[];
+ modal(dishIndex===null?'料理を追加':'料理を差し替える',
+  `<div class="field"><span id="plan-name-label">料理名</span><div class="dish-input-group">
+   <input id="plan-name" aria-labelledby="plan-name-label" role="combobox" value="${esc(d.name)}"
+    maxlength="100" placeholder="料理名を入力・候補から選択" autocomplete="off"
+    aria-autocomplete="list" aria-expanded="false" aria-controls="plan-dish-suggestions">
+   <div id="plan-dish-suggestions" class="dish-suggestions" role="listbox" aria-label="料理名の候補" hidden></div>
+  </div></div>
+  <label class="field"><span>分類</span><select id="plan-category">${categoryOptions(d.category)}</select></label>
+  <p class="hint">変更は下書きに反映されます。カレンダーには登録されません。</p>`,
+  `${dishIndex!==null?button('この料理を削除','delete-plan-dish','danger'):''}${button('反映','save-plan-dish','primary')}`);
+}
 function checkDraft(){issues=validatePlan(state.draft,state.rules,master());persist();render();notify(issues.length?generationIssuesNotice(issues):'献立の確認事項が解消しました。');}
 async function applyPendingCalendarRenames(batches,failed){
  const pending=state.pendingCalendarRenames.map(item=>({...item}));
@@ -2190,7 +2227,7 @@ const actions={
  'cancel-event-memo':()=>{editingEventMemo=null;refreshEventMemoEditor();},
  'save-event-memo':saveEventMemo,
  'close-dialog':closeModal,'editor-add':()=>{editor.dishes.push({name:'',category:'main'});drawRecord();},'editor-remove':b=>{editor.dishes.splice(Number(b.dataset.index),1);drawRecord();},
- 'suggest-record-dish':pickRecordDishSuggestion,'pick-location':pickPlaceSuggestion,
+ 'suggest-record-dish':pickRecordDishSuggestion,'suggest-plan-dish':pickPlanDishSuggestion,'pick-location':pickPlaceSuggestion,
  'close-place-search':()=>closePlaceSearchSheet(),
  
  'save-record':saveRecord,
@@ -2545,7 +2582,7 @@ function movePresetByKeyboard(handle,direction){
 // Resolve a stationary tap at touchend while leaving touch scrolling untouched.
 let dishSuggestionTouch=null;
 document.addEventListener('touchstart',e=>{
- const candidate=e.target.closest?.('[data-action="suggest-record-dish"]');
+ const candidate=e.target.closest?.('[data-action="suggest-record-dish"],[data-action="suggest-plan-dish"]');
  if(!candidate||e.touches.length!==1){dishSuggestionTouch=null;return;}
  const touch=e.touches[0];
  dishSuggestionTouch={candidate,id:touch.identifier,x:touch.clientX,y:touch.clientY};
@@ -2558,7 +2595,8 @@ document.addEventListener('touchend',e=>{
  if(!touch||Math.hypot(touch.clientX-start.x,touch.clientY-start.y)>12)return;
  if(!start.candidate.isConnected)return;
  e.preventDefault();
- pickRecordDishSuggestion(start.candidate);
+ if(start.candidate.dataset.action==='suggest-plan-dish')pickPlanDishSuggestion(start.candidate);
+ else pickRecordDishSuggestion(start.candidate);
 },{passive:false});
 document.addEventListener('touchcancel',()=>{dishSuggestionTouch=null;},{passive:true});
 // Capture pointer selection before iOS dismisses the keyboard and changes focus.
@@ -2569,11 +2607,12 @@ document.addEventListener('pointerdown',e=>{
  if(e.target.id==='record-location'&&e.pointerType==='touch'&&matchMedia('(max-width:760px)').matches){
   e.preventDefault();openPlaceSearchSheet();return;
  }
- const candidate=e.target.closest?.('[data-action="suggest-record-dish"]');
+ const candidate=e.target.closest?.('[data-action="suggest-record-dish"],[data-action="suggest-plan-dish"]');
  if(!candidate||e.pointerType==='touch')return;
  // Touch scrolling must remain native; tap selection uses the click handler.
  e.preventDefault();
- pickRecordDishSuggestion(candidate);
+ if(candidate.dataset.action==='suggest-plan-dish')pickPlanDishSuggestion(candidate);
+ else pickRecordDishSuggestion(candidate);
 },true);
 document.addEventListener('pointermove',e=>{
  if(presetDrag?.kind==='pointer')dragPresetToPoint(e.clientX,e.clientY);
@@ -2674,6 +2713,7 @@ document.addEventListener('input',e=>{const el=e.target;
  if(el.id==='family-join-link'){updateFamilyUrlAction(el.dataset.kind);return;}
  if(el.id==='preset-edit-color'){updatePresetEditorIconPreview();return;}
  if(editor&&el.matches('[data-editor-name]')){editor.dishes[el.dataset.editorName].name=el.value;showDishSuggestions(el);}
+ if(el.id==='plan-name')showPlanDishSuggestions(el);
  if(editor&&(el.id==='record-location'||el.id==='place-search-active')){
   editor.location=el.value;
   const other=el.id==='record-location'?$('#place-search-active'):$('#record-location');
@@ -2691,10 +2731,11 @@ window.addEventListener('resize',layoutPresetLegend);
 globalThis.visualViewport?.addEventListener('resize',positionPlaceSuggestions);
 globalThis.visualViewport?.addEventListener('scroll',positionPlaceSuggestions);
 document.addEventListener('focusin',e=>{
- const field=e.target.closest?.('[data-editor-name]');
+ const field=e.target.closest?.('[data-editor-name], #plan-name');
  if(field){
   for(const list of document.querySelectorAll('.dish-suggestions'))if(list!==field.closest('.dish-input-group')?.querySelector('.dish-suggestions'))list.hidden=true;
-  showDishSuggestions(field);
+  if(field.id==='plan-name')showPlanDishSuggestions(field);
+  else showDishSuggestions(field);
  }else if(!e.target.closest?.('.dish-suggestions'))hideDishSuggestions();
  if(e.target.id==='record-location'){
   if(matchMedia('(max-width:760px)').matches){openPlaceSearchSheet();return;}
@@ -2720,7 +2761,7 @@ document.addEventListener('keydown',e=>{
   }
   return;
  }
- if(e.target.matches?.('[data-editor-name]')){
+ if(e.target.matches?.('[data-editor-name], #plan-name')){
   if(e.key==='ArrowDown'){
    const suggestion=e.target.closest('.dish-input-group')?.querySelector('.dish-suggestion');
    if(suggestion){e.preventDefault();suggestion.focus();}
@@ -2731,12 +2772,17 @@ document.addEventListener('keydown',e=>{
    const next=buttons.indexOf(e.target)+(e.key==='ArrowDown'?1:-1);
    if(buttons[next]){e.preventDefault();buttons[next].focus();}
   }else if(e.key==='Escape'){
-   const input=e.target.closest('.dish-input-group')?.querySelector('[data-editor-name]');
+   const input=e.target.closest('.dish-input-group')?.querySelector('[data-editor-name], #plan-name');
    input?.focus();hideDishSuggestions();
   }
  }
 });
 document.addEventListener('change',async e=>{const el=e.target;try{
+ if(el.id==='plan-category'){
+  const input=$('#plan-name');
+  if(input)showPlanDishSuggestions(input);
+  return;
+ }
  if(el.matches('[data-shopping-check]')){
   const item=shoppingData().items.find(item=>item.id===el.dataset.shoppingCheck);
   if(!item||item.excluded)return;
